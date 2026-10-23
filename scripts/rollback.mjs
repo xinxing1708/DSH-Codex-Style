@@ -12,7 +12,9 @@ for (const entry of receipt.files) {
 }
 const linkInfo = await lstat(receipt.linkPath).catch(e => { if (e.code === 'ENOENT') return null; throw e; });
 if (linkInfo && (!linkInfo.isSymbolicLink() || resolve(await realpath(receipt.linkPath)) !== resolve(receipt.target))) throw new Error('插件链接已变化，停止回退');
+const previousLinkPath = receipt.previousLinkPath || receipt.linkPath;
+if (receipt.previousTarget && previousLinkPath !== receipt.linkPath && await lstat(previousLinkPath).catch(e => { if (e.code === 'ENOENT') return null; throw e; })) throw new Error('旧包链接已被重新创建，停止回退');
 for (const entry of receipt.files) await copyFile(entry.backup, entry.path);
 if (linkInfo) await unlink(receipt.linkPath);
-if (receipt.previousTarget) await symlink(receipt.previousTarget, receipt.linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+if (receipt.previousTarget) await symlink(receipt.previousTarget, previousLinkPath, process.platform === 'win32' ? 'junction' : 'dir');
 console.log('已恢复安装前的 desktop 配置。插件产物保留在 ' + receipt.target + '；重启 DSH 后生效。');

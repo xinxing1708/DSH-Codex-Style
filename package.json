@@ -1,6 +1,6 @@
 {
-  "name": "dsh-codex-style",
-  "version": "0.1.1",
+  "name": "@xinxing1708/dsh-codex-style",
+  "version": "0.1.3",
   "description": "DSH 的 Codex 风格深色界面插件",
   "type": "module",
   "main": "lib/host.js",
@@ -26,6 +26,10 @@
     "licenses"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "dsh": {
     "engines": {
       "dsh": "0.2.1-rc.2"
@@ -42,17 +46,18 @@
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-model-selection",
         "@deepseek-ai/dsh-client-ui-permission-presets",
-        "@deepseek-ai/dsh-client-ui-settings-general"
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
       ]
     }
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xinxing1708/DSH-Codex-Sytle.git"
+    "url": "git+https://github.com/xinxing1708/DSH-Codex-Style.git"
   },
-  "homepage": "https://github.com/xinxing1708/DSH-Codex-Sytle#readme",
+  "homepage": "https://github.com/xinxing1708/DSH-Codex-Style#readme",
   "bugs": {
-    "url": "https://github.com/xinxing1708/DSH-Codex-Sytle/issues"
+    "url": "https://github.com/xinxing1708/DSH-Codex-Style/issues"
   },
   "engines": {
     "node": ">=20"

@@ -1,6 +1,6 @@
 const React = require('react');
 const { createPortal } = require('react-dom');
-const { RiskConfirmation } = require('@deepseek-ai/dsh-client-ui-primitives');
+const { RiskConfirmation, Button, IconRefreshOutlineRegular } = require('@deepseek-ai/dsh-client-ui-primitives');
 const { createSnapshotStore } = require('@deepseek-ai/dsh-client-store');
 const h = React.createElement;
 const { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useSyncExternalStore } = React;
@@ -19,6 +19,7 @@ const paths = {
   check: 'm3.5 8 3 3 6-6',
   shield: 'M8 1.8 13 4v4.2c0 2.8-2.3 4.8-5 6-2.7-1.2-5-3.2-5-6V4ZM8 5v3.6m0 2.1v.1',
   pin: 'm5 2 6 0-1 4 2 2H9v5l-1 1V8H4l2-2Z',
+  archive: 'M3 5.5v6.3c0 .9.7 1.7 1.7 1.7h6.6c1 0 1.7-.8 1.7-1.7V5.5M2.5 2.5h11v3h-11ZM6.2 8h3.6',
   monitor: 'M2 3h12v8H2zM5.5 13h5M8 11v2',
   arrowUpRight: 'M4.8 11.2 11.2 4.8M5.9 4.8h5.3v5.3',
   close: 'M4 4l8 8M12 4l-8 8',
@@ -44,7 +45,7 @@ function Option({ title, detail, icon, selected, onClick, disabled, warning }) {
 
 // 所有浮层位于自己的 portal 根；只读取 anchor 与自己的 DOM，不查宿主私有选择器。
 // placement: 'top' 为默认（锚点上方优先），'right' 用于行尾菜单（锚点右下方展开）。
-function Popover({ anchor, onClose, label, width = 300, children, className = '', autoFocus = true, role = 'menu', placement = 'top' }) {
+function Popover({ anchor, point, onClose, label, width = 300, children, className = '', autoFocus = true, role = 'menu', placement = 'top' }) {
   const ref = useRef(null);
   const [position, setPosition] = useState({ visibility: 'hidden' });
   useLayoutEffect(() => {
@@ -53,6 +54,10 @@ function Popover({ anchor, onClose, label, width = 300, children, className = ''
       const box = anchor.current.getBoundingClientRect();
       const w = Math.min(width, window.innerWidth - 24);
       const size = ref.current.getBoundingClientRect();
+      if (point) {
+        setPosition({ position: 'fixed', left: Math.max(12, Math.min(point.x, window.innerWidth - w - 12)), top: Math.max(12, Math.min(point.y, window.innerHeight - size.height - 12)), width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
+        return;
+      }
       if (placement === 'right') {
         const spaceRight = window.innerWidth - box.right - 12;
         const left = spaceRight >= w ? box.right + 6 : Math.max(12, box.left - w - 6);
@@ -70,7 +75,7 @@ function Popover({ anchor, onClose, label, width = 300, children, className = ''
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
     return () => { observer.disconnect(); window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
-  }, [anchor, width, placement]);
+  }, [anchor, point, width, placement]);
   useEffect(() => {
     if (autoFocus) (ref.current?.querySelector('input, [aria-checked="true"], button, [role="slider"]'))?.focus({ preventScroll: true });
     const pointer = e => { if (!ref.current?.contains(e.target) && !anchor.current?.contains(e.target)) onClose(); };
@@ -127,7 +132,7 @@ function HoverCard({ anchor, kind, onClose, onEnter, onLeave, children }) {
 // 图钉为真实状态指示：DSH 只有会话置顶、没有工作区置顶，因此工作区始终显示空心「未置顶」。
 function PinMark({ filled }) {
   return h('svg', { viewBox: '0 0 16 16', width: 14, height: 14, fill: filled ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
-    h('g', { transform: 'rotate(45 8 8)' }, h('path', { d: 'M6 2.5v3L4 8.5h8L10 5.5v-3M8 8.5V14' })));
+    h('g', { transform: 'rotate(45 8 8)' }, h('path', { d: 'M6 2.5h4v3L12 8.5H4L6 5.5ZM8 8.5V14' })));
 }
 function ProjectHoverCard({ data, anchor, onReveal, onEdit, ...root }) {
   return h(HoverCard, { anchor, kind: 'project', ...root },
@@ -203,6 +208,61 @@ function relativeTime(value) {
   return minutes < 1 ? '刚刚' : minutes < 60 ? minutes + '分钟前' : minutes < 1440 ? Math.floor(minutes / 60) + '小时前' : Math.floor(minutes / 1440) + '天前';
 }
 
+// 测量标题当前可用宽度；侧栏拖宽、重命名都会重新计算。
+function ThreadTitle({ title }) {
+  const viewport = useRef(null);
+  const text = useRef(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const overflow = Math.max(0, text.current.scrollWidth - viewport.current.clientWidth);
+      viewport.current.dataset.overflow = String(overflow > 1);
+      viewport.current.style.setProperty('--dsc-title-shift', -overflow + 'px');
+      viewport.current.style.setProperty('--dsc-title-duration', Math.max(2.5, overflow / 30) + 's');
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport.current);
+    observer.observe(text.current);
+    return () => observer.disconnect();
+  }, [title]);
+  return h('span', { ref: viewport, className: 'dsc-thread-title' }, h('span', { ref: text, className: 'dsc-thread-title-text' }, title));
+}
+
+// 提示 portal 到 body，避免被滚动区或正在开合的项目裁掉；延迟和进退由 CSS 控制。
+function RowTooltip({ anchor, open, label, onClose }) {
+  const ref = useRef(null);
+  const [position, setPosition] = useState({});
+  useLayoutEffect(() => {
+    if (!open) return;
+    const box = anchor.current.getBoundingClientRect();
+    const tip = ref.current.getBoundingClientRect();
+    setPosition({ left: Math.max(8, Math.min(box.left + (box.width - tip.width) / 2, window.innerWidth - tip.width - 8)), top: box.top - tip.height - 7 >= 8 ? box.top - tip.height - 7 : box.bottom + 7 });
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, true);
+    return () => { window.removeEventListener('resize', onClose); window.removeEventListener('scroll', onClose, true); };
+  }, [anchor, open, label, onClose]);
+  return createPortal(h('div', { ref, className: 'dsc-ui dsc-row-tooltip', role: 'tooltip', 'aria-hidden': !open, 'data-open': open, style: position }, label), document.body);
+}
+
+function ThreadAction({ label, active, onIntent, onClick, className = '', pressed, children }) {
+  const anchor = useRef(null);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const close = useCallback(() => { setHovered(false); setFocused(false); }, []);
+  useEffect(() => { if (!active) close(); }, [active, close]);
+  return h(React.Fragment, null,
+    h('button', { ref: anchor, type: 'button', className: 'dsc-thread-action ' + className, 'aria-label': label, 'aria-pressed': pressed,
+      onPointerEnter: () => { onIntent(); setHovered(true); }, onPointerLeave: () => setHovered(false),
+      onFocus: e => { if (e.currentTarget.matches(':focus-visible')) { onIntent(); setFocused(true); } }, onBlur: () => setFocused(false),
+      onClick: () => { close(); onIntent(); onClick(); } }, children),
+    h(RowTooltip, { anchor, open: active && (hovered || focused), label, onClose: close }));
+}
+
+function ProjectFold({ open, children, className = '' }) {
+  return h('div', { className: 'dsc-project-fold ' + className, 'data-open': open, 'aria-hidden': !open, ref: node => { if (node) node.inert = !open; } },
+    h('div', { className: 'dsc-project-clip' }, children));
+}
+
 function makeWorkspaceTree(ctx) {
   return function WorkspaceTree({ query = '', tools = true, active = true, onNavigate }) {
     const catalog = useSource(ctx.sessions.list);
@@ -210,6 +270,7 @@ function makeWorkspaceTree(ctx) {
     const status = useSource(ctx.uiSession.sessionStatus);
     const panel = useSource(ctx.layout.panelInfo);
     const [expanded, setExpanded] = useState({});
+    const [projectsOpen, setProjectsOpen] = useState(true);
     const [showArchived, setShowArchived] = useState(false);
     const [message, setMessage] = useState('');
     const [adding, setAdding] = useState(false);
@@ -265,17 +326,31 @@ function makeWorkspaceTree(ctx) {
       const result = await ctx.sessions.rename(row.sessionId, next);
       if (result?.ok === false) throw result.error;
     };
-    const row = s => {
+    const togglePin = s => run(() => pinned.has(s.sessionId) ? ctx.uiWorkspace.unpinSession(s.sessionId) : ctx.uiWorkspace.pinSession(s.sessionId));
+    const toggleArchive = s => run(() => archived.has(s.sessionId) ? ctx.uiWorkspace.unarchiveSession(s.sessionId) : ctx.uiWorkspace.archiveSession(s.sessionId));
+    // 继续使用原来的菜单与动作，只把入口改为整行右键（含 Shift+F10 / 菜单键）。
+    const openThreadMenu = (event, s) => {
+      event.preventDefault(); event.stopPropagation();
+      menuAnchor.current = event.currentTarget.querySelector('.dsc-thread-main');
+      const box = menuAnchor.current.getBoundingClientRect();
+      const point = event.type === 'contextmenu' && (event.clientX || event.clientY) ? { x: event.clientX, y: event.clientY } : { x: box.left + 16, y: box.bottom };
+      hideHover(); setProjectMenu(null); setMenu({ ...s, point });
+    };
+    const row = (s, rowActive = active) => {
       const state = status.get(s.sessionId);
+      const actionsActive = rowActive && !menu && !projectMenu && !editing;
       const pending = state?.pendingInteraction;
       const activity = pending ? '等待处理' : state?.running ? '运行中' : state?.completionUnread ? '已完成' : relativeTime(s.updatedAt);
-      return h('div', { key: s.sessionId, className: 'dsc-thread' + (s.sessionId === currentId && panel.activePanelId === null ? ' is-active' : '') + (archived.has(s.sessionId) ? ' is-archived' : ''),
+      return h('div', { key: s.sessionId, className: 'dsc-thread' + (s.sessionId === currentId && panel.activePanelId === null ? ' is-active' : '') + (archived.has(s.sessionId) ? ' is-archived' : '') + (pinned.has(s.sessionId) ? ' is-pinned' : ''),
+        onContextMenu: e => openThreadMenu(e, s), onKeyDown: e => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) openThreadMenu(e, s); },
         onPointerEnter: e => enterHover(e.currentTarget, { kind: 'thread', id: s.sessionId, title: s.title || '未命名对话', status: activity, workspaceTitle: workspaceOf(s.sessionId)?.title, path: workspaceOf(s.sessionId)?.path }), onPointerLeave: closeHover },
-        h('button', { type: 'button', className: 'dsc-thread-main', onClick: () => { if (archived.has(s.sessionId)) run(() => ctx.uiWorkspace.unarchiveSession(s.sessionId)); else { ctx.uiWorkspace.openSession(s.sessionId); onNavigate?.(); } }, title: archived.has(s.sessionId) ? '取消归档' : s.title },
+        h('button', { type: 'button', className: 'dsc-thread-main', 'aria-haspopup': 'menu', onClick: () => { if (archived.has(s.sessionId)) run(() => ctx.uiWorkspace.unarchiveSession(s.sessionId)); else { ctx.uiWorkspace.openSession(s.sessionId); onNavigate?.(); } } },
           h('span', { className: 'dsc-state', 'data-state': pending ? 'pending' : state?.running ? 'running' : state?.completionUnread ? 'done' : 'idle' }, (pending || state?.running || state?.completionUnread) && h(Icon, { name: 'chat', size: 14 })),
-          h('span', { className: 'dsc-thread-title' }, s.title || '未命名对话'),
+          h(ThreadTitle, { title: s.title || '未命名对话' }),
           h('small', { className: 'dsc-thread-time' }, activity)),
-        h('button', { type: 'button', className: 'dsc-row-action', 'aria-label': '对话菜单', onClick: e => { menuAnchor.current = e.currentTarget; setHover(null); setMenu(s); } }, '⋯'));
+        h('div', { className: 'dsc-thread-actions' },
+          h(ThreadAction, { label: pinned.has(s.sessionId) ? '取消置顶聊天' : '置顶聊天', className: 'dsc-pin-action', pressed: pinned.has(s.sessionId), active: actionsActive, onIntent: hideHover, onClick: () => togglePin(s) }, h(PinMark, { filled: pinned.has(s.sessionId) })),
+          h(ThreadAction, { label: archived.has(s.sessionId) ? '取消归档聊天' : '归档聊天', active: actionsActive, onIntent: hideHover, onClick: () => toggleArchive(s) }, h(Icon, { name: 'archive', size: 14 }))));
     };
     const addWorkspace = async () => {
       setAdding(true);
@@ -290,30 +365,34 @@ function makeWorkspaceTree(ctx) {
       });
       if (alive.current) setAdding(false);
     };
+    const projectHeading = h('div', { className: 'dsc-tree-tools', 'data-compact': !tools },
+      h('button', { type: 'button', className: 'dsc-projects-toggle', 'aria-label': '项目', 'aria-expanded': projectsOpen, onClick: () => { hideHover(); setMenu(null); setProjectMenu(null); setProjectsOpen(!projectsOpen); } }, h('span', { className: 'dsc-tree-tools-label' }, '项目'), h(Icon, { name: 'chevron', size: 12 })),
+      h('button', { type: 'button', className: 'dsc-icon-button', title: '添加工作区', onClick: addWorkspace, disabled: adding }, h(Icon, { name: 'plus' })));
     return h('div', { className: 'dsc-ui dsc-workspaces' },
-      h('div', { className: 'dsc-tree-tools', 'data-compact': !tools }, h('span', { className: 'dsc-tree-tools-label' }, '项目'),
-        h('button', { type: 'button', className: 'dsc-icon-button', title: '添加工作区', onClick: addWorkspace, disabled: adding }, h(Icon, { name: 'plus' }))),
+      query && projectHeading,
       h(ErrorLine, { text: message || (catalog.error && errorText(catalog.error)) || (workspaces.error && errorText(workspaces.error)) }),
       h('div', { className: 'dsc-tree-scroll' },
-        query ? h(React.Fragment, null, h('div', { className: 'dsc-section-title' }, '搜索结果'), visible.map(row)) : h(React.Fragment, null,
-          pinned.size > 0 && h('section', null, h('div', { className: 'dsc-section-title' }, '置顶'), visible.filter(s => pinned.has(s.sessionId)).map(row)),
-          workspaces.items.map(w => {
+        query ? h(React.Fragment, null, h('div', { className: 'dsc-section-title' }, '搜索结果'), visible.map(s => row(s))) : h(React.Fragment, null,
+          pinned.size > 0 && h('section', null, h('div', { className: 'dsc-section-title' }, '置顶'), visible.filter(s => pinned.has(s.sessionId)).map(s => row(s))),
+          projectHeading,
+          h(ProjectFold, { open: projectsOpen, className: 'dsc-project-list-fold' }, h('div', { className: 'dsc-project-list' }, workspaces.items.map(w => {
             const children = visible.filter(s => w.sessionIds.includes(s.sessionId) && !pinned.has(s.sessionId));
             const open = expanded[w.workspaceId] ?? w.sessionIds.includes(currentId);
             return h('section', { key: w.workspaceId }, h('div', { className: 'dsc-project', onPointerEnter: e => enterHover(e.currentTarget, { kind: 'project', id: w.workspaceId, workspace: w, title: w.title || '未命名项目', count: children.length, path: w.path, pinned: w.pinned === true }), onPointerLeave: closeHover },
-              h('button', { type: 'button', className: 'dsc-project-main', onClick: () => setExpanded({ ...expanded, [w.workspaceId]: !open }), 'aria-expanded': open }, h(Icon, { name: open ? 'folderOpen' : 'folder' }), h('span', null, w.title || '未命名项目')),
+              h('button', { type: 'button', className: 'dsc-project-main', onClick: () => { hideHover(); setMenu(null); setProjectMenu(null); setExpanded({ ...expanded, [w.workspaceId]: !open }); }, 'aria-expanded': open }, h(Icon, { name: open ? 'folderOpen' : 'folder' }), h('span', null, w.title || '未命名项目')),
               h('button', { type: 'button', className: 'dsc-row-action', title: '项目菜单', 'aria-label': '项目菜单', 'aria-haspopup': 'menu', 'aria-expanded': projectMenu?.workspaceId === w.workspaceId, onClick: e => { projectAnchor.current = e.currentTarget; setHover(null); setProjectMenu(projectMenu?.workspaceId === w.workspaceId ? null : w); } }, '⋯'),
-              h('button', { type: 'button', className: 'dsc-row-action', title: '在此项目新建对话', 'aria-label': '在此项目新建对话', onClick: () => { ctx.uiWorkspace.startSession(w.workspaceId); onNavigate?.(); } }, h(Icon, { name: 'pencil', size: 14 }))), open && h('div', { className: 'dsc-project-children' }, children.length ? children.map(row) : h('small', { className: 'dsc-empty' }, '暂无对话')));
-          }),
-          h('div', { className: 'dsc-section-title' }, '最近'), visible.filter(s => !workspaceOf(s.sessionId) && !pinned.has(s.sessionId)).map(row)),
+              h('button', { type: 'button', className: 'dsc-row-action', title: '在此项目新建对话', 'aria-label': '在此项目新建对话', onClick: () => { ctx.uiWorkspace.startSession(w.workspaceId); onNavigate?.(); } }, h(Icon, { name: 'pencil', size: 14 }))),
+              h(ProjectFold, { open }, h('div', { className: 'dsc-project-children' }, children.length ? children.map(s => row(s, active && projectsOpen && open)) : h('small', { className: 'dsc-empty' }, '暂无对话'))));
+          }))),
+          h('div', { className: 'dsc-section-title' }, '最近'), visible.filter(s => !workspaceOf(s.sessionId) && !pinned.has(s.sessionId)).map(s => row(s))),
         !visible.length && catalog.phase === 'ready' && h('div', { className: 'dsc-empty' }, query ? '没有匹配的对话' : '选择项目，开始新对话'),
         catalog.phase !== 'ready' && h('div', { className: 'dsc-empty', role: 'status' }, '正在加载会话…')),
       h('label', { className: 'dsc-archive-toggle' }, h('input', { type: 'checkbox', checked: showArchived, onChange: e => setShowArchived(e.target.checked) }), '显示已归档对话'),
-      menu && h(Popover, { anchor: menuAnchor, onClose: () => setMenu(null), label: '对话菜单', width: 228 },
+      menu && h(Popover, { anchor: menuAnchor, point: menu.point, onClose: () => setMenu(null), label: '对话菜单', width: 228 },
         h(Option, { title: '重命名', icon: 'pencil', onClick: () => { const target = menu; setMenu(null); run(() => rename(target)); } }),
-        h(Option, { title: pinned.has(menu.sessionId) ? '取消置顶' : '置顶', icon: 'pin', onClick: () => { const target = menu; setMenu(null); run(() => pinned.has(target.sessionId) ? ctx.uiWorkspace.unpinSession(target.sessionId) : ctx.uiWorkspace.pinSession(target.sessionId)); } }),
+        h(Option, { title: pinned.has(menu.sessionId) ? '取消置顶' : '置顶', icon: 'pin', onClick: () => { const target = menu; setMenu(null); togglePin(target); } }),
         h(Option, { title: '分叉对话', icon: 'chat', onClick: () => { const target = menu; setMenu(null); run(() => ctx.uiWorkspace.forkSession(target.sessionId)); } }),
-        h(Option, { title: archived.has(menu.sessionId) ? '取消归档' : '归档', onClick: () => { const target = menu; setMenu(null); run(() => archived.has(target.sessionId) ? ctx.uiWorkspace.unarchiveSession(target.sessionId) : ctx.uiWorkspace.archiveSession(target.sessionId)); } })),
+        h(Option, { title: archived.has(menu.sessionId) ? '取消归档' : '归档', icon: 'archive', onClick: () => { const target = menu; setMenu(null); toggleArchive(target); } })),
       // Codex 风格项目菜单：仅提供编辑与移除项目两项，编辑复用现有编辑项目对话框；从行右侧下方展开。
       projectMenu && h(Popover, { anchor: projectAnchor, onClose: () => setProjectMenu(null), label: '项目菜单', width: 228, placement: 'right' },
         h(Option, { title: '编辑', icon: 'pencil', onClick: () => { const target = projectMenu; setProjectMenu(null); editWorkspace(target); } }),
@@ -633,6 +712,10 @@ function apply(ctx) {
     'settings.trigger': () => h('span', { className: 'dsc-ui dsc-settings-trigger' }, h(Icon, { name: 'settings', size: 18 }), '设置')
   };
   for (const [name, component] of Object.entries(components)) register(ctx, name, component);
+  const updates = createPluginUpdateService(PLUGIN_VERSION);
+  ctx.effect(() => { updates.start(); return () => updates.dispose(); }, 'codex-style: automatic update check');
+  ctx.slots.inject('plugins.detail.actions', () => ctx.slots.register({ name: 'plugins.detail.actions', id: 'codex-style:check-update' }, props => h(PluginUpdateAction, { ...props, updates })));
+  ctx.inject(['pluginNavigation'], scope => scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:update-notice' }, () => h(PluginUpdateNotice, { updates, onOpen: () => scope.reflect.get('pluginNavigation').openBundle(PLUGIN_PACKAGE) }))));
   // 等各区域自己的服务就绪；权限 RPC 的命名空间不能由 remote 根服务存在来推断。
   ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale'], scope => {
     const sidebar = createSidebarPresentation();
