@@ -61,6 +61,16 @@ npm run build
 
 构建仅使用 Node.js 标准库，不需要 `npm install` 或联网。所需源码、样式、自绘图标和品牌图均已包含，产物写入 `lib/`。随后可运行 `node scripts/install.mjs`。
 
+## 部分效果演示
+<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/73a8455d-f4c0-476e-a8de-731c3bec69c4" />
+<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/17d9ed75-c0ff-4a6d-b759-c208c58b1099" />
+<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/a7dd4a26-9100-4633-865e-d3dc2dc82269" />
+<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/ee67555e-3fd0-4995-8ed2-db1c430b2855" />
+<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/8e74053d-a8a2-4c55-96c1-db504554c361" />
+
+
+
+
 | 路径 | 用途 |
 |---|---|
 | `src/` | 客户端组件、宿主入口及局部样式 |
