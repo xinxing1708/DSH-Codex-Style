@@ -1,0 +1,11 @@
+{
+  "id": "codex-style",
+  "name": "Codex Style",
+  "tagline": "为 DSH 提供 Codex 风格的深色界面",
+  "package": "dsh-codex-style",
+  "bodyAttr": "data-dsh-codex-style",
+  "accent": "#0285ff",
+  "wiring": {
+    "id": "ui-skin-codex-style"
+  }
+}

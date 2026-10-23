@@ -1,0 +1,107 @@
+/* ============ 导航栏 ============ */
+.rail {
+  grid-area: rail;
+  position: relative;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  background: var(--cx-window);
+  border-right: 1px solid var(--cx-border-l2);
+}
+.rail__spacer { flex: 1; }
+.rail__item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--cx-radius-md);
+  color: var(--cx-text-3);
+  transition: background-color var(--cx-dur-fast) var(--cx-ease), color var(--cx-dur-fast) var(--cx-ease);
+}
+.rail__item:hover { background: var(--cx-hover); color: var(--cx-text); }
+.rail__item--active { background: var(--cx-active); color: var(--cx-text); }
+/* 插头先以不透明白色统一描边，再整体降低透明度，避免相交线段叠色发亮。 */
+.rail__plugin-icon { color: #fff; opacity: .5; stroke-width: 1.5; transition: opacity var(--cx-dur-fast) var(--cx-ease); }
+.rail__item:hover .rail__plugin-icon,
+.rail__item--active .rail__plugin-icon { opacity: 1; }
+.rail__item::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 44px;
+  top: 50%;
+  z-index: var(--cx-z-popover);
+  padding: 4px 8px;
+  border-radius: var(--cx-radius-sm);
+  border: 1px solid var(--cx-border-l1);
+  background: #2b2b2b;
+  color: var(--cx-text);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  box-shadow: var(--cx-shadow-lg);
+  opacity: 0;
+  transform: translateY(-50%) translateX(-2px);
+  pointer-events: none;
+  transition: opacity var(--cx-dur-fast) var(--cx-ease), transform var(--cx-dur-fast) var(--cx-ease);
+}
+.rail__item:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+
+/* ============ 侧栏 ============ */
+.sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--cx-sidebar);
+  border-right: 1px solid var(--cx-border-l2);
+  overflow: hidden;
+}
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  margin: -8px -8px 6px;
+  padding: 0 6px 0 10px;
+}
+.brand { display: flex; align-items: center; gap: 7px; }
+.brand__mark { display: block; height: 19px; width: auto; }
+.brand__wordmark {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cx-text);
+  line-height: 1;
+}
+.brand__badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  padding: 3px 5px 2px;
+  border-radius: 3px;
+  background: var(--cx-text);
+  color: var(--cx-window);
+}
+.sidebar__header-actions { display: flex; align-items: center; gap: 2px; }
+.new-chat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--cx-radius-md);
+  font-size: 13px;
+  font-weight: var(--cx-weight-medium);
+  color: var(--cx-text);
+  background: var(--cx-active);
+  transition: background-color var(--cx-dur-fast) var(--cx-ease);
+}
+.new-chat:hover { background: rgba(255, 255, 255, 0.12); }
+.new-chat kbd { margin-left: auto; font-size: 11px; color: var(--cx-text-4); }

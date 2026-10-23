@@ -1,0 +1,60 @@
+{
+  "name": "dsh-codex-style",
+  "version": "0.1.0",
+  "description": "DSH 的 Codex 风格深色界面插件",
+  "type": "module",
+  "main": "lib/host.js",
+  "exports": {
+    ".": "./lib/host.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "skin.json",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md",
+    "install.cmd",
+    "scripts/install.mjs",
+    "scripts/rollback.mjs",
+    "licenses"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "engines": {
+      "dsh": "0.2.1-rc.2"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-model-selection",
+        "@deepseek-ai/dsh-client-ui-permission-presets",
+        "@deepseek-ai/dsh-client-ui-settings-general"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xinxing1708/DSH-Codex-Sytle.git"
+  },
+  "homepage": "https://github.com/xinxing1708/DSH-Codex-Sytle#readme",
+  "bugs": {
+    "url": "https://github.com/xinxing1708/DSH-Codex-Sytle/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

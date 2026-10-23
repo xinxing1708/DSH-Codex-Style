@@ -1,0 +1,161 @@
+/* 自研界面令牌；尺寸与色值参考界面测量。来源说明见 THIRD_PARTY_NOTICES.md。 */
+
+:root {
+  /* ---- 间距 ---- */
+  --cx-spacing: 4px;
+  --cx-space-1: 4px;
+  --cx-space-2: 8px;
+  --cx-space-3: 12px;
+  --cx-space-4: 16px;
+  --cx-space-5: 20px;
+  --cx-space-6: 24px;
+  --cx-space-8: 32px;
+
+  /* ---- 圆角阶梯 ---- */
+  --cx-radius-2xs: 2px;
+  --cx-radius-xs: 4px;
+  --cx-radius-sm: 6px;
+  --cx-radius-md: 8px;
+  --cx-radius-lg: 10px;
+  --cx-radius-xl: 12px;
+  --cx-radius-2xl: 16px;
+  --cx-radius-3xl: 20px;
+  --cx-radius-4xl: 24px;
+  --cx-radius-composer: 25px;
+  --cx-radius-full: 9999px;
+
+  /* ---- 暗色面（深色界面：导航/顶栏 #202020、侧栏 #1b1b1b、对话区 #181818） ---- */
+  --cx-window: #202020;
+  --cx-sidebar: #1b1b1b;
+  --cx-surface: #181818;
+  --cx-thread: #171717;
+  --cx-nested: #212121;
+  --cx-elevated: #282828;
+  --cx-summary: #2d2d2d;
+  --cx-hover: rgba(255, 255, 255, 0.045);
+  --cx-active: rgba(255, 255, 255, 0.08);
+
+  /* ---- 边框 ---- */
+  --cx-border-l1: rgba(255, 255, 255, 0.08);
+  --cx-border-l2: rgba(255, 255, 255, 0.04);
+  --cx-border-l3: rgba(255, 255, 255, 0.16);
+  --cx-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* ---- 文本 ---- */
+  --cx-text: #ffffff;
+  --cx-text-2: rgba(255, 255, 255, 0.7);
+  --cx-text-3: rgba(255, 255, 255, 0.5);
+  --cx-text-4: rgba(255, 255, 255, 0.32);
+  --cx-text-inverse: #0d0d0d;
+
+  /* ---- 强调 / 状态 ---- */
+  --cx-accent: #0285ff;
+  --cx-accent-soft: #339cff;
+  --cx-focus: #339cff;
+  --cx-success: #40c977;
+  --cx-danger: #ff6764;
+  --cx-warning: #ff8549;
+  --cx-attention: #3a83f7;
+
+  /* ---- diff ---- */
+  --cx-diff-add-bg: rgba(64, 201, 119, 0.23);
+  --cx-diff-del-bg: rgba(255, 103, 100, 0.23);
+  --cx-diff-add-mark: #40c977;
+  --cx-diff-del-mark: #ff6764;
+
+  /* ---- 字体 ---- */
+  --cx-font-sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --cx-font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* ---- 字号 / 行高 ---- */
+  --cx-text-xs: 12px;
+  --cx-text-sm: 14px;
+  --cx-text-md: 16px;
+  --cx-text-lg: 18px;
+  --cx-leading-xs: 16px;
+  --cx-leading-sm: 22px;
+  --cx-leading-md: 24px;
+  --cx-leading-lg: 28px;
+
+  /* ---- 字重 ---- */
+  --cx-weight-regular: 400;
+  --cx-weight-medium: 500;
+  --cx-weight-semibold: 600;
+  --cx-weight-bold: 700;
+  --cx-weight-shell: 445; /* 外壳专用非标准字重 */
+
+  /* ---- 动效 ---- */
+  --cx-dur-fast: 120ms;
+  --cx-dur: 150ms;
+  --cx-dur-relaxed: 300ms;
+  --cx-ease: ease;
+  --cx-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --cx-ease-scroll: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ---- 布局几何 ----
+     以真实 Codex 窗口截图（1988×1292 @1.5x）实测回填：
+     侧栏 288、标题栏 44、输入栈 710，详见 02-开发日志 第 10 轮。 */
+  --cx-titlebar-h: 44px;
+  --cx-rail-w: 52px;
+  --cx-sidebar-w: 288px;
+  --cx-thread-max: 768px;
+  --cx-right-w: 667px;
+  --cx-header-h: 48px;
+  --cx-row-h: 30px;
+  --cx-control-h: 28px;
+  --cx-send-h: 32px;
+  --cx-composer-stack-w: 742px; /* 含左右 16px 内边距 → 内容 710 */
+  --cx-composer-h: 97px;
+  --cx-picker-h: 37px;
+
+  /* ---- 输入区实测色（真实截图取色） ---- */
+  --cx-picker-fill: #282828;
+  --cx-composer-fill: rgba(55, 55, 55, 0.94);
+
+  /* ---- 应用视口 ----
+     真实 DSH 窗口截图 1988×1292（Windows 150% 缩放）换算为 1325×861 CSS。
+     原型按此尺寸渲染，各栏占比才与真实界面一致（旧 1600 视口下主区偏宽）。 */
+  --cx-app-w: 1325px;
+  --cx-app-h: 861px;
+
+  /* ---- 推理强度选择器 ----
+     尺寸/颜色按用户真实 Codex 录屏帧实测（1992×1296 @1.503x）。 */
+  --cx-reasoning-w: 255px;
+  --cx-reasoning-snap-dur: 140ms; /* 第 20 轮节点切换过渡，待用户验收 */
+  --cx-reasoning-fx-dur: 180ms;
+  --cx-reasoning-text-dur: 220ms;
+  /* 第 23 轮按用户新设计口径增强流速，两个亮带错速运行。 */
+  --cx-reasoning-flow-dur: 2.8s;
+  --cx-reasoning-bloom-dur: 4.2s;
+  --cx-reasoning-blue: #4c9bfe;
+  --cx-reasoning-track: #3e3e3e;
+  /* 第 22 轮：新录屏 100/660/900/1120 帧取色，深底与两种柔亮色分层。 */
+  --cx-reasoning-violet: #5134ad;
+  --cx-reasoning-purple: #844fcc;
+  --cx-reasoning-max-blue: #3a4ebd;
+  --cx-reasoning-max-glow: #bd8dff;
+  --cx-reasoning-max-ice: #adaaff;
+  --cx-reasoning-max-text: #b98cff;
+  --cx-reasoning-title: #4c9bfe;
+  /* 浮层/菜单底色：真实录屏帧取色 rgb(45,45,45) */
+  --cx-popover-fill: #2d2d2d;
+
+  /* ---- 阴影 ---- */
+  --cx-shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 0.08);
+  --cx-shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.08);
+  --cx-shadow-lg: 0 4px 8px -2px rgb(0 0 0 / 0.1);
+  --cx-shadow-xl: 0 8px 16px -4px rgb(0 0 0 / 0.12);
+  --cx-shadow-2xl: 0 16px 32px -8px rgb(0 0 0 / 0.19);
+  --cx-composer-shadow:
+    0 0 0 0.5px var(--cx-border-strong),
+    0 3px 7.5px rgb(0 0 0 / 0.04),
+    0 0 20px rgb(0 0 0 / 0.05);
+
+  /* ---- z 轴 ---- */
+  --cx-z-ground: 0;
+  --cx-z-panel: 10;
+  --cx-z-floating: 20;
+  --cx-z-drawer: 40;
+  --cx-z-popover: 50;
+  --cx-z-overlay: 70;
+}

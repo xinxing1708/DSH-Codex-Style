@@ -1,0 +1,29 @@
+# 本地依赖、构建缓存与发行附件
+node_modules/
+dist/
+coverage/
+*.tgz
+*.zip
+*.log
+*.har
+
+# 凭据和个人配置；仅允许不含真实凭据的示例配置
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.pfx
+*.key
+.dsh/
+profiles/
+codex-style-backups/
+installation.json
+
+# 本地调试与设计资料不随公开仓库分发
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+prototype/
+开发文档/
