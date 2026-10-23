@@ -7,6 +7,9 @@ body[data-dsh-codex-chrome] [data-dsc-frame] { margin-left: var(--cx-rail-w); wi
 html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-frame] [data-sidebar-right-panel="fullscreen"] { max-width: max(0px, calc(100vw - var(--cx-rail-w) - var(--dsh-windows-sidebar-width, 0px))); }
 /* data-slot 是 renderer 声明的可寻址面；这里只传递变量，不选择/搬移宿主内部节点。 */
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] { --dsw-specific-input-major: var(--cx-composer-fill); --dsw-radius-panel: var(--cx-radius-composer); --dsw-alias-border-l2: var(--cx-border-strong); --dsw-elevation-soft: var(--cx-composer-shadow); --dsh-composer-card-max-width: 710px; }
+/* DSH 0.2.1-rc.2 中英文发送标签；只覆盖发送色，保留停止按钮与宿主提交状态。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"]) { --dsw-alias-button-info-fill: #dfdfdf; --dsw-alias-button-info-hover: #dfdfdf; color: #363636; opacity: 1; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"]):disabled { --dsw-alias-button-info-fill: #8b8b8b; }
 /* 正文字体颜色：按 Codex 截图采样 #dfdfdf（原 #ffffff 偏亮）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
 body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #dfdfdf; }
 /* 原 sidebar/settings 父级继续挂载以保留原生页面与子槽位所有权；只隐藏其旧外观。 */
@@ -67,7 +70,8 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-sidebar .dsc-new-chat { flex: none; justify-content: flex-start; width: 100%; font-size: 13px; font-weight: var(--cx-weight-medium); background: transparent; color: #c2c2c2; margin-bottom: 8px; }
 .dsc-sidebar .dsc-new-chat:hover { background: rgba(255,255,255,.08); }
 .dsc-sidebar .dsc-workspaces { flex: 1; min-height: 0; height: auto; }
-.dsc-sidebar-search { flex: none; margin: 2px 0 8px; min-height: 30px; }
+/* 同时限定两个自有类，避免后面的通用 .dsc-search 把它重新变成伸展项。 */
+.dsc-search.dsc-sidebar-search { flex: none; height: 32px; margin: 2px 0 8px; min-height: 32px; }
 .dsc-sidebar-search button { padding: 0 3px; }
 .dsc-sidebar .dsc-tree-tools { justify-content: space-between; padding: 12px 0 4px 8px; }
 .dsc-tree-tools-label { font-size: 12px; color: var(--cx-text-3); }

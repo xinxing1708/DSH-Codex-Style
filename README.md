@@ -1,12 +1,12 @@
 # DSH Codex Style
 
-为 **DeepSeek Harness（DSH）** 提供 Codex 桌面端风格的深色界面。当前版本 **0.1.0**，适配 **Windows DSH 0.2.1-rc.2**。
+为 **DeepSeek Harness（DSH）** 提供 Codex 桌面端风格的深色界面。当前版本 **0.1.1**，适配 **Windows DSH 0.2.1-rc.2**。
 
 本项目为社区独立插件，与 OpenAI 或 DeepSeek 无关联，未获其赞助或背书。
 
 ## 下载与安装
 
-从 [0.1.0 发布页](https://github.com/xinxing1708/DSH-Codex-Sytle/releases/tag/v0.1.0) 下载 **`dsh-codex-style-0.1.0-windows.zip`**。需要已安装 DSH `0.2.1-rc.2` 和 **Node.js 20 或更高版本**。
+从 [0.1.1 发布页](https://github.com/xinxing1708/DSH-Codex-Sytle/releases/tag/v0.1.1) 下载 **`dsh-codex-style-0.1.1-windows.zip`**。需要已安装 DSH `0.2.1-rc.2` 和 **Node.js 20 或更高版本**。
 
 1. 退出 DSH，将 ZIP 解压到可写目录。
 2. 双击 `install.cmd`，或在解压目录运行：
@@ -35,6 +35,7 @@ node scripts/install.mjs
 - 真实项目和会话树，包含标题/项目过滤、置顶、重命名、分叉、归档与恢复。
 - 新聊天、项目悬停详情和项目编辑。
 - 齿轮账号/设置菜单，设置提示渐显渐隐。
+- 单行搜索框保持 32px；发送按钮在空输入时为灰色，有内容时为灰白色。
 - 真实权限预设、模型目录、思考强度滑条及 Max 动效。
 - 保留 DSH 原生输入编辑器、附件、“+”、消息、工具调用与审批流程。
 
@@ -72,7 +73,7 @@ npm run build
 
 仅适配 Windows DSH `0.2.1-rc.2`，当前只有深色主题。消息结构、插件/任务/设置内页及原生窗口控制沿用宿主；搜索范围为项目和会话标题。DOM 适配和布局接线依赖此 DSH 版本，升级宿主后需要重新核对。
 
-发行前完成独立源码构建、包内容与隐私检查、临时 profile 中的安装/升级/回退验证。未在用户日常 DSH profile 中重新安装或进行宿主交互验收。
+发行前完成独立源码构建、包内容与隐私检查、临时 profile 中的安装/升级/回退验证；0.1.1 另用实际插件与宿主 CSS 在隔离浏览器中验证搜索框高度及发送按钮状态。隔离检查不等同于日常 DSH 的完整交互验收。
 
 ## 许可与致谢
 

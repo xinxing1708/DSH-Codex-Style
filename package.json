@@ -1,6 +1,6 @@
 {
   "name": "dsh-codex-style",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH 的 Codex 风格深色界面插件",
   "type": "module",
   "main": "lib/host.js",
