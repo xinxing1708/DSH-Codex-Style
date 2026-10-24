@@ -1,3 +1,9 @@
 - insert:
     - id: ui-skin-codex-style
       name: '@xinxing1708/dsh-codex-style'
+    - id: codex-style-work-guidelines
+      name: '@xinxing1708/dsh-codex-style/behavior'
+      disabled: true
+    - id: codex-style-body
+      name: '@xinxing1708/dsh-codex-style/body'
+      disabled: true

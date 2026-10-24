@@ -21,7 +21,7 @@
   --cx-radius-2xl: 16px;
   --cx-radius-3xl: 20px;
   --cx-radius-4xl: 24px;
-  --cx-radius-composer: 25px;
+  --cx-radius-composer: 24px;
   --cx-radius-full: 9999px;
 
   /* ---- 暗色面（深色界面：导航/顶栏 #202020、侧栏 #1b1b1b、对话区 #181818） ---- */
@@ -104,9 +104,9 @@
   --cx-row-h: 30px;
   --cx-control-h: 28px;
   --cx-send-h: 32px;
-  --cx-composer-stack-w: 742px; /* 含左右 16px 内边距 → 内容 710 */
-  --cx-composer-h: 97px;
-  --cx-picker-h: 37px;
+  --cx-composer-stack-w: 768px; /* 2026-10-25 用户截图：左右各 16px，卡片 736 */
+  --cx-composer-h: 98px;
+  --cx-picker-h: 38px;
 
   /* ---- 输入区实测色（真实截图取色） ---- */
   --cx-picker-fill: #282828;

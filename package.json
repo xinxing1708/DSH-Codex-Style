@@ -1,12 +1,16 @@
 {
   "name": "@xinxing1708/dsh-codex-style",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "DSH 的 Codex 风格深色界面插件",
   "type": "module",
   "main": "lib/host.js",
   "exports": {
     ".": "./lib/host.js",
     "./client": "./lib/client.js",
+    "./behavior": "./lib/behavior.js",
+    "./behavior/locale/*.json": "./locale/behavior/*.json",
+    "./body": "./lib/body.js",
+    "./body/locale/*.json": "./locale/body/*.json",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -17,6 +21,8 @@
     "lib",
     "cordis.patch.yml",
     "skin.json",
+    "prompts",
+    "locale",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
@@ -32,9 +38,6 @@
     "registry": "https://registry.npmjs.org"
   },
   "dsh": {
-    "engines": {
-      "dsh": "0.2.1-rc.2"
-    },
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
@@ -61,6 +64,7 @@
     "url": "https://github.com/xinxing1708/DSH-Codex-Style/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3"
   }
 }

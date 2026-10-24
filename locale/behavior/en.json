@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex-style work guidelines (optional)",
+    "description": "Guide DeepSeek toward GPT/Codex-like work and communication: respect task scope and authorization, reduce unsolicited changes, distinguish review from execution, report progress in visible Simplified Chinese prose, and match conclusions to evidence. Off by default. Adds prompt guidance without changing the model, tools, permissions, or sandbox."
+  }
+}

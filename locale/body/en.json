@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex body effects (optional)",
+    "description": "Replace the bottom Deep diving indicator with a top Worked elapsed-time header and divider. Add a gray moving highlight to active operations, disclosure motion, and Codex-like pencil and terminal icons. Hide live reasoning content while retaining DSH's completed reasoning disclosure and icon. Keep real messages, tool details, approvals, and file actions. Off by default; requires the Codex UI component. Switching off restores DSH's original body presentation."
+  }
+}

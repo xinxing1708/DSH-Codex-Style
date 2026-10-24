@@ -11,11 +11,11 @@ const profile = resolve(dshRoot, 'profiles/desktop');
 const manifest = JSON.parse(await readFile(resolve(source, 'package.json'), 'utf8'));
 // 自定义安装可显式指定 runtime.json；自动发现同时兼容旧版数据目录和官方 Windows 安装器。
 const runtimeCandidates = process.env.DSH_RUNTIME_FILE ? [resolve(process.env.DSH_RUNTIME_FILE)] : [
-  resolve(dshRoot, 'dsh-runtimes/dsh-primary-runtime/runtime.json'),
   ...(process.platform === 'win32' ? [
     resolve(process.env.LOCALAPPDATA || resolve(homedir(), 'AppData/Local'), 'Programs/DeepSeek Harness/resources/runtime/primary-runtime/runtime.json'),
     ...(process.env.ProgramFiles ? [resolve(process.env.ProgramFiles, 'DeepSeek Harness/resources/runtime/primary-runtime/runtime.json')] : [])
-  ] : [])
+  ] : []),
+  resolve(dshRoot, 'dsh-runtimes/dsh-primary-runtime/runtime.json')
 ];
 let runtime;
 let runtimePath;
@@ -24,7 +24,9 @@ for (const candidate of runtimeCandidates) {
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 if (!runtime) throw new Error('未找到 DSH runtime.json；自定义安装请设置 DSH_RUNTIME_FILE 为现有 runtime.json 的完整路径。');
-if (runtime.desktopVersion !== manifest.dsh.engines.dsh) throw new Error(`DSH 版本不匹配：${runtime.desktopVersion}`);
+// 与宿主读取同一根级字段；当前范围只列已核对的精确版本，不实现通用 SemVer 解析。
+const supportedVersions = manifest.engines.dsh.split(/\s*\|\|\s*/);
+if (!supportedVersions.includes(runtime.desktopVersion)) throw new Error(`DSH 版本不匹配：${runtime.desktopVersion}；支持 ${manifest.engines.dsh}`);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const target = resolve(dshRoot, 'dsh-codex-style', manifest.version + '-' + stamp);
 const backup = resolve(dshRoot, 'codex-style-backups', stamp);
@@ -64,11 +66,16 @@ for (const name of new Set([manifest.name, legacyName])) {
 }
 await access(resolve(source, 'lib/client.js'));
 await access(resolve(source, 'lib/host.js'));
+await access(resolve(source, 'lib/behavior.js'));
+await access(resolve(source, 'lib/body.js'));
 await mkdir(backup, { recursive: true });
 for (const entry of originals) await writeFile(resolve(backup, entry.path.split(/[\\/]/).pop()), entry.bytes);
 await mkdir(resolve(target, 'lib'), { recursive: true });
 await mkdir(resolve(target, 'licenses'), { recursive: true });
-for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js']) await copyFile(resolve(source, file), resolve(target, file));
+for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js', 'lib/behavior.js', 'lib/body.js', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'locale/body/en.json', 'locale/body/zh.json']) {
+  await mkdir(dirname(resolve(target, file)), { recursive: true });
+  await copyFile(resolve(source, file), resolve(target, file));
+}
 
 const localLink = 'link:' + relative(profile, target).replaceAll('\\', '/');
 if (previousName && previousName !== manifest.name) delete config.dependencies[previousName];
@@ -107,7 +114,7 @@ if (previousTarget && !previousLockEntry.test(lockBefore)) throw new Error('未�
 const lockFinal = previousTarget ? lockBefore.replace(previousLockEntry, () => lockEntry) : lockBefore.replace(header, match => match + lockEntry);
 outputs.push(Buffer.from(lockFinal));
 }
-const receipt = { name: manifest.name, version: manifest.version, target, previousTarget, previousName, previousLinkPath, linkPath, profile, backup, files: originals.map((entry, index) => ({ path: entry.path, backup: resolve(backup, entry.path.split(/[\\/]/).pop()), before: hash(entry.bytes), after: hash(outputs[index]) })), clientHash: hash(await readFile(resolve(target, 'lib/client.js'))) };
+const receipt = { name: manifest.name, version: manifest.version, runtimeVersion: runtime.desktopVersion, runtimePath, target, previousTarget, previousName, previousLinkPath, linkPath, profile, backup, files: originals.map((entry, index) => ({ path: entry.path, backup: resolve(backup, entry.path.split(/[\\/]/).pop()), before: hash(entry.bytes), after: hash(outputs[index]) })), clientHash: hash(await readFile(resolve(target, 'lib/client.js'))) };
 await writeFile(resolve(backup, 'installation.json'), JSON.stringify(receipt, null, 2) + '\n');
 await copyFile(resolve(source, 'scripts/rollback.mjs'), resolve(backup, 'rollback.mjs'));
 try {
@@ -130,4 +137,4 @@ try {
 }
 const installed = await realpath(linkPath);
 if (resolve(installed) !== target) throw new Error('插件链接目标不匹配');
-console.log(JSON.stringify({ installed: true, name: manifest.name, version: manifest.version, runtimePath, target, profile, backup, rollback: resolve(backup, 'rollback.mjs'), clientHash: receipt.clientHash, restartRequired: true }, null, 2));
+console.log(JSON.stringify({ installed: true, name: manifest.name, version: manifest.version, runtimeVersion: runtime.desktopVersion, runtimePath, target, profile, backup, rollback: resolve(backup, 'rollback.mjs'), clientHash: receipt.clientHash, restartRequired: true }, null, 2));

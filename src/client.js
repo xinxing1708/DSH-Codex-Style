@@ -1,9 +1,9 @@
 const React = require('react');
 const { createPortal } = require('react-dom');
-const { RiskConfirmation, Button, IconRefreshOutlineRegular } = require('@deepseek-ai/dsh-client-ui-primitives');
+const { Button, IconRefreshOutlineRegular } = require('@deepseek-ai/dsh-client-ui-primitives');
 const { createSnapshotStore } = require('@deepseek-ai/dsh-client-store');
 const h = React.createElement;
-const { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useSyncExternalStore } = React;
+const { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useSyncExternalStore, useId } = React;
 const PLUGIN_ID = 'dsh-codex-style';
 
 // 自绘图标沿用本项目原型；功能与目录全部来自宿主。
@@ -14,6 +14,7 @@ const paths = {
   pencil: 'M8.1 2.8H4.6a2 2 0 0 0-2 2v6.6a2 2 0 0 0 2 2h6.6a2 2 0 0 0 2-2V7.9m-2.3-5.2-5.3 5.3L5 10.4l2.4-.6 5.3-5.3a1.3 1.3 0 0 0-1.8-1.8ZM9.8 3.8l1.8 1.8',
   search: 'M10.5 10.5 14 14M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z',
   plus: 'M8 3v10M3 8h10',
+  more: 'M2 2h4v4H2zM2 10h4v4H2zM10 10h4v4h-4zM10 4h4M12 2v4',
   chevron: 'm5 6 3 3 3-3',
   back: 'm10 3-5 5 5 5',
   check: 'm3.5 8 3 3 6-6',
@@ -262,7 +263,8 @@ function ThreadTitle({ title }) {
       const overflow = Math.max(0, text.current.scrollWidth - viewport.current.clientWidth);
       viewport.current.dataset.overflow = String(overflow > 1);
       viewport.current.style.setProperty('--dsc-title-shift', -overflow + 'px');
-      viewport.current.style.setProperty('--dsc-title-duration', Math.max(2.5, overflow / 30) + 's');
+      // 按距离计算时长，使轻微溢出与长标题都以录像约 30 CSS px/s 的速度移动。
+      viewport.current.style.setProperty('--dsc-title-duration', overflow / 30 + 's');
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -308,11 +310,63 @@ function ProjectFold({ open, children, className = '' }) {
     h('div', { className: 'dsc-project-clip' }, children));
 }
 
-function makeWorkspaceTree(ctx) {
+// 宿主完成提醒仅检查 mainView；此处补上窗口焦点和真实主区，状态只属于当前插件页面。
+function createSessionCompletionTracker(ctx) {
+  const store = createSnapshotStore(new Set());
+  let previousRunning = new Map();
+  let previousHostUnread = new Set();
+  let windowFocused = false;
+  const reconcile = () => {
+    const catalog = ctx.sessions.list.getSnapshot();
+    const status = ctx.uiSession.sessionStatus.getSnapshot();
+    const panel = ctx.layout.panelInfo.getSnapshot();
+    const viewingConversation = windowFocused && document.visibilityState === 'visible' && panel.activePanelId === null;
+    const viewedId = viewingConversation ? catalog.ids.find(id => (catalog.byId[id]?.retainedBy?.mainView ?? 0) > 0) : undefined;
+    const next = new Set(store.getSnapshot());
+    const running = new Map();
+    const hostUnread = new Set();
+    for (const id of new Set([...catalog.ids, ...status.keys()])) {
+      const state = status.get(id);
+      const isRunning = state?.running ?? catalog.byId[id]?.running;
+      running.set(id, isRunning);
+      if (state?.completionUnread) hostUnread.add(id);
+      const justCompleted = previousRunning.get(id) === true && isRunning === false;
+      const hostCompleted = state?.completionUnread && !previousHostUnread.has(id);
+      if (isRunning || id === viewedId) next.delete(id);
+      else if (justCompleted || hostCompleted) next.add(id);
+    }
+    if (catalog.phase === 'ready') for (const id of next) if (!catalog.byId[id]) next.delete(id);
+    previousRunning = running;
+    previousHostUnread = hostUnread;
+    const before = store.getSnapshot();
+    if (next.size !== before.size || [...next].some(id => !before.has(id))) store.set(next);
+  };
+  const start = () => {
+    windowFocused = document.hasFocus();
+    const focus = () => { windowFocused = true; reconcile(); };
+    const blur = () => { windowFocused = false; reconcile(); };
+    const visibility = () => { windowFocused = document.hasFocus(); reconcile(); };
+    const disposers = [ctx.sessions.list, ctx.uiSession.sessionStatus, ctx.layout.panelInfo].map(source => source.subscribe(reconcile));
+    window.addEventListener('focus', focus);
+    window.addEventListener('blur', blur);
+    document.addEventListener('visibilitychange', visibility);
+    reconcile();
+    return () => {
+      disposers.forEach(dispose => dispose());
+      window.removeEventListener('focus', focus);
+      window.removeEventListener('blur', blur);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  };
+  return { store, start };
+}
+
+function makeWorkspaceTree(ctx, completionStore) {
   return function WorkspaceTree({ query = '', tools = true, active = true, onNavigate }) {
     const catalog = useSource(ctx.sessions.list);
     const workspaces = useSource(ctx.workspaces.list);
     const status = useSource(ctx.uiSession.sessionStatus);
+    const completions = useSource(completionStore);
     const panel = useSource(ctx.layout.panelInfo);
     const [expanded, setExpanded] = useState({});
     const [projectsOpen, setProjectsOpen] = useState(true);
@@ -384,14 +438,20 @@ function makeWorkspaceTree(ctx) {
       const state = status.get(s.sessionId);
       const actionsActive = rowActive && !menu && !projectMenu && !editing && !renaming;
       const pending = state?.pendingInteraction;
-      const activity = pending ? '等待处理' : state?.running ? '运行中' : state?.completionUnread ? '已完成' : relativeTime(s.updatedAt);
+      const running = state?.running && !pending;
+      const completed = completions.has(s.sessionId) && !pending && !state?.running;
+      const activity = pending ? '等待处理' : state?.running ? '运行中' : completed ? '已完成' : relativeTime(s.updatedAt);
       return h('div', { key: s.sessionId, className: 'dsc-thread' + (s.sessionId === currentId && panel.activePanelId === null ? ' is-active' : '') + (archived.has(s.sessionId) ? ' is-archived' : '') + (pinned.has(s.sessionId) ? ' is-pinned' : ''),
         onContextMenu: e => openThreadMenu(e, s), onKeyDown: e => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) openThreadMenu(e, s); },
         onPointerEnter: e => enterHover(e.currentTarget, { kind: 'thread', id: s.sessionId, title: s.title || '未命名对话', status: activity, workspaceTitle: workspaceOf(s.sessionId)?.title, path: workspaceOf(s.sessionId)?.path }), onPointerLeave: closeHover },
         h('button', { type: 'button', className: 'dsc-thread-main', 'aria-haspopup': 'menu', onClick: () => { if (archived.has(s.sessionId)) run(() => ctx.uiWorkspace.unarchiveSession(s.sessionId)); else { ctx.uiWorkspace.openSession(s.sessionId); onNavigate?.(); } } },
-          h('span', { className: 'dsc-state', 'data-state': pending ? 'pending' : state?.running ? 'running' : state?.completionUnread ? 'done' : 'idle' }, (pending || state?.running || state?.completionUnread) && h(Icon, { name: 'chat', size: 14 })),
+          h('span', { className: 'dsc-state', 'data-state': pending ? 'pending' : 'idle' }, pending && h(Icon, { name: 'chat', size: 14 })),
           h(ThreadTitle, { title: s.title || '未命名对话' }),
-          h('small', { className: 'dsc-thread-time' }, activity)),
+          running ? h('span', { className: 'dsc-thread-running', role: 'img', 'aria-label': '对话进行中', title: '对话进行中' },
+            h('svg', { className: 'dsc-running-spinner', viewBox: '0 0 16 16', width: 12, height: 12, fill: 'none', 'aria-hidden': true },
+              h('circle', { cx: 8, cy: 8, r: 6.5, stroke: 'currentColor', strokeWidth: 1.6, opacity: .22 }),
+              h('circle', { cx: 8, cy: 8, r: 6.5, stroke: 'currentColor', strokeWidth: 1.6, strokeDasharray: '30.6 10.2', strokeLinecap: 'round' })))
+            : completed ? h('span', { className: 'dsc-thread-completion', role: 'img', 'aria-label': '对话已完成，未读', title: '对话已完成，未读' }) : h('small', { className: 'dsc-thread-time' }, activity)),
         h('div', { className: 'dsc-thread-actions' },
           h(ThreadAction, { label: pinned.has(s.sessionId) ? '取消置顶聊天' : '置顶聊天', className: 'dsc-pin-action', pressed: pinned.has(s.sessionId), active: actionsActive, onIntent: hideHover, onClick: () => togglePin(s) }, h(PinMark, { filled: pinned.has(s.sessionId) })),
           h(ThreadAction, { label: archived.has(s.sessionId) ? '取消归档聊天' : '归档聊天', active: actionsActive, onIntent: hideHover, onClick: () => toggleArchive(s) }, h(Icon, { name: 'archive', size: 14 }))));
@@ -514,6 +574,93 @@ function permissionCopy(option) {
   };
 }
 
+// 只重绘提权确认；实际权限仍由当前会话的 /permission 命令保存。
+const PERMISSION_RISK_COPY = {
+  'danger-full-access': {
+    title: '要开启完全访问权限吗？',
+    description: 'DSH 将能够在未经你许可的情况下，在这台计算机上的任何位置运行命令、使用互联网，以及创建和编辑文件。这包括但不限于：',
+    rows: [
+      ['folder', '文件和文件夹', '读取、创建、修改、上传或删除此计算机上任意位置的文件'],
+      ['terminal', '终端命令', '运行命令、安装软件和更改系统设置'],
+      ['globe', '互联网和已启用的工具', '访问网站、发送数据并使用已启用的工具']
+    ],
+    warning: '这会带来敏感数据丢失或泄露、提示注入等风险。你可以将其关闭。',
+    help: '完全访问不会逐项请求批准。请只在信任当前任务及所用工具时启用；完成后可在权限菜单中切回「工作区内修改」或「仅可查看」。'
+  },
+  auto: {
+    title: '要启用自动审查吗？',
+    description: 'DSH 将在无沙箱限制的环境中运行，由当前模型在工具执行前自动审查。启用后：',
+    rows: [
+      ['review', '模型自动审查', '每次工具调用前，由同一模型自动审查操作'],
+      ['folder', '完整文件系统访问', '通过审查的操作可读取、修改或删除工作区以外的文件'],
+      ['terminal', '命令与网络操作', '通过审查的操作可运行终端命令、访问网络和发送数据']
+    ],
+    warning: '自动审查是实验性能力，模型可能误判。它不提供沙箱隔离，仍有数据丢失或泄露的风险。',
+    help: '自动审查由模型判断工具操作，不能保证识别所有风险，也不等同于你的逐项批准。需要限制文件访问时，请在权限菜单中选择「工作区内修改」或「仅可查看」。'
+  }
+};
+
+function PermissionRiskIcon({ name, ...props }) {
+  const common = { viewBox: '0 0 24 24', width: 24, height: 24, fill: 'none', 'aria-hidden': true, ...props };
+  if (name === 'folder') return h('svg', common,
+    h('path', { d: 'M2 7a3 3 0 0 1 3-3h4l2 2h8a3 3 0 0 1 3 3v2H2Z', fill: '#4c9eff' }),
+    h('path', { d: 'M2 10h20v9a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3Z', fill: '#74c6ff' }));
+  if (name === 'terminal') return h('svg', common,
+    h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 4, fill: '#bdbdbd' }),
+    h('path', { d: 'm7.5 9 3 3-3 3m6-1h3', stroke: '#fff', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+  if (name === 'globe') return h('svg', { ...common, stroke: '#4ed0f1', strokeWidth: 1.8 },
+    h('circle', { cx: 12, cy: 12, r: 9 }), h('ellipse', { cx: 12, cy: 12, rx: 3.6, ry: 9 }), h('path', { d: 'M3 12h18' }));
+  if (name === 'review') return h('svg', { ...common, stroke: '#aabaff', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' },
+    h('path', { d: 'm12 2 8 3.5v6c0 4.5-3.7 7.8-8 10.5-4.3-2.7-8-6-8-10.5v-6Z' }), h('path', { d: 'm8.5 11.5 2.5 2.5 4.5-5' }));
+  return h('svg', { ...common, stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' },
+    h('path', { d: 'm10.4 3.7-8 14A1.8 1.8 0 0 0 4 20.4h16a1.8 1.8 0 0 0 1.6-2.7l-8-14a1.8 1.8 0 0 0-3.2 0Z' }),
+    h('path', { d: 'M12 8v5m0 3v.2' }));
+}
+
+function PermissionRiskDialog({ value, disabled, focusTarget, onCancel, onConfirm }) {
+  const copy = PERMISSION_RISK_COPY[value];
+  const id = useId();
+  const dialog = useRef(null);
+  const cancel = useRef(null);
+  const [help, setHelp] = useState(false);
+  useLayoutEffect(() => {
+    const previous = focusTarget?.current || document.activeElement;
+    const element = dialog.current;
+    element.showModal();
+    cancel.current.focus({ preventScroll: true });
+    return () => {
+      element.close();
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, []);
+  const close = () => { if (!disabled) onCancel(); };
+  return createPortal(h('dialog', {
+    ref: dialog, className: 'dsc-ui dsc-permission-dialog', 'data-mode': value,
+    'aria-labelledby': id + '-title', 'aria-describedby': id + '-description ' + id + '-warning',
+    onCancel: event => { event.preventDefault(); close(); },
+    onClick: event => {
+      if (event.target !== event.currentTarget) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+    }
+  },
+    h('div', { className: 'dsc-permission-dialog__heading' },
+      h(PermissionRiskIcon, { name: value === 'auto' ? 'review' : 'warning', width: 18, height: 18 }),
+      h('h2', { id: id + '-title' }, copy.title),
+      value === 'auto' && h('span', { className: 'dsc-permission-dialog__badge' }, '实验性')),
+    h('p', { id: id + '-description', className: 'dsc-permission-dialog__description' }, copy.description),
+    h('ul', { className: 'dsc-permission-dialog__capabilities' }, copy.rows.map(([icon, title, detail]) =>
+      h('li', { key: icon }, h(PermissionRiskIcon, { name: icon }),
+        h('div', null, h('strong', null, title), h('span', null, detail))))),
+    h('p', { id: id + '-warning', className: 'dsc-permission-dialog__warning' }, copy.warning,
+      h('button', { type: 'button', className: 'dsc-permission-dialog__more', 'aria-expanded': help, 'aria-controls': id + '-help', onClick: () => setHelp(!help) }, '了解更多')),
+    help && h('p', { id: id + '-help', className: 'dsc-permission-dialog__help' }, copy.help),
+    h('div', { className: 'dsc-permission-dialog__actions' },
+      h('button', { ref: cancel, type: 'button', className: 'dsc-permission-dialog__cancel', disabled, onClick: close }, '取消'),
+      h('button', { type: 'button', className: 'dsc-permission-dialog__confirm', disabled, onClick: () => { if (!disabled) onConfirm(); } },
+        h(PermissionRiskIcon, { name: 'warning', width: 16, height: 16 }), '确认'))), document.body);
+}
+
 function makePermissionPicker(ctx, directory) {
   return function PermissionPicker({ sessionId, useProjection, locked }) {
     const selection = useProjection('permissions');
@@ -521,13 +668,12 @@ function makePermissionPicker(ctx, directory) {
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [confirmation, setConfirmation] = useState(null);
-    const [acknowledged, setAcknowledged] = useState(false);
     const [help, setHelp] = useState(false);
     const [error, setError] = useState('');
     const anchor = useRef(null);
     const alive = useRef(true);
     useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-    useEffect(() => { setOpen(false); setConfirmation(null); setAcknowledged(false); }, [catalog.revision, locked, sessionId]);
+    useEffect(() => { setOpen(false); setConfirmation(null); }, [catalog.revision, locked, sessionId]);
     // 不用消失的控件掩盖目录失败；没有真实会话投影时只显示状态，不伪造可选权限。
     if (!selection) return h('span', { className: 'dsc-ui dsc-control-status', role: 'status', title: '宿主尚未提供此会话的权限状态' }, h(Icon, { name: 'shield' }), '权限未就绪');
     if (!catalog.value) return h('span', { className: 'dsc-ui dsc-control-status', role: 'status' }, h(Icon, { name: 'shield' }), catalog.error ? '权限加载失败' : '权限加载中…', catalog.error && h('button', { type: 'button', onClick: directory.refresh, title: catalog.error }, '重试'));
@@ -547,7 +693,7 @@ function makePermissionPicker(ctx, directory) {
     };
     const choose = value => {
       if (value === selection.currentValue) { setOpen(false); return; }
-      if (value === 'danger-full-access' || value === 'auto') { setOpen(false); setAcknowledged(false); setConfirmation(value); return; }
+      if (value === 'danger-full-access' || value === 'auto') { setOpen(false); setConfirmation(value); return; }
       setOpen(false); submit(value);
     };
     return h('div', { className: 'dsc-ui dsc-permission' },
@@ -560,10 +706,8 @@ function makePermissionPicker(ctx, directory) {
           return h(Option, { key: option.value, title: copy.title, detail: copy.description, icon: 'shield', warning: option.value === 'danger-full-access', selected: option.value === selection.currentValue, onClick: () => choose(option.value) });
         })),
       h(ErrorLine, { text: error }),
-      confirmation && h(RiskConfirmation, { open: true, title: confirmation === 'auto' ? '启用自动审查' : '启用完全访问权限',
-        description: confirmation === 'auto' ? '实验性自动审查会在完整沙箱访问下处理审批。请确认你理解自动审查的执行范围。' : 'DSH 将获得完整文件系统和命令执行访问，且不再逐项请求批准。',
-        acknowledgeLabel: '我理解并接受此权限范围', cancelLabel: '取消', closeLabel: '关闭', confirmLabel: '确认启用', acknowledged, disabled: locked || busy,
-        onAcknowledgedChange: setAcknowledged, onCancel: () => setConfirmation(null), onConfirm: () => { if (!acknowledged) return; const value = confirmation; setConfirmation(null); submit(value); } }));
+      confirmation && h(PermissionRiskDialog, { value: confirmation, disabled: locked || busy, focusTarget: anchor,
+        onCancel: () => setConfirmation(null), onConfirm: () => { const value = confirmation; setConfirmation(null); submit(value); } }));
   };
 }
 
@@ -696,6 +840,7 @@ function makeModelPicker(ctx) {
 
 function apply(ctx) {
   console.warn('[codex-style] apply 开始 v' + PLUGIN_VERSION);
+  ctx.inject(['remote', 'remote.pluginInventory'], scope => scope.effect(() => watchCodexBody(scope), 'codex-style: body component state'));
   const tokenValues = {
     '--dsw-alias-bg-base': '#181818', '--dsw-alias-bg-layer-1': '#212121', '--dsw-alias-bg-layer-2': '#282828', '--dsw-alias-bg-layer-3': '#2d2d2d', '--dsw-alias-bg-overlay': '#282828',
     '--dsw-alias-bg-module-platform': '#212121', '--dsw-alias-label-primary': '#fff', '--dsw-alias-label-secondary': 'rgba(255,255,255,.7)', '--dsw-alias-label-tertiary': 'rgba(255,255,255,.5)',
@@ -762,14 +907,14 @@ function apply(ctx) {
   ctx.slots.inject('plugins.detail.actions', () => ctx.slots.register({ name: 'plugins.detail.actions', id: 'codex-style:check-update' }, props => h(PluginUpdateAction, { ...props, updates })));
   ctx.inject(['pluginNavigation'], scope => scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:update-notice' }, () => h(PluginUpdateNotice, { updates, onOpen: () => scope.reflect.get('pluginNavigation').openBundle(PLUGIN_PACKAGE) }))));
   // 等各区域自己的服务就绪；权限 RPC 的命名空间不能由 remote 根服务存在来推断。
-  ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale'], scope => {
+  ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale', 'pluginNavigation'], scope => {
     const sidebar = createSidebarPresentation();
     scope.effect(() => () => sidebar.dispose(), 'codex-style: sidebar presentation');
     register(scope, 'sidebar.workspaces', makeSidebarChrome(scope, sidebar));
     scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:shell' }, makeShellChrome(scope, sidebar)));
     register(scope, 'conversation.header.leading', makeCollapsedNewChat(scope));
   });
-  ctx.inject(['locale', 'remote', 'remote.account'], scope => register(scope, 'settings.launcher', makeGearLauncher(scope)));
+  ctx.inject(['modules', 'locale', 'remote', 'remote.account'], scope => register(scope, 'settings.launcher', makeGearLauncher(scope)));
   ctx.inject(['workspaces'], scope => {
     register(scope, 'conversation.hero.brand.mark', EmptyHero);
     register(scope, 'conversation.hero.workspace', makeHeroWorkspace(scope));

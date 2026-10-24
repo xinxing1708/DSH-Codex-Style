@@ -1,0 +1,75 @@
+/* 本文件只在正文子组件实际启用时挂载；不覆盖宿主 Markdown 与工具内容。 */
+body[data-dsc-codex-body] [data-chat-flow] {
+  --dsc-body-muted: #969696;
+  --dsc-body-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m2 14 1.5-5.1L10.9 1.5a1.6 1.6 0 0 1 2.3 0l1.1 1.1a1.6 1.6 0 0 1 0 2.3L6.9 12.3 2 14Zm7.8-11.4 3.4 3.4M3.5 8.9l3.4 3.4' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --dsc-body-terminal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='2.2' fill='none' stroke='black' stroke-width='1.15'/%3E%3Cpath d='m4.4 5.2 2.2 2.3-2.2 2.3m4.1.2h2.8' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+body[data-dsc-codex-body] .dsc-body-turn { margin: 12px 0 18px; color: #969696; font-size: 13px; line-height: 22px; }
+body[data-dsc-codex-body] .dsc-body-turn__status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; overflow: hidden; white-space: nowrap; clip-path: inset(50%); }
+body[data-dsc-codex-body] .dsc-body-turn__label { display: inline-flex; align-items: center; gap: 7px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+body[data-dsc-codex-body] .dsc-body-turn__label:disabled { opacity: 1; cursor: default; }
+body[data-dsc-codex-body] .dsc-body-turn__label:enabled:hover { color: #c8c8c8; }
+body[data-dsc-codex-body] .dsc-body-turn__label:focus-visible { outline: 1px solid #aaa; outline-offset: 4px; border-radius: 3px; }
+body[data-dsc-codex-body] .dsc-body-turn__label svg { transition: transform 160ms ease; }
+body[data-dsc-codex-body] .dsc-body-turn__label[aria-expanded="true"] svg { transform: rotate(180deg); }
+body[data-dsc-codex-body] .dsc-body-turn__divider { height: 1px; background: #ffffff12; margin-top: 9px; }
+/* 没有真实回合头时保留底部状态，避免连接/加载阶段丢失运行提示。 */
+body[data-dsc-codex-body] :is([data-chat-flow], [data-slot="conversation.chat.flow"]):has(.dsc-body-turn[data-dsc-body-running]) > [data-chat-running] { display: none; }
+/* 流式思考正文和摘要不展示；完成思考的原始图标与真实折叠操作保留。 */
+body[data-dsc-codex-body] [data-chat-flow] [data-variant="think"][data-state="running"] { display: none; }
+body[data-dsc-codex-body] [data-chat-flow] [data-variant="think"] [data-disclosure-row] > span:last-child > span:first-child > span:not(:first-child) { display: none; }
+body[data-dsc-codex-body] [data-process-activity="thinking"]:has(> [data-shimmer]) > [data-shimmer] { display: none; }
+body[data-dsc-codex-body] [data-process-activity="thinking"]:has(> [data-shimmer])::after { content: '正在思考'; color: transparent; background: linear-gradient(105deg, #969696 42%, #e1e1e1 50%, #969696 58%); background-clip: text; background-size: 250% 100%; animation: dsc-body-thinking 2s linear infinite; }
+/* 灰色正文操作行；失败/停止颜色及详情内容沿用宿主。 */
+body[data-dsc-codex-body] [data-process-activity],
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="bash"], [data-tool]) { color: var(--dsc-body-muted); }
+body[data-dsc-codex-body] [data-process-activity] { width: fit-content; max-width: 100%; gap: 7px; text-align: left; }
+body[data-dsc-codex-body] [data-process-activity] > span:first-child { display: contents; }
+body[data-dsc-codex-body] [data-step-process-icon],
+body[data-dsc-codex-body] [data-step-process-chevron] { position: static; flex: none; opacity: 1 !important; transform: none !important; }
+body[data-dsc-codex-body] [data-step-process-icon] { width: 16px; height: 16px; }
+body[data-dsc-codex-body] [data-step-process-chevron] { order: 3; width: 12px; height: 12px; margin-left: 0; }
+body[data-dsc-codex-body] [data-process-activity] > [data-shimmer] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 图标由公开类别标记选择，掩模为自绘 SVG；不替换按钮或文件操作回调。 */
+body[data-dsc-codex-body] [data-process-activity="commands"] [data-step-process-icon],
+body[data-dsc-codex-body] [data-chat-flow] [data-variant="bash"]:is([data-sample], [data-tool]) { --dsc-body-icon: var(--dsc-body-terminal); }
+body[data-dsc-codex-body] [data-process-activity="edit"] [data-step-process-icon],
+body[data-dsc-codex-body] [data-process-activity="write"] [data-step-process-icon],
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"])[data-tool] { --dsc-body-icon: var(--dsc-body-pencil); }
+body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"]) [data-step-process-icon],
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row] > :first-child,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child { position: relative; width: 16px; min-width: 16px; height: 16px; }
+body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"]) [data-step-process-icon] > *,
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row] > :first-child > *,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child > * { visibility: hidden; }
+body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"]) [data-step-process-icon]::before,
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row] > :first-child::before,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child::before { content: ''; position: absolute; inset: 0; background: #969696; mask: var(--dsc-body-icon) center / 16px 16px no-repeat; }
+/* 用真实 aria-expanded 驱动展开箭头。 */
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row][data-expandable],
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable] { position: relative; padding-right: 18px; }
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row][data-expandable]::after,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable]::after { content: ''; position: absolute; right: 3px; top: 8px; width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); opacity: 0; transition: transform 160ms ease, opacity 120ms ease; }
+body[data-dsc-codex-body] [data-chat-flow] :is([data-disclosure-row], [data-sample="bash"]):is(:hover, :focus-within)::after { opacity: 1; }
+body[data-dsc-codex-body] [data-chat-flow] :is([data-disclosure-row], [data-sample="bash"])[aria-expanded="true"]::after { transform: rotate(45deg); }
+/* 沿用原生 TextShimmer 的无障碍隐藏副本，只重设灰色高光的扫过方式。 */
+body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] { position: absolute; inset: 0; overflow: hidden; pointer-events: none; mask: none; }
+body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] > span { position: absolute; inset: 0; width: auto; color: #e1e1e1; transform: none; mask-image: linear-gradient(105deg, transparent 42%, #000 50%, transparent 58%); mask-size: 250% 100%; animation: dsc-body-light 2s linear infinite; }
+body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] > span > span { transform: none; animation: none; }
+body[data-dsc-codex-body] [data-process-activity][aria-expanded="true"] > [data-shimmer] > [aria-hidden="true"] { display: none; }
+@keyframes dsc-body-light { from { mask-position: 130% 0; } to { mask-position: -30% 0; } }
+@keyframes dsc-body-thinking { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+/* 宿主继续管理高度、滚动锚点与收起清理；这里只动画透明度和轻微位移。 */
+body[data-dsc-codex-body] [data-step-process]:has([data-process-activity][aria-expanded="true"]) > [data-step-process-body] > [data-step-process-content],
+body[data-dsc-codex-body] [data-chat-flow] [data-disclosure-header] + *,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][aria-expanded="true"] + * { animation: dsc-body-reveal 180ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes dsc-body-reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] { display: none; }
+  body[data-dsc-codex-body] [data-process-activity="thinking"]::after { animation: none !important; color: #969696 !important; background: none !important; }
+  body[data-dsc-codex-body] [data-step-process-content],
+  body[data-dsc-codex-body] [data-chat-flow] [data-disclosure-header] + *,
+  body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] + * { animation: none !important; }
+  body[data-dsc-codex-body] .dsc-body-turn__label svg,
+  body[data-dsc-codex-body] [data-chat-flow] [aria-expanded]::after { transition: none; }
+}

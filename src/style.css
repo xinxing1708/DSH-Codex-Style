@@ -5,19 +5,34 @@ body[data-dsh-codex-style] { background: var(--cx-window); color-scheme: dark; -
 body[data-dsh-codex-chrome] [data-dsc-frame] { margin-left: var(--cx-rail-w); width: calc(100% - var(--cx-rail-w)); }
 /* 全屏右栏原本按 100vw 展开；扣掉独立导航后，继续尊重宿主二级侧栏的真实宽度。 */
 html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-frame] [data-sidebar-right-panel="fullscreen"] { max-width: max(0px, calc(100vw - var(--cx-rail-w) - var(--dsh-windows-sidebar-width, 0px))); }
-/* data-slot 是 renderer 声明的可寻址面；这里只传递变量，不选择/搬移宿主内部节点。 */
-body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] { --dsw-specific-input-major: var(--cx-composer-fill); --dsw-radius-panel: var(--cx-radius-composer); --dsw-alias-border-l2: var(--cx-border-strong); --dsw-elevation-soft: var(--cx-composer-shadow); --dsh-composer-card-max-width: 710px; }
-/* DSH 0.2.1-rc.2 中英文发送标签；只覆盖发送色，保留停止按钮与宿主提交状态。 */
+/* data-slot 与公开 data-* 标记作为外观边界；编辑器、输入状态和动作仍由宿主持有。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] { --dsw-specific-input-major: var(--cx-composer-fill); --dsw-radius-panel: var(--cx-radius-composer); --dsw-alias-border-l2: var(--cx-border-strong); --dsw-elevation-soft: var(--cx-composer-shadow); --dsh-composer-card-max-width: calc(var(--cx-composer-stack-w) - 32px); }
+/* 单行卡片按截图为 736×98；输入区保留自然增高，发送/停止不改变工具行高度。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] > :has(> [data-composer-card]) { width: 100%; padding: 0; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] { min-height: var(--cx-composer-h); }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-input] { min-height: 42px; padding-left: 12px; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-placeholder] { left: 12px; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-dock] { display: flex; box-sizing: border-box; min-height: 20px; padding-top: 2px; }
+/* 所有提交状态共享占位；保留原提交/中断回调、Tooltip 和快捷键。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"]) { width: 28px; height: 28px; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"]) svg { width: 14px; height: 14px; }
+/* 中英文发送标签；保留宿主提交与禁用状态。 */
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"]) { --dsw-alias-button-info-fill: #dfdfdf; --dsw-alias-button-info-hover: #dfdfdf; color: #363636; opacity: 1; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"]):disabled { --dsw-alias-button-info-fill: #8b8b8b; }
+/* 停止生成复用宿主按钮与中断动作；普通态、悬停态均为参考图的浅灰圆底和深灰方块。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="停止生成"], [aria-label="Stop generating"]) { --dsw-alias-button-info-fill: #dfdfdf; --dsw-alias-button-info-hover: #dfdfdf; color: #2d2d2d; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="停止生成"], [aria-label="Stop generating"]) svg rect { rx: 1.5px; }
 /* 正文字体颜色：按 Codex 截图采样 #dfdfdf（原 #ffffff 偏亮）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
 body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #dfdfdf; }
 /* 原 sidebar/settings 父级继续挂载以保留原生页面与子槽位所有权；只隐藏其旧外观。 */
 body[data-dsh-codex-chrome] [data-slot="sidebar"] { display: block !important; position: relative; width: 100%; height: 100%; visibility: hidden; }
-body[data-dsh-codex-chrome] [data-slot="conversation.composer.bar"] { --dsh-composer-side-clearance: 0px; display: flex !important; flex-direction: column; align-items: stretch; align-self: center; width: min(calc(100% - 32px),710px); max-width: 710px; position: relative; }
+body[data-dsh-codex-chrome] [data-slot="conversation.composer.bar"] { --dsh-composer-side-clearance: 0px; display: flex !important; flex-direction: column; align-items: stretch; align-self: center; width: min(calc(100% - 32px), var(--dsh-composer-card-max-width)); max-width: var(--dsh-composer-card-max-width); position: relative; }
+body[data-dsh-codex-chrome] [data-conversation-region="composer"] :has(> [data-slot="conversation.composer.bar"]) { width: 100%; align-self: stretch; padding-bottom: 0; gap: 0; }
+/* 两侧等量保留原生滚动条空间，使空态与会话中的输入卡共用同一中线。 */
+body[data-dsh-codex-chrome] [data-conversation-content] > [data-conversation-scroll] { scrollbar-gutter: stable both-edges; margin-right: 0; }
 /* 空态保留官方编辑器、草稿、附件、“+”与 chain；没有重建输入状态或移动节点。 */
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] { visibility: hidden; }
-body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-conversation-region="composer"] { position: absolute; inset: auto 0 0; z-index: 7; }
+body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-conversation-region="composer"] { position: absolute; inset: auto var(--dsh-scrollbar-width, 15px) 0; z-index: 7; }
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-slot="conversation.composer.bar"],
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-slot="conversation.input.dock"],
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-conversation-composer-overlay] { visibility: visible; }
@@ -79,6 +94,8 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-rail .dsc-rail__item:hover { color: var(--cx-text); background: var(--cx-hover); }
 .dsc-rail .dsc-rail__item--active { color: var(--cx-text); background: var(--cx-active); }
 .dsc-rail__item[data-preview-enabled=true]::after { display: none; }
+.dsc-rail__item[data-dsc-preview-trigger=more]::after { display: block; }
+.dsc-rail__item[data-dsc-preview-trigger=more]:focus-visible::after { opacity: 1; transform: translateY(-50%) translateX(0); }
 .dsc-sidebar { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .dsc-sidebar .dsc-sidebar__header { flex: none; }
 .dsc-sidebar .dsc-brand { min-width: 0; gap: 6px; }
@@ -131,7 +148,6 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-hero-projectbar { visibility: visible; position: fixed; z-index: 6; height: calc(var(--cx-picker-h) + var(--cx-radius-composer)); padding: 4px 4px var(--cx-radius-composer); background: var(--cx-picker-fill); border-radius: 20px; }
 .dsc-hero-projectbar .dsc-project-picker { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; max-width: calc(100% - 180px); color: var(--cx-text-2); font-size: 13px; border-radius: var(--cx-radius-full); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dsc-hero-projectbar .dsc-project-picker:hover, .dsc-hero-projectbar .dsc-project-picker[aria-expanded=true] { background: var(--cx-active); }
-.dsc-ui button:active:not(:disabled) { transform: translateY(1px); }
 .dsc-brand-mark { width: 25px; height: 20px; object-fit: contain; }
 .dsc-brand { display: inline-flex; align-items: center; gap: 7px; }
 .dsc-brand strong { font-size: 17px; letter-spacing: -.02em; }
@@ -158,7 +174,12 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-thread-main:focus-visible .dsc-thread-title[data-overflow=true] .dsc-thread-title-text { animation: dsc-title-scroll var(--dsc-title-duration) linear 250ms infinite alternate; }
 @keyframes dsc-title-scroll { from { transform: translateX(0); } to { transform: translateX(var(--dsc-title-shift)); } }
 .dsc-thread-time { position: absolute; right: 9px; font-size: 10px; color: var(--cx-text-4); transition: opacity 120ms ease; }
+.dsc-thread-completion { position: absolute; right: 9px; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: #4c9bfe; transform: translateY(-50%); pointer-events: none; }
+.dsc-thread-running { position: absolute; right: 9px; top: 50%; display: grid; place-items: center; width: 12px; height: 12px; color: #969696; transform: translateY(-50%); pointer-events: none; }
+.dsc-running-spinner { animation: dsc-session-spin 1.9s linear infinite; }
 .dsc-thread:hover .dsc-thread-time, .dsc-thread:has(:focus-visible) .dsc-thread-time { display: none; }
+.dsc-thread:hover .dsc-thread-completion, .dsc-thread:has(:focus-visible) .dsc-thread-completion { opacity: 0; }
+.dsc-thread:hover .dsc-thread-running, .dsc-thread:has(:focus-visible) .dsc-thread-running { opacity: 0; }
 .dsc-thread .dsc-state[data-state=idle] { display: none; }
 .dsc-thread-actions { position: absolute; top: 0; right: 4px; height: 100%; display: flex; align-items: center; gap: 1px; opacity: 0; pointer-events: none; transition: opacity 150ms ease; }
 .dsc-thread:hover .dsc-thread-actions, .dsc-thread:has(:focus-visible) .dsc-thread-actions { opacity: 1; pointer-events: auto; }
@@ -169,8 +190,6 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-row-tooltip[data-open=true] { opacity: 1; visibility: visible; transform: translateY(0); transition: opacity 120ms ease 350ms, transform 120ms ease 350ms, visibility 0s 350ms; }
 .dsc-state { color: var(--cx-text-3); flex: none; display: flex; align-items: center; }
 .dsc-state[data-state=pending] { color: var(--cx-warning); }
-.dsc-state[data-state=running] { color: var(--cx-accent-soft); animation: dsc-status-pulse 1.2s ease-in-out infinite; }
-.dsc-state[data-state=done] { color: var(--cx-success); }
 .dsc-row-action { display: flex; opacity: 0; pointer-events: none; transition: opacity 150ms ease; width: 25px; height: 25px; align-items: center; justify-content: center; border-radius: 5px; padding: 0; margin-right: 3px; color: var(--cx-text-3); }
 .dsc-thread:hover .dsc-row-action, .dsc-project:hover .dsc-row-action, .dsc-thread:has(:focus-visible) .dsc-row-action, .dsc-project:has(:focus-visible) .dsc-row-action { opacity: 1; pointer-events: auto; }
 .dsc-row-action:hover { color: #fff; background: var(--cx-active); }
@@ -305,6 +324,35 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-permission-menu .dsc-option > svg { margin-top: 3px; }
 .dsc-permission-menu .dsc-option-copy { line-height: 19px; }
 .dsc-permission-menu .dsc-option[data-warning=true], .dsc-permission-menu .dsc-option[data-warning=true] small { color: var(--cx-warning); }
+/* 权限风险弹窗：按用户 Codex 截图换算 1.5 倍显示缩放，约 520px 宽；不影响宿主其他确认框。 */
+.dsc-ui.dsc-permission-dialog { width: 520px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; padding: 20px; border: 0; border-radius: 20px; background: #2b2b2b; color: #dedede; box-shadow: 0 18px 70px #0003; overflow-y: auto; overscroll-behavior: contain; -webkit-app-region: no-drag; animation: dsc-pop-in 150ms ease both; }
+.dsc-permission-dialog::backdrop { background: #0006; }
+.dsc-permission-dialog__heading { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.dsc-permission-dialog__heading > svg { flex: none; }
+.dsc-permission-dialog__heading h2 { margin: 0; font-size: 20px; font-weight: 650; line-height: 28px; letter-spacing: -.3px; }
+.dsc-permission-dialog__badge { margin-left: auto; padding: 1px 7px; border: 1px solid #ffffff14; border-radius: 6px; color: #aaa; font-size: 11px; line-height: 18px; white-space: nowrap; }
+.dsc-permission-dialog__description { margin: 14px 0 12px; color: #999; font-size: 14px; line-height: 20px; }
+.dsc-permission-dialog__capabilities { margin: 0; padding: 4px 16px; border-radius: 16px; list-style: none; background: #333; }
+.dsc-permission-dialog__capabilities li { display: flex; align-items: center; gap: 12px; min-height: 51px; padding: 8px 0; }
+.dsc-permission-dialog__capabilities li + li { border-top: 1px solid #ffffff08; }
+.dsc-permission-dialog__capabilities li > div { min-width: 0; }
+.dsc-permission-dialog__capabilities strong { display: block; font-size: 14px; font-weight: 600; line-height: 18px; }
+.dsc-permission-dialog__capabilities span { display: block; color: #999; font-size: 12px; line-height: 17px; overflow-wrap: anywhere; }
+.dsc-permission-dialog__warning { margin: 12px 0 0; color: #999; font-size: 14px; line-height: 20px; }
+.dsc-ui .dsc-permission-dialog__more { margin-left: 3px; padding: 0; color: #8ac4ff; white-space: nowrap; font-size: inherit; }
+.dsc-permission-dialog__more:hover { text-decoration: underline; text-underline-offset: 3px; }
+.dsc-permission-dialog__help { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #ffffff06; color: #aaa; font-size: 12px; line-height: 18px; }
+.dsc-permission-dialog__actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 14px; }
+.dsc-ui .dsc-permission-dialog__actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 36px; padding: 6px 20px; border-radius: 999px; font-size: 14px; line-height: 20px; transition: background-color 120ms ease; }
+.dsc-ui .dsc-permission-dialog__cancel { background: #333; color: #d5d5d5; }
+.dsc-ui .dsc-permission-dialog__cancel:hover:not(:disabled) { background: #3d3d3d; }
+.dsc-ui .dsc-permission-dialog__confirm { background: #443232; color: #ff6764; }
+.dsc-ui .dsc-permission-dialog__confirm:hover:not(:disabled) { background: #533838; }
+@media (max-width: 480px) {
+  .dsc-ui.dsc-permission-dialog { padding: 18px; }
+  .dsc-permission-dialog__heading h2 { font-size: 18px; line-height: 26px; }
+  .dsc-permission-dialog__capabilities { padding-inline: 12px; }
+}
 .dsc-burst { position: absolute; left: 14px; top: 50%; }
 .dsc-burst i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #b98cff; animation: dsc-burst 280ms cubic-bezier(.22,1,.36,1) both; }
 .dsc-slider-labels { display: flex; justify-content: space-between; padding-top: 3px; }
@@ -316,7 +364,7 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 @keyframes dsc-pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(3px); } }
 .dsc-menu.dsc-menu-closing { animation: dsc-pop-out 160ms ease both; pointer-events: none; }
 @keyframes dsc-reasoning-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes dsc-status-pulse { 50% { opacity: .4; } }
+@keyframes dsc-session-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes dsc-max-flow { from { transform: translateX(-32%) scale(.82,1); opacity: .95; } to { transform: translateX(32%) scale(1.02,1); opacity: .8; } }
 @keyframes dsc-max-bloom { from { transform: translateX(28%) scale(.7,1); opacity: .9; } to { transform: translateX(-28%) scale(1,1); opacity: 1; } }
 @keyframes dsc-star-drift { from { transform: translate(-50%,-50%) translate(calc(var(--dx)*-.5),calc(var(--dy)*-.5)); opacity: .45; } to { transform: translate(-50%,-50%) translate(calc(var(--dx)*.5),calc(var(--dy)*.5)); opacity: .8; } }
