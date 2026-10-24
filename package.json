@@ -10,7 +10,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test": "node --test scripts/test-install.mjs"
   },
   "files": [
     "lib",

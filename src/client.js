@@ -201,6 +201,51 @@ function EditWorkspaceDialog({ workspace, onClose, onRename, onDelete }) {
         h('button', { type: 'button', className: 'dsc-modal__save', onClick: save, disabled: !!busy }, busy === 'save' ? '保存中…' : '保存')))), document.body);
 }
 
+function RenameThreadDialog({ thread, onClose, onRename }) {
+  const [name, setName] = useState(thread.title || '未命名对话');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const panel = useRef(null);
+  const input = useRef(null);
+  const submitting = useRef(false);
+  useEffect(() => {
+    const previous = document.activeElement;
+    input.current?.focus(); input.current?.select();
+    return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  }, []);
+  const close = () => { if (!submitting.current) onClose(); };
+  const save = async event => {
+    event.preventDefault();
+    if (submitting.current) return;
+    const title = name.trim();
+    if (!title) { setError('对话名称不能为空'); input.current?.focus(); return; }
+    if (title === thread.title) { onClose(); return; }
+    submitting.current = true; setBusy(true); setError('');
+    try { await onRename(title); onClose(); }
+    catch (e) { submitting.current = false; setBusy(false); setError(errorText(e)); }
+  };
+  const keyDown = event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+    if (event.key !== 'Tab') return;
+    const items = [...panel.current.querySelectorAll('input:not(:disabled), button:not(:disabled)')];
+    const first = items[0], last = items[items.length - 1];
+    if (!first) { event.preventDefault(); return; }
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
+  return createPortal(h('div', { className: 'dsc-ui dsc-modal', onKeyDown: keyDown },
+    h('div', { className: 'dsc-modal__mask', 'aria-hidden': true, onClick: close }),
+    h('form', { ref: panel, className: 'dsc-modal__panel', role: 'dialog', 'aria-modal': true, 'aria-label': '重命名对话', 'aria-busy': busy, onSubmit: save },
+      h('div', { className: 'dsc-modal__head' }, h('h2', null, '重命名对话'),
+        h('button', { type: 'button', className: 'dsc-modal__close', 'aria-label': '关闭重命名', disabled: busy, onClick: close }, h(Icon, { name: 'close' }))),
+      h('div', { className: 'dsc-modal__field' }, h(Icon, { name: 'pencil' }),
+        h('input', { ref: input, className: 'dsc-modal__input', 'aria-label': '对话名称', value: name, disabled: busy, onChange: e => setName(e.target.value), onKeyDown: e => { if (e.key === 'Enter' && (e.nativeEvent.isComposing || e.keyCode === 229)) e.preventDefault(); } })),
+      h(ErrorLine, { text: error }),
+      h('div', { className: 'dsc-modal__actions' }, h('div', { className: 'dsc-modal__spacer' }),
+        h('button', { type: 'button', className: 'dsc-modal__cancel', disabled: busy, onClick: close }, '取消'),
+        h('button', { type: 'submit', className: 'dsc-modal__save', disabled: busy }, busy ? '保存中…' : '保存')))), document.body);
+}
+
 function relativeTime(value) {
   const timestamp = typeof value === 'number' ? value : Date.parse(value);
   if (!Number.isFinite(timestamp)) return '';
@@ -278,6 +323,7 @@ function makeWorkspaceTree(ctx) {
     const [projectMenu, setProjectMenu] = useState(null);
     const [hover, setHover] = useState(null);
     const [editing, setEditing] = useState(null);
+    const [renaming, setRenaming] = useState(null);
     const menuAnchor = useRef(null);
     const projectAnchor = useRef(null);
     const hoverAnchor = useRef(null);
@@ -287,7 +333,7 @@ function makeWorkspaceTree(ctx) {
     useEffect(() => {
       if (active) return;
       clearTimeout(hoverTimer.current);
-      setHover(null); setMenu(null); setProjectMenu(null); setEditing(null);
+      setHover(null); setMenu(null); setProjectMenu(null); setEditing(null); setRenaming(null);
     }, [active]);
     const run = async action => { setMessage(''); try { await action(); } catch (e) { if (alive.current) setMessage(errorText(e)); } };
     const archived = new Set(workspaces.archivedSessionIds);
@@ -320,10 +366,8 @@ function makeWorkspaceTree(ctx) {
       hideHover();
       setEditing(workspace);
     };
-    const rename = async row => {
-      const next = window.prompt('重命名对话', row.title || '未命名对话');
-      if (next === null) return;
-      const result = await ctx.sessions.rename(row.sessionId, next);
+    const rename = async (row, title) => {
+      const result = await ctx.sessions.using(row.sessionId, { source: 'workspaceOperation' }, reference => reference.binding.session.rename(title));
       if (result?.ok === false) throw result.error;
     };
     const togglePin = s => run(() => pinned.has(s.sessionId) ? ctx.uiWorkspace.unpinSession(s.sessionId) : ctx.uiWorkspace.pinSession(s.sessionId));
@@ -338,7 +382,7 @@ function makeWorkspaceTree(ctx) {
     };
     const row = (s, rowActive = active) => {
       const state = status.get(s.sessionId);
-      const actionsActive = rowActive && !menu && !projectMenu && !editing;
+      const actionsActive = rowActive && !menu && !projectMenu && !editing && !renaming;
       const pending = state?.pendingInteraction;
       const activity = pending ? '等待处理' : state?.running ? '运行中' : state?.completionUnread ? '已完成' : relativeTime(s.updatedAt);
       return h('div', { key: s.sessionId, className: 'dsc-thread' + (s.sessionId === currentId && panel.activePanelId === null ? ' is-active' : '') + (archived.has(s.sessionId) ? ' is-archived' : '') + (pinned.has(s.sessionId) ? ' is-pinned' : ''),
@@ -389,7 +433,7 @@ function makeWorkspaceTree(ctx) {
         catalog.phase !== 'ready' && h('div', { className: 'dsc-empty', role: 'status' }, '正在加载会话…')),
       h('label', { className: 'dsc-archive-toggle' }, h('input', { type: 'checkbox', checked: showArchived, onChange: e => setShowArchived(e.target.checked) }), '显示已归档对话'),
       menu && h(Popover, { anchor: menuAnchor, point: menu.point, onClose: () => setMenu(null), label: '对话菜单', width: 228 },
-        h(Option, { title: '重命名', icon: 'pencil', onClick: () => { const target = menu; setMenu(null); run(() => rename(target)); } }),
+        h(Option, { title: '重命名', icon: 'pencil', onClick: () => { const target = menu; setMenu(null); hideHover(); setRenaming(target); } }),
         h(Option, { title: pinned.has(menu.sessionId) ? '取消置顶' : '置顶', icon: 'pin', onClick: () => { const target = menu; setMenu(null); togglePin(target); } }),
         h(Option, { title: '分叉对话', icon: 'chat', onClick: () => { const target = menu; setMenu(null); run(() => ctx.uiWorkspace.forkSession(target.sessionId)); } }),
         h(Option, { title: archived.has(menu.sessionId) ? '取消归档' : '归档', icon: 'archive', onClick: () => { const target = menu; setMenu(null); toggleArchive(target); } })),
@@ -400,7 +444,8 @@ function makeWorkspaceTree(ctx) {
       hover && !menu && !projectMenu && (hover.kind === 'project'
         ? h(ProjectHoverCard, { key: hover.id, data: hover, anchor: hoverAnchor, onClose: hideHover, onEnter: cancelHover, onLeave: closeHover, onReveal: () => revealWorkspace(hover), onEdit: () => editWorkspace(hover.workspace) })
         : h(ThreadHoverCard, { key: hover.id, data: hover, anchor: hoverAnchor, onClose: hideHover, onEnter: cancelHover, onLeave: closeHover })),
-      editing && h(EditWorkspaceDialog, { key: editing.workspaceId, workspace: editing, onClose: () => setEditing(null), onRename: title => ctx.workspaces.rename(editing.workspaceId, title), onDelete: () => ctx.workspaces.delete(editing.workspaceId) }));
+      editing && h(EditWorkspaceDialog, { key: editing.workspaceId, workspace: editing, onClose: () => setEditing(null), onRename: title => ctx.workspaces.rename(editing.workspaceId, title), onDelete: () => ctx.workspaces.delete(editing.workspaceId) }),
+      renaming && h(RenameThreadDialog, { key: renaming.sessionId, thread: renaming, onClose: () => setRenaming(null), onRename: title => rename(renaming, title) }));
   };
 }
 

@@ -6,10 +6,24 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const dshRoot = resolve(process.env.DSH_HOME || resolve(homedir(), '.dsh'));
+const dshRoot = await realpath(resolve(process.env.DSH_HOME || resolve(homedir(), '.dsh')));
 const profile = resolve(dshRoot, 'profiles/desktop');
 const manifest = JSON.parse(await readFile(resolve(source, 'package.json'), 'utf8'));
-const runtime = JSON.parse(await readFile(resolve(dshRoot, 'dsh-runtimes/dsh-primary-runtime/runtime.json'), 'utf8'));
+// 自定义安装可显式指定 runtime.json；自动发现同时兼容旧版数据目录和官方 Windows 安装器。
+const runtimeCandidates = process.env.DSH_RUNTIME_FILE ? [resolve(process.env.DSH_RUNTIME_FILE)] : [
+  resolve(dshRoot, 'dsh-runtimes/dsh-primary-runtime/runtime.json'),
+  ...(process.platform === 'win32' ? [
+    resolve(process.env.LOCALAPPDATA || resolve(homedir(), 'AppData/Local'), 'Programs/DeepSeek Harness/resources/runtime/primary-runtime/runtime.json'),
+    ...(process.env.ProgramFiles ? [resolve(process.env.ProgramFiles, 'DeepSeek Harness/resources/runtime/primary-runtime/runtime.json')] : [])
+  ] : [])
+];
+let runtime;
+let runtimePath;
+for (const candidate of runtimeCandidates) {
+  try { runtime = JSON.parse(await readFile(candidate, 'utf8')); runtimePath = candidate; break; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
+if (!runtime) throw new Error('未找到 DSH runtime.json；自定义安装请设置 DSH_RUNTIME_FILE 为现有 runtime.json 的完整路径。');
 if (runtime.desktopVersion !== manifest.dsh.engines.dsh) throw new Error(`DSH 版本不匹配：${runtime.desktopVersion}`);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const target = resolve(dshRoot, 'dsh-codex-style', manifest.version + '-' + stamp);
@@ -19,8 +33,13 @@ const patchPath = resolve(profile, 'cordis.patch.yml');
 const lockPath = resolve(profile, 'pnpm-lock.yaml');
 const linkPath = resolve(profile, 'node_modules', manifest.name);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const originals = await Promise.all([packagePath, patchPath, lockPath].map(async path => ({ path, bytes: await readFile(path) })));
+const originals = await Promise.all([packagePath, patchPath].map(async path => ({ path, bytes: await readFile(path) })));
+// 官方 Desktop 的外部插件 profile 可能没有锁文件；保留缺失状态，不伪造锁文件。
+try { originals.push({ path: lockPath, bytes: await readFile(lockPath) }); }
+catch (error) { if (error.code !== 'ENOENT') throw error; }
 const config = JSON.parse(originals[0].bytes.toString());
+config.dependencies ??= {};
+if (!Array.isArray(config.dsh?.profile?.bundles)) throw new Error('未识别 desktop profile 的插件列表；未改 profile。');
 const legacyName = 'dsh-codex-style';
 let previousTarget;
 let previousName;
@@ -76,6 +95,8 @@ const patch = ownBlocks.length ? patchBefore.replace(ownBlock, block => {
   '  disabled: false',
   ''
 ].join(eol);
+const outputs = [Buffer.from(JSON.stringify(config, null, 2) + '\n'), Buffer.from(patch)];
+if (originals[2]) {
 const lockBefore = originals[2].bytes.toString();
 const header = /(importers:\r?\n\r?\n  \.:\r?\n    dependencies:\r?\n)/;
 if (!header.test(lockBefore)) throw new Error('未识别 desktop 锁文件结构；备份已保留，未改 profile。');
@@ -84,11 +105,13 @@ const escapedPreviousName = (previousName || manifest.name).replace(/[.*+?^${}()
 const previousLockEntry = new RegExp(`^      (?:'${escapedPreviousName}'|"${escapedPreviousName}"|${escapedPreviousName}):\\r?\\n        specifier: [^\\r\\n]+\\r?\\n        version: [^\\r\\n]+(?:\\r?\\n|$)`, 'm');
 if (previousTarget && !previousLockEntry.test(lockBefore)) throw new Error('未识别旧插件锁文件条目；未改 profile。');
 const lockFinal = previousTarget ? lockBefore.replace(previousLockEntry, () => lockEntry) : lockBefore.replace(header, match => match + lockEntry);
-const outputs = [Buffer.from(JSON.stringify(config, null, 2) + '\n'), Buffer.from(patch), Buffer.from(lockFinal)];
+outputs.push(Buffer.from(lockFinal));
+}
 const receipt = { name: manifest.name, version: manifest.version, target, previousTarget, previousName, previousLinkPath, linkPath, profile, backup, files: originals.map((entry, index) => ({ path: entry.path, backup: resolve(backup, entry.path.split(/[\\/]/).pop()), before: hash(entry.bytes), after: hash(outputs[index]) })), clientHash: hash(await readFile(resolve(target, 'lib/client.js'))) };
 await writeFile(resolve(backup, 'installation.json'), JSON.stringify(receipt, null, 2) + '\n');
 await copyFile(resolve(source, 'scripts/rollback.mjs'), resolve(backup, 'rollback.mjs'));
 try {
+  if (!originals[2] && await lstat(lockPath).catch(error => { if (error.code === 'ENOENT') return null; throw error; })) throw new Error('安装前新增了锁文件，请重试；未改 profile。');
   for (const entry of receipt.files) if (hash(await readFile(entry.path)) !== entry.before) throw new Error('安装前配置发生更改，停止：' + entry.path);
   await mkdir(dirname(linkPath), { recursive: true });
   if (previousTarget) await unlink(previousLinkPath);
@@ -107,4 +130,4 @@ try {
 }
 const installed = await realpath(linkPath);
 if (resolve(installed) !== target) throw new Error('插件链接目标不匹配');
-console.log(JSON.stringify({ installed: true, name: manifest.name, version: manifest.version, target, profile, backup, rollback: resolve(backup, 'rollback.mjs'), clientHash: receipt.clientHash, restartRequired: true }, null, 2));
+console.log(JSON.stringify({ installed: true, name: manifest.name, version: manifest.version, runtimePath, target, profile, backup, rollback: resolve(backup, 'rollback.mjs'), clientHash: receipt.clientHash, restartRequired: true }, null, 2));

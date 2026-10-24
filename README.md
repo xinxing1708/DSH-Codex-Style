@@ -36,7 +36,14 @@ $env:DSH_HOME = "你的 DSH 数据根目录"
 node scripts/install.mjs
 ```
 
-默认数据根目录为当前用户的 `.dsh`。这里应指向含 `profiles/desktop` 和 `dsh-runtimes` 的目录。
+默认数据根目录为当前用户的 `.dsh`，应包含 `profiles/desktop`。安装器支持旧版 `dsh-runtimes` 目录，以及官方 Windows 的当前用户和全局默认安装目录；没有 `pnpm-lock.yaml` 的 profile 会保持无锁文件状态。
+
+若 DSH 程序安装在其他位置，可显式指定现有 `runtime.json` 的完整路径（仍会核对版本，不会修改运行时）：
+
+```powershell
+$env:DSH_RUNTIME_FILE = "D:\Apps\DeepSeek Harness\resources\runtime\primary-runtime\runtime.json"
+node scripts/install.mjs
+```
 
 ## 功能
 
