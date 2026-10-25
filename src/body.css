@@ -4,7 +4,8 @@ body[data-dsc-codex-body] [data-chat-flow] {
   --dsc-body-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m2 14 1.5-5.1L10.9 1.5a1.6 1.6 0 0 1 2.3 0l1.1 1.1a1.6 1.6 0 0 1 0 2.3L6.9 12.3 2 14Zm7.8-11.4 3.4 3.4M3.5 8.9l3.4 3.4' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --dsc-body-terminal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='2.2' fill='none' stroke='black' stroke-width='1.15'/%3E%3Cpath d='m4.4 5.2 2.2 2.3-2.2 2.3m4.1.2h2.8' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
-body[data-dsc-codex-body] .dsc-body-turn { margin: 12px 0 18px; color: #969696; font-size: 13px; line-height: 22px; }
+/* 下方正文已由宿主保留 16px 间隔，回合头不再额外叠加下边距。 */
+body[data-dsc-codex-body] .dsc-body-turn { margin: 12px 0 0; color: #969696; font-size: 13px; line-height: 22px; }
 body[data-dsc-codex-body] .dsc-body-turn__status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; overflow: hidden; white-space: nowrap; clip-path: inset(50%); }
 body[data-dsc-codex-body] .dsc-body-turn__label { display: inline-flex; align-items: center; gap: 7px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
 body[data-dsc-codex-body] .dsc-body-turn__label:disabled { opacity: 1; cursor: default; }

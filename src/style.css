@@ -13,6 +13,11 @@ body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-compose
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-input] { min-height: 42px; padding-left: 12px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-placeholder] { left: 12px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-dock] { display: flex; box-sizing: border-box; min-height: 20px; padding-top: 2px; }
+/* “+”沿用原生命令入口；悬停圆底与提示颜色按用户 Codex 截图校准。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button[aria-haspopup="listbox"]:hover:not(:disabled) { background: #454545; }
+body[data-dsh-codex-style]:has([data-slot="conversation.composer.bar"] [data-composer-card] button[aria-haspopup="listbox"]:is(:hover,:focus-visible):not(:disabled)) [role="tooltip"] { background: #2d2d2d; color: #dfdfdf; }
+/* 顶部工作区/模式只改触发器轮廓，菜单和宿主动作继续沿用。 */
+body[data-dsh-codex-style] :is([data-slot="conversation.hero.workspace"],[data-slot="conversation.hero.agentPreset"]) button { border-radius: 999px; corner-shape: round; }
 /* 所有提交状态共享占位；保留原提交/中断回调、Tooltip 和快捷键。 */
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"]) { width: 28px; height: 28px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"]) svg { width: 14px; height: 14px; }
@@ -146,7 +151,7 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-empty-hero svg { color: #525252; }
 .dsc-empty-hero h1 { font-size: 26px; line-height: 34px; font-weight: 400; color: var(--cx-text-2); margin: 0; white-space: nowrap; }
 .dsc-hero-projectbar { visibility: visible; position: fixed; z-index: 6; height: calc(var(--cx-picker-h) + var(--cx-radius-composer)); padding: 4px 4px var(--cx-radius-composer); background: var(--cx-picker-fill); border-radius: 20px; }
-.dsc-hero-projectbar .dsc-project-picker { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; max-width: calc(100% - 180px); color: var(--cx-text-2); font-size: 13px; border-radius: var(--cx-radius-full); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dsc-hero-projectbar .dsc-project-picker { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; max-width: calc(100% - 180px); color: var(--cx-text-2); font-size: 13px; border-radius: var(--cx-radius-full); corner-shape: round; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dsc-hero-projectbar .dsc-project-picker:hover, .dsc-hero-projectbar .dsc-project-picker[aria-expanded=true] { background: var(--cx-active); }
 .dsc-brand-mark { width: 25px; height: 20px; object-fit: contain; }
 .dsc-brand { display: inline-flex; align-items: center; gap: 7px; }
@@ -262,15 +267,21 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-modal__save { height: 36px; padding: 0 20px; border-radius: 999px; background: #dfdfdf; color: #131313; font-size: 14px; font-weight: 500; }
 .dsc-modal__save:hover:not(:disabled) { background: #fff; }
 .dsc-modal__save:disabled, .dsc-modal__remove:disabled, .dsc-modal__cancel:disabled { opacity: .6; cursor: default; }
+/* 编辑项目底部按钮：优先于 .dsc-ui button 的重置；不改变源文件夹和其他弹窗。 */
+.dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__actions > button { height: 32px; border-radius: 10px; corner-shape: round; }
+.dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__save,
+.dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__save:hover:not(:disabled) { padding: 0 16px; background: #dfdfdf; color: #2b2a2a; }
+.dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__remove { background: #403030; color: #fa6665; }
+.dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__remove:hover:not(:disabled) { background: #4b3333; color: #fa6665; }
 .dsc-permission, .dsc-model { position: relative; display: inline-flex; align-items: center; min-width: 0; }
 .dsc-model { gap: 2px; }
 .dsc-control-status { display: inline-flex; align-items: center; gap: 5px; padding: 0 7px; color: var(--cx-text-3); font-size: 11px; }
 .dsc-control-status button { padding: 2px 4px; text-decoration: underline; }
 .dsc-control-status button:hover { color: var(--cx-text); }
-.dsc-pill { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 999px; white-space: nowrap; color: var(--cx-text-2); font-size: 14px !important; }
+.dsc-pill { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 999px; corner-shape: round; white-space: nowrap; color: var(--cx-text-2); font-size: 14px !important; }
 .dsc-pill:hover, .dsc-pill[aria-expanded=true] { background: #ffffff12; color: white; }
 .dsc-pill[data-warning=true] { color: var(--cx-warning); }
-.dsc-model-trigger { max-width: 260px; gap: 5px; }
+.dsc-model-trigger { max-width: 260px; gap: 5px; corner-shape: round; }
 /* 右下角触发器：模型名偏白、思维强度灰色（参考图 4）。 */
 .dsc-model-trigger .dsc-model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #dfdfdf; }
 .dsc-model-trigger .dsc-effort-name { flex: none; color: #989898; }
@@ -287,12 +298,14 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-reasoning { position: relative; }
 .dsc-reasoning-heading { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 20px 10px; text-align: center; }
 .dsc-reasoning-heading strong { font-size: 14px; font-weight: var(--cx-weight-semibold); line-height: 18px; color: var(--cx-reasoning-title); transition: color 150ms ease; }
-.dsc-reasoning-model { display: inline-flex; align-items: center; justify-content: center; gap: 2px; max-width: 100%; padding: 4px 10px; border-radius: var(--cx-radius-md); color: #ffffff9e !important; font-size: 12px !important; line-height: 16px !important; white-space: nowrap; transition: background-color 120ms var(--cx-ease), color 120ms var(--cx-ease); }
+.dsc-reasoning-model { display: inline-flex; align-items: center; justify-content: center; gap: 2px; max-width: 100%; padding: 4px 10px; border-radius: 999px; corner-shape: round; color: #ffffff9e !important; font-size: 12px !important; line-height: 16px !important; white-space: nowrap; transition: background-color 120ms var(--cx-ease), color 120ms var(--cx-ease); }
 .dsc-reasoning-model:hover { background: #3c3b3b; color: var(--cx-text) !important; }
 .dsc-reasoning-reset { position: absolute; top: -4px; right: -4px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--cx-radius-sm); color: var(--cx-text-3) !important; }
 .dsc-reasoning-reset:hover { background: var(--cx-hover); color: var(--cx-text) !important; }
 .dsc-reasoning[data-level=max] .dsc-reasoning-heading strong { color: var(--cx-reasoning-max-text); }
 .dsc-slider { height: 32px; position: relative; margin: 0 2px; border-radius: 999px; cursor: pointer; touch-action: none; outline: none; }
+/* rc.3 的全局 superellipse 会把 full/50% 圆角画成方圆形；仅恢复本控件的圆形轮廓。 */
+.dsc-slider, .dsc-slider-track, .dsc-slider-fill, .dsc-slider-max, .dsc-thumb, .dsc-tick::after, .dsc-stars i, .dsc-burst i { corner-shape: round; }
 /* 提交期间保持原有视觉：只禁用拖拽，不切换光标/透明度，避免切换档位时闪变。 */
 .dsc-slider[aria-disabled=true] { cursor: default; opacity: 1; }
 .dsc-slider-track { position: absolute; inset: 4px 0; height: 24px; border-radius: 999px; background: var(--cx-reasoning-track); overflow: hidden; }
@@ -300,18 +313,20 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-slider-max { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(90deg,var(--cx-reasoning-max-blue),var(--cx-reasoning-purple) 52%,var(--cx-reasoning-violet)); opacity: 0; transition: opacity 180ms ease; }
 .dsc-slider[data-level=max] .dsc-slider-max { opacity: 1; }
 .dsc-slider-max::before, .dsc-slider-max::after { content: ''; position: absolute; animation-play-state: paused; }
-.dsc-slider-max::before { inset: -50% -25%; background: radial-gradient(ellipse,var(--cx-reasoning-max-ice),#a095ffd9 22%,transparent 58%); animation: dsc-max-flow 2.8s cubic-bezier(.4,0,.6,1) -.45s infinite alternate; animation-play-state: paused; }
-.dsc-slider-max::after { inset: -40% -30%; background: radial-gradient(ellipse,#d6a2ff,var(--cx-reasoning-max-glow) 20%,transparent 55%); animation: dsc-max-bloom 4.2s cubic-bezier(.4,0,.6,1) -1.65s infinite alternate; animation-play-state: paused; }
+.dsc-slider-max::before { inset: -50% -25%; background: radial-gradient(ellipse,var(--cx-reasoning-max-ice),#a095ffd9 22%,transparent 58%); animation: dsc-max-flow 2.8s linear -.45s infinite; animation-play-state: paused; }
+.dsc-slider-max::after { inset: -40% -30%; background: radial-gradient(ellipse,#d6a2ff,var(--cx-reasoning-max-glow) 20%,transparent 55%); animation: dsc-max-bloom 4.2s linear -1.65s infinite; animation-play-state: paused; }
 .dsc-slider[data-level=max] .dsc-slider-max::before, .dsc-slider[data-level=max] .dsc-slider-max::after { animation-play-state: running; }
 .dsc-stars { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
 .dsc-slider[data-level=max] .dsc-stars { opacity: 1; }
-.dsc-stars i { position: absolute; border-radius: 50%; background: #fff; box-shadow: 0 0 3px #e0d6ff8c; animation: dsc-star-drift var(--pdur) cubic-bezier(.4,0,.6,1) var(--pdelay) infinite alternate; animation-play-state: paused; }
+.dsc-stars i { position: absolute; border-radius: 50%; background: #fff; box-shadow: 0 0 3px #e0d6ff8c; animation: dsc-star-drift var(--pdur) linear var(--pdelay) infinite; animation-play-state: paused; }
 .dsc-slider[data-level=max] .dsc-stars i { animation-play-state: running; }
-.dsc-tick { position: absolute; top: 50%; width: 5px; height: 5px; border-radius: 50%; background: #ffffff38; transform: translate(-50%,-50%); transition: opacity 150ms ease,transform 120ms ease; }
-.dsc-tick.is-on { background: #ffffff4d; }
-.dsc-slider[data-level=max] .dsc-tick { opacity: 0; }
+.dsc-tick { position: absolute; top: 50%; width: 24px; height: 24px; transform: translate(-50%,-50%); transition: opacity 150ms ease; }
+.dsc-tick::after { content: ''; position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: #ffffff38; transform: translate(-50%,-50%); transition: transform 120ms ease,background-color 120ms ease; pointer-events: none; }
+.dsc-tick.is-on::after { background: #ffffff4d; }
+.dsc-slider:not([aria-disabled=true]) .dsc-tick:hover::after { transform: translate(-50%,-50%) scale(1.6); background: #ffffff73; }
+.dsc-slider[data-level=max] .dsc-tick { opacity: 0; pointer-events: none; }
 .dsc-thumb-position { position: absolute; inset: 0; pointer-events: none; transition: transform 140ms var(--cx-ease-scroll); }
-.dsc-thumb { position: absolute; top: 50%; left: 14px; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px #0007,0 0 0 1px #0000000f; transform: translate(-50%,-50%); pointer-events: auto; transition: transform 140ms var(--cx-ease-out),box-shadow 140ms var(--cx-ease); }
+.dsc-thumb { position: absolute; z-index: 1; top: 50%; left: 14px; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px #0007,0 0 0 1px #0000000f; transform: translate(-50%,-50%); pointer-events: auto; transition: transform 140ms var(--cx-ease-out),box-shadow 140ms var(--cx-ease); }
 /* 固定白色滑块为正圆，避免宿主全局圆角规则覆盖插件外形。 */
 .dsc-ui .dsc-slider .dsc-thumb { border-radius: 50% !important; }
 .dsc-thumb:hover { transform: translate(-50%,-50%) scale(1.1); box-shadow: 0 1px 6px #0008,0 0 0 1px #0000000f; }
@@ -353,8 +368,9 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
   .dsc-permission-dialog__heading h2 { font-size: 18px; line-height: 26px; }
   .dsc-permission-dialog__capabilities { padding-inline: 12px; }
 }
-.dsc-burst { position: absolute; left: 14px; top: 50%; }
-.dsc-burst i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #b98cff; animation: dsc-burst 280ms cubic-bezier(.22,1,.36,1) both; }
+.dsc-burst { position: absolute; left: 14px; top: 50%; pointer-events: none; }
+/* 等 140ms 节点移动落定后，从白球边缘扩散；反复进入 Max 会由原有 key 重播。 */
+.dsc-burst i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #b98cff; box-shadow: 0 0 3px #b98cff40; animation: dsc-burst 280ms ease-out 140ms both; }
 .dsc-slider-labels { display: flex; justify-content: space-between; padding-top: 3px; }
 .dsc-slider-labels button { padding: 0 3px; font-size: 10px; color: var(--cx-text-3); }
 .dsc-slider-labels button:hover { color: white; }
@@ -365,10 +381,11 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-menu.dsc-menu-closing { animation: dsc-pop-out 160ms ease both; pointer-events: none; }
 @keyframes dsc-reasoning-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dsc-session-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes dsc-max-flow { from { transform: translateX(-32%) scale(.82,1); opacity: .95; } to { transform: translateX(32%) scale(1.02,1); opacity: .8; } }
-@keyframes dsc-max-bloom { from { transform: translateX(28%) scale(.7,1); opacity: .9; } to { transform: translateX(-28%) scale(1,1); opacity: 1; } }
-@keyframes dsc-star-drift { from { transform: translate(-50%,-50%) translate(calc(var(--dx)*-.5),calc(var(--dy)*-.5)); opacity: .45; } to { transform: translate(-50%,-50%) translate(calc(var(--dx)*.5),calc(var(--dy)*.5)); opacity: .8; } }
-@keyframes dsc-burst { 0% { transform: translate(-50%,-50%) scale(.45); opacity: 0; } 22% { opacity: .65; } 100% { transform: translate(-50%,-50%) translate(var(--bx),var(--by)) scale(.45); opacity: 0; } }
+/* 两层亮带和星点均向左单程流动，出场淡去后从右侧开始下一轮。 */
+@keyframes dsc-max-flow { 0% { transform: translateX(65%) scale(.82,1); opacity: 0; } 12% { opacity: .95; } 88% { opacity: .8; } 100% { transform: translateX(-65%) scale(1.02,1); opacity: 0; } }
+@keyframes dsc-max-bloom { 0% { transform: translateX(65%) scale(.7,1); opacity: 0; } 12% { opacity: .9; } 88% { opacity: 1; } 100% { transform: translateX(-65%) scale(1,1); opacity: 0; } }
+@keyframes dsc-star-drift { 0% { transform: translate(-50%,-50%) translate(calc(var(--dx)*.5),calc(var(--dy)*-.5)); opacity: 0; } 20% { opacity: .7; } 80% { opacity: .8; } 100% { transform: translate(-50%,-50%) translate(calc(var(--dx)*-.5),calc(var(--dy)*.5)); opacity: 0; } }
+@keyframes dsc-burst { 0% { transform: translate(-50%,-50%) translate(calc(var(--bx)*.45),calc(var(--by)*.45)) scale(.5); opacity: 0; } 18% { transform: translate(-50%,-50%) translate(calc(var(--bx)*.72),calc(var(--by)*.72)) scale(1); opacity: .65; } 100% { transform: translate(-50%,-50%) translate(var(--bx),var(--by)) scale(.5); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .dsc-sidebar-shell, .dsc-row-tooltip, .dsc-ui *, .dsc-ui *::before, .dsc-ui *::after { animation: none !important; transition: none !important; }
   .dsc-burst { display: none; }
