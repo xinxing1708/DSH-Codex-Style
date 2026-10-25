@@ -115,16 +115,6 @@ npm run build
 
 构建仅使用 Node.js 标准库，不需要 `npm install` 或联网。所需源码、样式、自绘图标和品牌图均已包含，产物写入 `lib/`。随后可运行 `node scripts/install.mjs`。
 
-## 部分效果演示
-<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/73a8455d-f4c0-476e-a8de-731c3bec69c4" />
-<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/17d9ed75-c0ff-4a6d-b759-c208c58b1099" />
-<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/a7dd4a26-9100-4633-865e-d3dc2dc82269" />
-<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/ee67555e-3fd0-4995-8ed2-db1c430b2855" />
-<img width="962" height="617" alt="image" src="https://github.com/user-attachments/assets/8e74053d-a8a2-4c55-96c1-db504554c361" />
-
-
-
-
 | 路径 | 用途 |
 |---|---|
 | `src/` | 客户端组件、宿主入口及局部样式 |
@@ -132,6 +122,15 @@ npm run build
 | `lib/` | 可安装的构建产物 |
 | `scripts/` | 构建、安装及回退 |
 | `cordis.patch.yml` / `skin.json` | DSH 插件接入及皮肤元数据 |
+
+## 部分效果演示
+<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/c9506366-367d-45be-9ef5-9b9524621d2a" />
+<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/c2747a8d-e3e2-4e87-bdf3-ab48f0e6a4be" />
+<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/ebf27c1f-22b3-453a-bcf6-ba29884c7bc9" />
+<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/5a7d29fe-f4f0-473e-9d90-38744f764f11" />
+<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/fa49d112-9919-47b3-a7ad-e525baf389e9" />
+
+
 
 ## 兼容范围
 
