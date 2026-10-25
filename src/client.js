@@ -29,6 +29,13 @@ const paths = {
 function Icon({ name, size = 16, ...props }) {
   return h('svg', { viewBox: '0 0 16 16', width: size, height: size, fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, ...props }, h('path', { d: paths[name] || paths.chat }));
 }
+// 以页面时间轴零点对齐，错开开始、等待恢复和重新挂载的运行圈保持同一转角。
+function syncSessionSpinner(svg) {
+  if (!svg) return;
+  for (const animation of svg.getAnimations()) {
+    if (animation.animationName === 'dsc-session-spin') animation.startTime = 0;
+  }
+}
 function useSource(source) {
   const subscribe = useCallback(fn => source.subscribe(fn), [source]);
   const snapshot = useCallback(() => source.getSnapshot(), [source]);
@@ -448,7 +455,7 @@ function makeWorkspaceTree(ctx, completionStore) {
           h('span', { className: 'dsc-state', 'data-state': pending ? 'pending' : 'idle' }, pending && h(Icon, { name: 'chat', size: 14 })),
           h(ThreadTitle, { title: s.title || '未命名对话' }),
           running ? h('span', { className: 'dsc-thread-running', role: 'img', 'aria-label': '对话进行中', title: '对话进行中' },
-            h('svg', { className: 'dsc-running-spinner', viewBox: '0 0 16 16', width: 12, height: 12, fill: 'none', 'aria-hidden': true },
+            h('svg', { className: 'dsc-running-spinner', ref: syncSessionSpinner, onAnimationStart: event => syncSessionSpinner(event.currentTarget), viewBox: '0 0 16 16', width: 12, height: 12, fill: 'none', 'aria-hidden': true },
               h('circle', { cx: 8, cy: 8, r: 6.5, stroke: 'currentColor', strokeWidth: 1.6, opacity: .22 }),
               h('circle', { cx: 8, cy: 8, r: 6.5, stroke: 'currentColor', strokeWidth: 1.6, strokeDasharray: '30.6 10.2', strokeLinecap: 'round' })))
             : completed ? h('span', { className: 'dsc-thread-completion', role: 'img', 'aria-label': '对话已完成，未读', title: '对话已完成，未读' }) : h('small', { className: 'dsc-thread-time' }, activity)),
@@ -903,6 +910,8 @@ function apply(ctx) {
   };
   for (const [name, component] of Object.entries(components)) register(ctx, name, component);
   const updates = createPluginUpdateService(PLUGIN_VERSION);
+  ctx.inject(['remote'], scope => scope.effect(() => mountPluginUpdateRemote(scope), 'codex-style: update remote methods'));
+  ctx.inject(['remote', 'remote.codexStyleUpdates'], scope => scope.effect(() => updates.connect(scope.remote.codexStyleUpdates), 'codex-style: update download and install'));
   ctx.effect(() => { updates.start(); return () => updates.dispose(); }, 'codex-style: automatic update check');
   ctx.slots.inject('plugins.detail.actions', () => ctx.slots.register({ name: 'plugins.detail.actions', id: 'codex-style:check-update' }, props => h(PluginUpdateAction, { ...props, updates })));
   ctx.inject(['pluginNavigation'], scope => scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:update-notice' }, () => h(PluginUpdateNotice, { updates, onOpen: () => scope.reflect.get('pluginNavigation').openBundle(PLUGIN_PACKAGE) }))));

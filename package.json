@@ -1,6 +1,6 @@
 {
   "name": "@xinxing1708/dsh-codex-style",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "DSH 的 Codex 风格深色界面插件",
   "type": "module",
   "main": "lib/host.js",
@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test scripts/test-install.mjs"
+    "test": "node --test scripts/test-install.mjs scripts/test-update.mjs"
   },
   "files": [
     "lib",

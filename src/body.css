@@ -1,6 +1,7 @@
 /* 本文件只在正文子组件实际启用时挂载；不覆盖宿主 Markdown 与工具内容。 */
 body[data-dsc-codex-body] [data-chat-flow] {
   --dsc-body-muted: #969696;
+  --dsc-body-images: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2016%2016'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'1.1'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'm6.2%204.6.4-2A1.5%201.5%200%200%201%208.4%201.5l4.9%201a1.5%201.5%200%200%201%201.2%201.8l-1%204.9a1.5%201.5%200%200%201-1.8%201.2l-.7-.1'%2F%3E%3Cg%20transform%3D'rotate(-12%206.1%209.7)'%3E%3Crect%20x%3D'1.7'%20y%3D'5.3'%20width%3D'8.9'%20height%3D'8.7'%20rx%3D'1.7'%2F%3E%3Cpath%20d%3D'm2%2011.9%202.6-2.4%202.2%201.7%201.5-1.4%202.1%202.1'%2F%3E%3Ccircle%20cx%3D'4.3'%20cy%3D'7.8'%20r%3D'.65'%20fill%3D'black'%20stroke%3D'none'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   --dsc-body-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m2 14 1.5-5.1L10.9 1.5a1.6 1.6 0 0 1 2.3 0l1.1 1.1a1.6 1.6 0 0 1 0 2.3L6.9 12.3 2 14Zm7.8-11.4 3.4 3.4M3.5 8.9l3.4 3.4' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --dsc-body-terminal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='2.2' fill='none' stroke='black' stroke-width='1.15'/%3E%3Cpath d='m4.4 5.2 2.2 2.3-2.2 2.3m4.1.2h2.8' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
@@ -11,13 +12,16 @@ body[data-dsc-codex-body] .dsc-body-turn__label { display: inline-flex; align-it
 body[data-dsc-codex-body] .dsc-body-turn__label:disabled { opacity: 1; cursor: default; }
 body[data-dsc-codex-body] .dsc-body-turn__label:enabled:hover { color: #c8c8c8; }
 body[data-dsc-codex-body] .dsc-body-turn__label:focus-visible { outline: 1px solid #aaa; outline-offset: 4px; border-radius: 3px; }
-body[data-dsc-codex-body] .dsc-body-turn__label svg { transition: transform 160ms ease; }
+body[data-dsc-codex-body] .dsc-body-turn__label svg { opacity: 0; transition: transform 160ms ease, opacity 120ms ease; }
+body[data-dsc-codex-body] .dsc-body-turn__label:is(:hover, :focus-visible) svg { opacity: 1; }
 body[data-dsc-codex-body] .dsc-body-turn__label[aria-expanded="true"] svg { transform: rotate(180deg); }
 body[data-dsc-codex-body] .dsc-body-turn__divider { height: 1px; background: #ffffff12; margin-top: 9px; }
 /* 没有真实回合头时保留底部状态，避免连接/加载阶段丢失运行提示。 */
 body[data-dsc-codex-body] :is([data-chat-flow], [data-slot="conversation.chat.flow"]):has(.dsc-body-turn[data-dsc-body-running]) > [data-chat-running] { display: none; }
-/* 流式思考正文和摘要不展示；完成思考的原始图标与真实折叠操作保留。 */
+/* 思考不显示前导图标；保留完成思考的真实折叠操作，流式正文和摘要仍隐藏。 */
 body[data-dsc-codex-body] [data-chat-flow] [data-variant="think"][data-state="running"] { display: none; }
+body[data-dsc-codex-body] [data-process-activity="thinking"] [data-step-process-icon],
+body[data-dsc-codex-body] [data-chat-flow] [data-variant="think"] [data-disclosure-row] > :first-child { display: none; }
 body[data-dsc-codex-body] [data-chat-flow] [data-variant="think"] [data-disclosure-row] > span:last-child > span:first-child > span:not(:first-child) { display: none; }
 body[data-dsc-codex-body] [data-process-activity="thinking"]:has(> [data-shimmer]) > [data-shimmer] { display: none; }
 body[data-dsc-codex-body] [data-process-activity="thinking"]:has(> [data-shimmer])::after { content: '正在思考'; color: transparent; background: linear-gradient(105deg, #969696 42%, #e1e1e1 50%, #969696 58%); background-clip: text; background-size: 250% 100%; animation: dsc-body-thinking 2s linear infinite; }
@@ -27,32 +31,42 @@ body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="bash"], [data-tool
 body[data-dsc-codex-body] [data-process-activity] { width: fit-content; max-width: 100%; gap: 7px; text-align: left; }
 body[data-dsc-codex-body] [data-process-activity] > span:first-child { display: contents; }
 body[data-dsc-codex-body] [data-step-process-icon],
-body[data-dsc-codex-body] [data-step-process-chevron] { position: static; flex: none; opacity: 1 !important; transform: none !important; }
+body[data-dsc-codex-body] [data-step-process-chevron] { position: static; flex: none; transform: none !important; }
+body[data-dsc-codex-body] [data-step-process-icon] { opacity: 1 !important; }
 body[data-dsc-codex-body] [data-step-process-icon] { width: 16px; height: 16px; }
-body[data-dsc-codex-body] [data-step-process-chevron] { order: 3; width: 12px; height: 12px; margin-left: 0; }
+body[data-dsc-codex-body] [data-step-process-chevron] { order: 3; width: 12px; height: 12px; margin-left: 0; opacity: 0 !important; transition: opacity 120ms ease; }
+body[data-dsc-codex-body] [data-process-activity]:is(:hover, :focus-visible) [data-step-process-chevron] { opacity: 1 !important; }
 body[data-dsc-codex-body] [data-process-activity] > [data-shimmer] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* 图标由公开类别标记选择，掩模为自绘 SVG；不替换按钮或文件操作回调。 */
+/* 通用工具（包括 ops_bash 等别名）统一使用终端；编辑/写入仍使用铅笔。 */
 body[data-dsc-codex-body] [data-process-activity="commands"] [data-step-process-icon],
-body[data-dsc-codex-body] [data-chat-flow] [data-variant="bash"]:is([data-sample], [data-tool]) { --dsc-body-icon: var(--dsc-body-terminal); }
+body[data-dsc-codex-body] [data-process-activity="tools"] [data-step-process-icon],
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="bash"], [data-variant="others"]):is([data-sample], [data-tool]) { --dsc-body-icon: var(--dsc-body-terminal); }
 body[data-dsc-codex-body] [data-process-activity="edit"] [data-step-process-icon],
 body[data-dsc-codex-body] [data-process-activity="write"] [data-step-process-icon],
 body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"])[data-tool] { --dsc-body-icon: var(--dsc-body-pencil); }
-body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"]) [data-step-process-icon],
-body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row] > :first-child,
+/* read_image 的专用工具行和图像分组；普通 read 文件行继续使用宿主图标。 */
+body[data-dsc-codex-body] [data-process-activity="readImage"] [data-step-process-icon],
+body[data-dsc-codex-body] [data-chat-flow] [data-tool]:is([data-tool="read_image"], [data-tool="ops_read_image"]) { --dsc-body-icon: var(--dsc-body-images); }
+body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"], [data-process-activity="tools"], [data-process-activity="readImage"]) [data-step-process-icon],
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"], [data-variant="others"], [data-tool="read_image"], [data-tool="ops_read_image"])[data-tool] [data-disclosure-row] > :first-child,
 body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child { position: relative; width: 16px; min-width: 16px; height: 16px; }
-body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"]) [data-step-process-icon] > *,
-body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row] > :first-child > *,
+body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"], [data-process-activity="tools"], [data-process-activity="readImage"]) [data-step-process-icon] > *,
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"], [data-variant="others"], [data-tool="read_image"], [data-tool="ops_read_image"])[data-tool] [data-disclosure-row] > :first-child > *,
 body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child > * { visibility: hidden; }
-body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"]) [data-step-process-icon]::before,
-body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row] > :first-child::before,
+body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"], [data-process-activity="tools"], [data-process-activity="readImage"]) [data-step-process-icon]::before,
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"], [data-variant="others"], [data-tool="read_image"], [data-tool="ops_read_image"])[data-tool] [data-disclosure-row] > :first-child::before,
 body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child::before { content: ''; position: absolute; inset: 0; background: #969696; mask: var(--dsc-body-icon) center / 16px 16px no-repeat; }
-/* 用真实 aria-expanded 驱动展开箭头。 */
-body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row][data-expandable],
+/* 原生前导箭头移至右侧；只在悬停或键盘焦点时显示，点击展开后移出也隐藏。 */
+body[data-dsc-codex-body] [data-chat-flow] [data-tool] [data-disclosure-row] > :first-child > svg { display: none; }
+body[data-dsc-codex-body] [data-chat-flow] [data-tool] [data-disclosure-row] > :first-child > span:first-child { opacity: 1 !important; transform: none !important; }
+body[data-dsc-codex-body] [data-chat-flow] :is([data-tool], [data-variant="think"]) [data-disclosure-row][data-expandable],
 body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable] { position: relative; padding-right: 18px; }
-body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"])[data-tool] [data-disclosure-row][data-expandable]::after,
-body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable]::after { content: ''; position: absolute; right: 3px; top: 8px; width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); opacity: 0; transition: transform 160ms ease, opacity 120ms ease; }
-body[data-dsc-codex-body] [data-chat-flow] :is([data-disclosure-row], [data-sample="bash"]):is(:hover, :focus-within)::after { opacity: 1; }
-body[data-dsc-codex-body] [data-chat-flow] :is([data-disclosure-row], [data-sample="bash"])[aria-expanded="true"]::after { transform: rotate(45deg); }
+body[data-dsc-codex-body] [data-chat-flow] :is([data-tool], [data-variant="think"]) [data-disclosure-row][data-expandable]::after,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable]::after { content: ''; position: absolute; right: 3px; top: 8px; width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); opacity: 0; transition: transform 160ms ease, opacity 120ms ease; }
+body[data-dsc-codex-body] [data-chat-flow] :is([data-tool], [data-variant="think"]) [data-disclosure-row][data-expandable]:is(:hover, :focus-visible, :has(:focus-visible))::after,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable]:is(:hover, :focus-visible, :has(:focus-visible))::after { opacity: 1; }
+body[data-dsc-codex-body] [data-chat-flow] :is([data-tool], [data-variant="think"]) [data-disclosure-row][data-expandable][aria-expanded="true"]::after,
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable][aria-expanded="true"]::after { transform: rotate(225deg); }
 /* 沿用原生 TextShimmer 的无障碍隐藏副本，只重设灰色高光的扫过方式。 */
 body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] { position: absolute; inset: 0; overflow: hidden; pointer-events: none; mask: none; }
 body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] > span { position: absolute; inset: 0; width: auto; color: #e1e1e1; transform: none; mask-image: linear-gradient(105deg, transparent 42%, #000 50%, transparent 58%); mask-size: 250% 100%; animation: dsc-body-light 2s linear infinite; }
@@ -72,5 +86,6 @@ body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][aria-expanded="t
   body[data-dsc-codex-body] [data-chat-flow] [data-disclosure-header] + *,
   body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] + * { animation: none !important; }
   body[data-dsc-codex-body] .dsc-body-turn__label svg,
+  body[data-dsc-codex-body] [data-step-process-chevron],
   body[data-dsc-codex-body] [data-chat-flow] [aria-expanded]::after { transition: none; }
 }

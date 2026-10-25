@@ -25,6 +25,8 @@ new Script(output, { filename: 'dsh-codex-style/client.js' });
 await mkdir(resolve(root, 'lib'), { recursive: true });
 await writeFile(resolve(root, 'lib/client.js'), output);
 await writeFile(resolve(root, 'lib/host.js'), await readFile(resolve(root, 'src/host.mjs')));
+await writeFile(resolve(root, 'lib/updater.js'), await readFile(resolve(root, 'src/updater.mjs')));
+await writeFile(resolve(root, 'lib/update-install.js'), await readFile(resolve(root, 'src/update-install.mjs')));
 await writeFile(resolve(root, 'lib/behavior.js'), await readFile(resolve(root, 'src/behavior.mjs')));
 await writeFile(resolve(root, 'lib/body.js'), await readFile(resolve(root, 'src/body.mjs')));
 console.log(`Built ${manifest.name}@${manifest.version}: client ${Buffer.byteLength(output)} bytes`);

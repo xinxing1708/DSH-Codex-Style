@@ -29,6 +29,8 @@ body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-compose
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="停止生成"], [aria-label="Stop generating"]) svg rect { rx: 1.5px; }
 /* 正文字体颜色：按 Codex 截图采样 #dfdfdf（原 #ffffff 偏亮）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
 body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #dfdfdf; }
+/* 正文列随输入卡宽度对齐，隐藏宿主两侧的宽度拖拽柄及其整条命中区域。 */
+body[data-dsh-codex-style] [data-conversation-content] > [data-width-handle] { display: none; }
 /* 原 sidebar/settings 父级继续挂载以保留原生页面与子槽位所有权；只隐藏其旧外观。 */
 body[data-dsh-codex-chrome] [data-slot="sidebar"] { display: block !important; position: relative; width: 100%; height: 100%; visibility: hidden; }
 body[data-dsh-codex-chrome] [data-slot="conversation.composer.bar"] { --dsh-composer-side-clearance: 0px; display: flex !important; flex-direction: column; align-items: stretch; align-self: center; width: min(calc(100% - 32px), var(--dsh-composer-card-max-width)); max-width: var(--dsh-composer-card-max-width); position: relative; }
@@ -49,7 +51,13 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 .dsc-ui button:disabled { cursor: default; opacity: .45; }
 .dsc-ui button:focus-visible, .dsc-ui [role=slider]:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: 2px; }
 .dsc-ui svg { flex: none; }
-.dsc-update-control { display: inline-flex; align-items: center; -webkit-app-region: no-drag; }
+.dsc-update-control { display: inline-flex; align-items: center; gap: 12px; -webkit-app-region: no-drag; }
+.dsc-update-download { display: inline-flex; align-items: center; gap: 8px; }
+.dsc-update-progress { display: block; width: 112px; height: 5px; overflow: hidden; border-radius: 999px; background: #ffffff1f; }
+.dsc-update-progress-fill { display: block; width: 100%; height: 100%; border-radius: inherit; background: #72b4ff; transform-origin: left; transition: transform 180ms ease; }
+.dsc-update-progress[data-indeterminate=true] .dsc-update-progress-fill { width: 32%; animation: dsc-update-download 1.2s ease-in-out infinite; }
+.dsc-update-progress-label { min-width: 34px; color: var(--cx-text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+@keyframes dsc-update-download { from { transform: translateX(-110%); } to { transform: translateX(410%); } }
 .dsc-update-notice { position: fixed; right: 24px; bottom: 24px; width: 320px; max-width: calc(100vw - 32px); padding: 14px; z-index: 10000; background: var(--cx-popover-fill); border: 1px solid var(--cx-border-l1); border-radius: 14px; box-shadow: 0 12px 36px #0007; animation: dsc-pop-in 130ms ease both; -webkit-app-region: no-drag; }
 .dsc-ui.dsc-update-panel { padding: 14px; }
 .dsc-update-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -67,7 +75,7 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 .dsc-update-retry:hover { background: var(--cx-hover); }
 .dsc-update-spin { animation: dsc-update-spin .9s linear infinite; }
 @keyframes dsc-update-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .dsc-update-spin { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .dsc-update-spin, .dsc-update-progress-fill { animation: none !important; transition: none; } }
 .dsc-proto-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 1; }
 .dsc-proto-icon svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 /* 同一内容 portal 到 body：常驻时跟随宿主列，退场与浮卡不受 0px 列裁剪。只动画透明度和位移。 */
