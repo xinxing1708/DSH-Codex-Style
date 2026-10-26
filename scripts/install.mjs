@@ -68,13 +68,15 @@ await access(resolve(source, 'lib/client.js'));
 await access(resolve(source, 'lib/host.js'));
 await access(resolve(source, 'lib/behavior.js'));
 await access(resolve(source, 'lib/body.js'));
+await access(resolve(source, 'lib/header.js'));
 await access(resolve(source, 'lib/updater.js'));
+await access(resolve(source, 'lib/update-common.js'));
 await access(resolve(source, 'lib/update-install.js'));
 await mkdir(backup, { recursive: true });
 for (const entry of originals) await writeFile(resolve(backup, entry.path.split(/[\\/]/).pop()), entry.bytes);
 await mkdir(resolve(target, 'lib'), { recursive: true });
 await mkdir(resolve(target, 'licenses'), { recursive: true });
-for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js', 'lib/behavior.js', 'lib/body.js', 'lib/updater.js', 'lib/update-install.js', 'scripts/rollback.mjs', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'locale/body/en.json', 'locale/body/zh.json']) {
+for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js', 'lib/behavior.js', 'lib/body.js', 'lib/header.js', 'lib/updater.js', 'lib/update-common.js', 'lib/update-install.js', 'scripts/rollback.mjs', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'locale/body/en.json', 'locale/body/zh.json', 'locale/header/en.json', 'locale/header/zh.json']) {
   await mkdir(dirname(resolve(target, file)), { recursive: true });
   await copyFile(resolve(source, file), resolve(target, file));
 }
@@ -87,6 +89,9 @@ config.dsh.profile.bundles = config.dsh.profile.bundles.filter(name => !oldSkins
 config.dsh.profile.bundles.push(manifest.name);
 const eol = originals[1].bytes.includes(Buffer.from('\r\n')) ? '\r\n' : '\n';
 const patchBefore = originals[1].bytes.toString();
+// 默认空列表不能再拼接第二个 YAML 根节点；只移除空列表本身，保留注释和换行。
+const emptyPatch = /^\[\s*\]$/.test(patchBefore.replace(/#[^\r\n]*/g, '').trim());
+const patchPrefix = emptyPatch ? patchBefore.replace(/^[^#\r\n]+/gm, text => text.replace(/[\[\]]/g, '')) : patchBefore;
 const ownBlock = /^- id: ui-skin-codex-style\r?\n(?:[ \t]+[^\r\n]*(?:\r?\n|$))*/gm;
 const ownBlocks = [...patchBefore.matchAll(ownBlock)];
 if (ownBlocks.length > 1 || (previousTarget && ownBlocks.length !== 1)) throw new Error('未识别唯一的皮肤配置行；未改 profile。');
@@ -95,7 +100,7 @@ const patch = ownBlocks.length ? patchBefore.replace(ownBlock, block => {
   const oldName = block.match(nameLine)?.[1].trim().replace(/^(['"])(.*)\1$/, '$2');
   if (oldName !== manifest.name && oldName !== previousName) throw new Error('皮肤配置指向其他包，未改 profile。');
   return block.replace(nameLine, () => '  name: ' + JSON.stringify(manifest.name));
-}) : patchBefore + eol + [
+}) : patchPrefix + eol + [
   '# Codex Style：旧主题依赖保留，仅停用其界面行。',
   '- id: ui-skin-claude-style',
   '  disabled: true',

@@ -3,7 +3,8 @@ import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 
-export const UPDATE_PACKAGE = '@xinxing1708/dsh-codex-style';
+import { UPDATE_PACKAGE } from './update-common.js';
+export { UPDATE_PACKAGE };
 export const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const optional = async path => { try { return await readFile(path); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } };
 async function atomicWrite(path, bytes) {
@@ -54,7 +55,7 @@ export async function extractUpdate(archive, directory) {
   return JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'));
 }
 
-// 同包升级不重写 cordis.patch.yml，保留宿主整理后的分组格式与两个可选组件的开关。
+// 同包升级不重写 cordis.patch.yml，保留宿主整理后的分组格式与各可选组件的开关。
 export async function installUpdate({ archive, version, profile, compatibility = () => {}, beforeCommit = async () => {} }) {
   const profileFile = join(profile, 'package.json'), lockFile = join(profile, 'pnpm-lock.yaml');
   const original = await readFile(profileFile), lock = await optional(lockFile);

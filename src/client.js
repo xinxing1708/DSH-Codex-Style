@@ -5,6 +5,7 @@ const { createSnapshotStore } = require('@deepseek-ai/dsh-client-store');
 const h = React.createElement;
 const { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useSyncExternalStore, useId } = React;
 const PLUGIN_ID = 'dsh-codex-style';
+const headerPresentation = createSnapshotStore(false);
 
 // 自绘图标沿用本项目原型；功能与目录全部来自宿主。
 const paths = {
@@ -397,14 +398,39 @@ function makeWorkspaceTree(ctx, completionStore) {
       setHover(null); setMenu(null); setProjectMenu(null); setEditing(null); setRenaming(null);
     }, [active]);
     const run = async action => { setMessage(''); try { await action(); } catch (e) { if (alive.current) setMessage(errorText(e)); } };
-    const archived = new Set(workspaces.archivedSessionIds);
-    const pinned = new Set(workspaces.pinnedSessionIds);
-    const items = catalog.ids.map(id => catalog.byId[id]).filter(s => s && s.origin !== 'subagent' && !s.blank && (showArchived || !archived.has(s.id))).map(s => ({ ...s, sessionId: s.id, title: s.title || s.displayTitle }));
-    const currentId = catalog.ids.find(id => (catalog.byId[id]?.retainedBy?.mainView ?? 0) > 0);
-    const workspaceOf = id => workspaces.items.find(w => w.sessionIds.includes(id));
-    const matches = s => !query.trim() || `${s.title || ''} ${workspaceOf(s.sessionId)?.title || ''}`.toLowerCase().includes(query.trim().toLowerCase());
-    const ordered = [...items].sort((a, b) => (Number(b.updatedAt) || Date.parse(b.updatedAt) || 0) - (Number(a.updatedAt) || Date.parse(a.updatedAt) || 0));
-    const visible = ordered.filter(matches);
+    const archived = useMemo(() => new Set(workspaces.archivedSessionIds), [workspaces.archivedSessionIds]);
+    const pinned = useMemo(() => new Set(workspaces.pinnedSessionIds), [workspaces.pinnedSessionIds]);
+    // 一次建立归属索引；保留多项目引用时的旧呈现，以及搜索/详情使用首个项目的语义。
+    const memberships = useMemo(() => {
+      const index = new Map();
+      for (const workspace of workspaces.items) for (const id of new Set(workspace.sessionIds)) {
+        if (!index.has(id)) index.set(id, []);
+        index.get(id).push(workspace);
+      }
+      return index;
+    }, [workspaces.items]);
+    const workspaceOf = id => memberships.get(id)?.[0];
+    const ordered = useMemo(() => catalog.ids.map(id => catalog.byId[id])
+      .filter(s => s && s.origin !== 'subagent' && !s.blank)
+      .map(s => ({ ...s, sessionId: s.id, title: s.title || s.displayTitle }))
+      .sort((a, b) => (Number(b.updatedAt) || Date.parse(b.updatedAt) || 0) - (Number(a.updatedAt) || Date.parse(a.updatedAt) || 0)), [catalog.ids, catalog.byId]);
+    const currentId = useMemo(() => catalog.ids.find(id => (catalog.byId[id]?.retainedBy?.mainView ?? 0) > 0), [catalog.ids, catalog.byId]);
+    const searchText = query.trim().toLowerCase();
+    const visible = useMemo(() => ordered.filter(s => (showArchived || !archived.has(s.sessionId)) &&
+      (!searchText || `${s.title || ''} ${memberships.get(s.sessionId)?.[0]?.title || ''}`.toLowerCase().includes(searchText))), [ordered, archived, showArchived, searchText, memberships]);
+    const groups = useMemo(() => {
+      const projects = new Map(), pins = [], recent = [];
+      for (const session of visible) {
+        if (pinned.has(session.sessionId)) { pins.push(session); continue; }
+        const owners = memberships.get(session.sessionId);
+        if (!owners) { recent.push(session); continue; }
+        for (const workspace of owners) {
+          if (!projects.has(workspace.workspaceId)) projects.set(workspace.workspaceId, []);
+          projects.get(workspace.workspaceId).push(session);
+        }
+      }
+      return { projects, pins, recent };
+    }, [visible, pinned, memberships]);
     const cancelHover = () => clearTimeout(hoverTimer.current);
     const hideHover = () => { clearTimeout(hoverTimer.current); setHover(null); };
     const closeHover = () => { cancelHover(); hoverTimer.current = setTimeout(() => setHover(null), 140); };
@@ -484,10 +510,10 @@ function makeWorkspaceTree(ctx, completionStore) {
       h(ErrorLine, { text: message || (catalog.error && errorText(catalog.error)) || (workspaces.error && errorText(workspaces.error)) }),
       h('div', { className: 'dsc-tree-scroll' },
         query ? h(React.Fragment, null, h('div', { className: 'dsc-section-title' }, '搜索结果'), visible.map(s => row(s))) : h(React.Fragment, null,
-          pinned.size > 0 && h('section', null, h('div', { className: 'dsc-section-title' }, '置顶'), visible.filter(s => pinned.has(s.sessionId)).map(s => row(s))),
+          pinned.size > 0 && h('section', null, h('div', { className: 'dsc-section-title' }, '置顶'), groups.pins.map(s => row(s))),
           projectHeading,
           h(ProjectFold, { open: projectsOpen, className: 'dsc-project-list-fold' }, h('div', { className: 'dsc-project-list' }, workspaces.items.map(w => {
-            const children = visible.filter(s => w.sessionIds.includes(s.sessionId) && !pinned.has(s.sessionId));
+            const children = groups.projects.get(w.workspaceId) || [];
             const open = expanded[w.workspaceId] ?? w.sessionIds.includes(currentId);
             return h('section', { key: w.workspaceId }, h('div', { className: 'dsc-project', onPointerEnter: e => enterHover(e.currentTarget, { kind: 'project', id: w.workspaceId, workspace: w, title: w.title || '未命名项目', count: children.length, path: w.path, pinned: w.pinned === true }), onPointerLeave: closeHover },
               h('button', { type: 'button', className: 'dsc-project-main', onClick: () => { hideHover(); setMenu(null); setProjectMenu(null); setExpanded({ ...expanded, [w.workspaceId]: !open }); }, 'aria-expanded': open }, h(Icon, { name: open ? 'folderOpen' : 'folder' }), h('span', null, w.title || '未命名项目')),
@@ -495,7 +521,7 @@ function makeWorkspaceTree(ctx, completionStore) {
               h('button', { type: 'button', className: 'dsc-row-action', title: '在此项目新建对话', 'aria-label': '在此项目新建对话', onClick: () => { ctx.uiWorkspace.startSession(w.workspaceId); onNavigate?.(); } }, h(Icon, { name: 'pencil', size: 14 }))),
               h(ProjectFold, { open }, h('div', { className: 'dsc-project-children' }, children.length ? children.map(s => row(s, active && projectsOpen && open)) : h('small', { className: 'dsc-empty' }, '暂无对话'))));
           }))),
-          h('div', { className: 'dsc-section-title' }, '最近'), visible.filter(s => !workspaceOf(s.sessionId) && !pinned.has(s.sessionId)).map(s => row(s))),
+          h('div', { className: 'dsc-section-title' }, '最近'), groups.recent.map(s => row(s))),
         !visible.length && catalog.phase === 'ready' && h('div', { className: 'dsc-empty' }, query ? '没有匹配的对话' : '选择项目，开始新对话'),
         catalog.phase !== 'ready' && h('div', { className: 'dsc-empty', role: 'status' }, '正在加载会话…')),
       h('label', { className: 'dsc-archive-toggle' }, h('input', { type: 'checkbox', checked: showArchived, onChange: e => setShowArchived(e.target.checked) }), '显示已归档对话'),
@@ -847,7 +873,7 @@ function makeModelPicker(ctx) {
 
 function apply(ctx) {
   console.warn('[codex-style] apply 开始 v' + PLUGIN_VERSION);
-  ctx.inject(['remote', 'remote.pluginInventory'], scope => scope.effect(() => watchCodexBody(scope), 'codex-style: body component state'));
+  ctx.inject(['remote', 'remote.pluginInventory'], scope => scope.effect(() => watchCodexPresentation(scope), 'codex-style: presentation component states'));
   const tokenValues = {
     '--dsw-alias-bg-base': '#181818', '--dsw-alias-bg-layer-1': '#212121', '--dsw-alias-bg-layer-2': '#282828', '--dsw-alias-bg-layer-3': '#2d2d2d', '--dsw-alias-bg-overlay': '#282828',
     '--dsw-alias-bg-module-platform': '#212121', '--dsw-alias-label-primary': '#fff', '--dsw-alias-label-secondary': 'rgba(255,255,255,.7)', '--dsw-alias-label-tertiary': 'rgba(255,255,255,.5)',
@@ -928,47 +954,10 @@ function apply(ctx) {
     register(scope, 'conversation.hero.brand.mark', EmptyHero);
     register(scope, 'conversation.hero.workspace', makeHeroWorkspace(scope));
   });
-  // 模型控件：主动探测 modelDirectories 并重试注册，避免因服务就绪通知延迟而静默缺失、回退到宿主原生控件。
-  // directoryFor / select 内部会访问 session Remote；注入列表与宿主模型选择插件保持一致。
-  ctx.inject(['sessions', 'slots', 'locale', 'remote', 'remote.session'], scope => {
-    let mounted = false;
-    const mount = () => {
-      if (mounted) return true;
-      const directories = scope.get('modelDirectories');
-      console.warn('[codex-style] modelDirectories 探测：', Boolean(directories));
-      if (!directories) return false;
-      const Picker = makeModelPicker(scope);
-      scope.slots.inject('conversation.input.model', () => {
-        const tryRegister = priority => scope.slots.register({
-          name: 'conversation.input.model',
-          priority,
-          inject: sessionId => ({ directory: directories.directoryFor(sessionId) })
-        }, Picker);
-        try {
-          // single slot 按最低 priority 渲染：取现有注册的最低值再低 1，才能覆盖宿主原生控件。
-          const registered = scope.slots.entries('conversation.input.model').map(entry => entry.options?.priority ?? 0);
-          let priority = Math.min(0, ...registered) - 1;
-          let dispose;
-          try {
-            dispose = tryRegister(priority);
-          } catch (error) {
-            priority = Math.min(priority, -1000);
-            dispose = tryRegister(priority);
-          }
-          console.warn('[codex-style] 自绘模型控件已注册，priority', priority);
-          return dispose;
-        } catch (error) {
-          console.error('[codex-style] 自绘模型控件注册失败', error);
-          return () => {};
-        }
-      });
-      mounted = true;
-      return true;
-    };
-    if (mount()) return;
-    let attempts = 0;
-    const timer = setInterval(() => { attempts += 1; if (mount() || attempts > 40) clearInterval(timer); }, 250);
-    scope.effect(() => () => clearInterval(timer), 'codex-style: model directory probe');
+  // 由宿主等待目录、释放旧目录并在恢复后重新注册；保留 Session Remote 的访问声明。
+  ctx.inject(['sessions', 'slots', 'locale', 'remote', 'remote.session', 'modelDirectories'], scope => {
+    const directories = scope.modelDirectories;
+    register(scope, 'conversation.input.model', makeModelPicker(scope), sessionId => ({ directory: directories.directoryFor(sessionId) }));
   });
   ctx.inject(['connection', 'sessions', 'remote', 'remote.permissionPresets'], scope => {
     const permissions = permissionDirectory(scope);
@@ -979,26 +968,36 @@ function apply(ctx) {
   // 避免宿主变量（正文 +32px）与实际渲染的卡宽不一致。
   ctx.effect(() => {
     let frame = 0;
-    const sync = () => {
-      frame = 0;
-      const bar = document.querySelector('[data-slot="conversation.composer.bar"]');
-      if (!bar) return;
-      let width = 0;
-      for (const card of bar.querySelectorAll('[class*="_card"]')) width = Math.max(width, card.getBoundingClientRect().width);
-      if (width <= 0) width = bar.getBoundingClientRect().width;
-      if (width > 0) document.documentElement.style.setProperty('--dsc-composer-visual-width', `${Math.round(width)}px`);
-    };
+    let card;
+    const anchor = '[data-slot="conversation.composer.bar"], [data-composer-card]';
     const schedule = () => { if (!frame) frame = requestAnimationFrame(sync); };
     const observer = new ResizeObserver(schedule);
-    observer.observe(document.body);
-    for (const el of document.querySelectorAll('[data-slot="conversation.composer.bar"], [data-conversation-content]')) observer.observe(el);
-    window.addEventListener('resize', schedule);
-    const timer = setInterval(schedule, 1200);
+    const sync = () => {
+      frame = 0;
+      const current = document.querySelector('[data-slot="conversation.composer.bar"] [data-composer-card]');
+      if (current !== card) {
+        if (card) observer.unobserve(card);
+        card = current;
+        if (card) observer.observe(card);
+      }
+      const width = card?.getBoundingClientRect().width;
+      const value = width > 0 ? `${Math.round(width)}px` : '';
+      const style = document.documentElement.style;
+      if (style.getPropertyValue('--dsc-composer-visual-width') !== value) {
+        if (value) style.setProperty('--dsc-composer-visual-width', value);
+        else style.removeProperty('--dsc-composer-visual-width');
+      }
+    };
+    // 只在卡片挂载/替换时重绑尺寸观察；流式文本与其他节点变化不触发全页测量。
+    const mounting = new MutationObserver(records => {
+      if ((card && !card.isConnected) || records.some(record => [...record.addedNodes].some(node =>
+        node.nodeType === 1 && (node.matches(anchor) || node.querySelector(anchor))))) schedule();
+    });
+    mounting.observe(document.body, { childList: true, subtree: true });
     schedule();
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', schedule);
-      clearInterval(timer);
+      mounting.disconnect();
       if (frame) cancelAnimationFrame(frame);
       document.documentElement.style.removeProperty('--dsc-composer-visual-width');
     };

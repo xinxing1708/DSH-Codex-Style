@@ -30,10 +30,11 @@ export async function apply(ctx) {
       ctx.effect(() => () => this.updater.dispose());
     }
     status() { return this.updater.status(); }
+    check() { return this.updater.check(); }
     download(version) { return this.updater.download(version); }
     installUpdate(version) { return this.updater.install(version); }
   }
   // 使用公开的标准装饰器调用方式，无需引入编译器或依赖私有 RPC 字段。
-  for (const method of ['status', 'download', 'installUpdate']) Remote(CodexStyleUpdates.prototype[method], { kind: 'method', name: method, static: false, private: false, addInitializer: initialize => initializers.push(initialize) });
+  for (const method of ['status', 'check', 'download', 'installUpdate']) Remote(CodexStyleUpdates.prototype[method], { kind: 'method', name: method, static: false, private: false, addInitializer: initialize => initializers.push(initialize) });
   ctx.plugin(CodexStyleUpdates);
 }

@@ -28,7 +28,7 @@ body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-compose
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="停止生成"], [aria-label="Stop generating"]) { --dsw-alias-button-info-fill: #dfdfdf; --dsw-alias-button-info-hover: #dfdfdf; color: #2d2d2d; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="停止生成"], [aria-label="Stop generating"]) svg rect { rx: 1.5px; }
 /* 正文字体颜色：按 Codex 截图采样 #dfdfdf（原 #ffffff 偏亮）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
-body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #dfdfdf; }
+body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #dfdfdf; --dsw-alias-link: var(--cx-link); }
 /* 正文列随输入卡宽度对齐，隐藏宿主两侧的宽度拖拽柄及其整条命中区域。 */
 body[data-dsh-codex-style] [data-conversation-content] > [data-width-handle] { display: none; }
 /* 原 sidebar/settings 父级继续挂载以保留原生页面与子槽位所有权；只隐藏其旧外观。 */
@@ -81,7 +81,16 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 /* 同一内容 portal 到 body：常驻时跟随宿主列，退场与浮卡不受 0px 列裁剪。只动画透明度和位移。 */
 .dsc-sidebar-shell { visibility: hidden; position: fixed; z-index: 20; min-width: 0; min-height: 0; display: flex; opacity: 0; transform: translateX(-24px); pointer-events: none; transition: opacity 180ms ease, transform 240ms var(--cx-ease-out), visibility 0s 240ms; -webkit-app-region: no-drag; }
 .dsc-sidebar-shell[data-open=true] { visibility: visible; opacity: 1; transform: translateX(0); pointer-events: auto; transition: opacity 180ms ease, transform 260ms var(--cx-ease-out), visibility 0s; }
-.dsc-sidebar-shell[data-mode=docked] > .dsc-sidebar { border-top-left-radius: 16px; }
+.dsc-sidebar-shell[data-mode=docked] > .dsc-sidebar { border-top-left-radius: 16px; border-right-color: transparent; }
+/* rc.2/rc.3 原生 DragHandle 的公开 data-side 保留指针捕获与宽度动作。
+   热区仍为原生 8px；抬到常驻侧栏 portal 之上，避免左半边被遮住。
+   只绘制伪元素，不增加占位；悬停/拖动用 transform 加粗，移出恢复。 */
+body[data-dsh-codex-chrome] [data-dsc-frame] > [data-side="sidebar"] { z-index: 21; }
+body[data-dsh-codex-chrome] [data-dsc-frame] > [data-side="sidebar"]::after { content: ''; position: absolute; top: 0; bottom: 0; left: calc(50% - 1px); width: 1px; background: var(--cx-sidebar-divider); transform: scaleX(1); transform-origin: right center; pointer-events: none; transition: background-color var(--cx-dur-fast) var(--cx-ease), transform var(--cx-dur-fast) var(--cx-ease); }
+body[data-dsh-codex-chrome] [data-dsc-frame] > [data-side="sidebar"]:is(:hover,[data-dragging])::after { background: var(--cx-sidebar-divider-hover); transform: scaleX(1.5); }
+@media (prefers-reduced-motion: reduce) {
+  body[data-dsh-codex-chrome] [data-dsc-frame] > [data-side="sidebar"]::after { transition: none; }
+}
 .dsc-sidebar-shell[data-mode=floating] { z-index: 40; transform: translateX(-12px); transition: opacity 150ms ease, transform 180ms var(--cx-ease-out), visibility 0s 180ms; }
 .dsc-sidebar-shell[data-mode=floating][data-open=true] { transform: translateX(0); transition-delay: 0s; }
 .dsc-sidebar-shell[data-mode=floating]::before { content: ''; position: absolute; top: 0; bottom: 0; left: -12px; width: 12px; }

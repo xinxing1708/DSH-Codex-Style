@@ -1,0 +1,44 @@
+/* 标题/打开方式在上层，模式/智能体/后台任务与视图切换在下层。
+   display:contents 只改变排版，原 DOM、原按钮回调及菜单所有权不变。 */
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-conversation-header] { display: grid; grid-template-columns: auto minmax(0, 1fr) 120px 28px; align-items: center; gap: 4px 8px; min-height: 44px; padding: 6px 14px; container-type: inline-size; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-conversation-header] [data-conversation-header-leading] { grid-area: 1 / 1; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-title-row] { display: contents; container-type: normal; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-title-cluster] { display: contents; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-navigation] { grid-area: 1 / 2; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-navigation] > span,
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-navigation] > span > :is(span, button) { max-width: 100%; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-actions] { grid-area: 2 / 1 / auto / 3; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: 4px 8px; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-actions] > :not([data-slot]),
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-actions] > [data-slot] > * { flex: none; max-width: 100%; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-actions] button { white-space: nowrap; }
+/* 宿主窄容器规则会隐藏这些文字；这里为独立操作行保留完整标签。 */
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-actions] span[title] { display: inline-flex; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-actions] [data-team-action] button > span { display: inline; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-utilities] { grid-area: 1 / 3; justify-content: flex-end; flex-wrap: wrap; min-width: 0; max-width: 120px; gap: 4px 6px; margin: 0; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-open-in-app] { order: 100; flex: none; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-corner] { grid-area: 1 / 4; min-width: 28px; margin: 0; }
+/* rc.3 原生按 120px/标签与 48px 菜单预算决定可见项，仍保留其 288px 测量宽度。
+   Grid 只为右对齐的 150px 实际控件留位；左侧透明测量区不接收点击。 */
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row] { grid-area: 2 / 3 / auto / 5; justify-self: end; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 6px; width: 288px; max-width: none; min-width: 0; margin: 0; padding: 0; pointer-events: none; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row] > * { pointer-events: auto; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row] [data-dsc-view-switch] { order: 0; flex: none; width: 120px; margin: 0; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] { grid-area: 2 / 3 / auto / 5; justify-self: end; box-sizing: border-box; display: flex; flex: none; flex-wrap: nowrap; align-items: stretch; gap: 0; width: 120px; height: 28px; min-height: 28px; min-width: 0; margin: 0; padding: 3px; border: 1px solid #484848; border-radius: 999px; corner-shape: round; background: #181818; position: relative; isolation: isolate; -webkit-app-region: no-drag; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch]::before { content: ''; position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--dsc-view-count, 2)); border-radius: 999px; corner-shape: round; background: #dfdfdf; opacity: var(--dsc-view-active, 1); transform: translateX(calc(var(--dsc-view-index, 0) * 100%)); pointer-events: none; transition: transform 180ms var(--cx-ease-out), opacity 120ms ease; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"] { flex: 1 1 0; min-width: 0; min-height: 0; height: 20px; margin: 0; padding: 0 8px; border: 0; border-radius: 999px; corner-shape: round; color: #aaa; background: transparent; font: 500 12px/20px var(--cx-font-sans); text-align: center; position: relative; z-index: 1; transition: color 150ms ease; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"]::after { display: none; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"] + [role="tab"]::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: #555; pointer-events: none; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"][aria-selected="true"] { color: #242424; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"]:first-child[aria-selected="false"] { color: #dfdfdf; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"][aria-selected="false"]:hover { color: #dfdfdf; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"]:focus-visible { outline: 1px solid #aaa; outline-offset: 1px; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row] button[aria-haspopup="menu"] { color: #aaa; width: 24px; height: 28px; min-height: 28px; padding: 0; margin: 0; position: relative; }
+/* 视图目录使用四格图标，和右上方会话日志/反馈的三点菜单区分。 */
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row] button[aria-haspopup="menu"] > svg { visibility: hidden; }
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row] button[aria-haspopup="menu"]::before { content: ''; position: absolute; width: 14px; height: 14px; left: 5px; top: 7px; background: currentColor; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.2'%3E%3Crect x='1.5' y='1.5' width='5' height='5' rx='1'/%3E%3Crect x='9.5' y='1.5' width='5' height='5' rx='1'/%3E%3Crect x='1.5' y='9.5' width='5' height='5' rx='1'/%3E%3Crect x='9.5' y='9.5' width='5' height='5' rx='1'/%3E%3C/svg%3E") center / contain no-repeat; pointer-events: none; }
+@container (max-width: 640px) {
+  body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-actions] { grid-column: 1 / -1; }
+  body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row], body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] { grid-row: 3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch]::before, body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"] { transition: none; }
+}

@@ -29,7 +29,7 @@ async function fixture(t, { withLock = true, directory = false } = {}) {
   await writeFile(join(previous, 'client-old.js'), 'old theme bytes');
   if (!directory) await symlink(previous, link, process.platform === 'win32' ? 'junction' : 'dir');
   const config = { dependencies: { unrelated: '1.0.0', [UPDATE_PACKAGE]: directory ? previousVersion : 'link:' + relative(profile, previous).replaceAll('\\', '/') }, dsh: { profile: { bundles: ['unrelated', UPDATE_PACKAGE] } } };
-  const original = { 'package.json': JSON.stringify(config, null, 2) + '\n', 'cordis.patch.yml': '- id: group\n  group: true\n  children:\n    - id: ui-skin-codex-style\n      name: "@xinxing1708/dsh-codex-style"\n- id: codex-style-work-guidelines\n  disabled: false\n- id: codex-style-body\n  disabled: true\n' };
+  const original = { 'package.json': JSON.stringify(config, null, 2) + '\n', 'cordis.patch.yml': '- id: group\n  group: true\n  children:\n    - id: ui-skin-codex-style\n      name: "@xinxing1708/dsh-codex-style"\n- id: codex-style-work-guidelines\n  disabled: false\n- id: codex-style-body\n  disabled: true\n- id: codex-style-header\n  disabled: false\n' };
   if (withLock) original['pnpm-lock.yaml'] = `lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      '${UPDATE_PACKAGE}':\n        specifier: ${previousVersion}\n        version: ${previousVersion}\n      unrelated:\n        specifier: 1.0.0\n        version: 1.0.0\n`;
   for (const [name, bytes] of Object.entries(original)) await writeFile(join(profile, name), bytes);
   const unchanged = async () => {
@@ -74,6 +74,7 @@ for (const withLock of [false, true]) test(`download -> install -> rollback keep
   const target = await realpath(f.link); assert.notEqual(target, await realpath(f.previous));
   assert.equal(JSON.parse(await readFile(join(target, 'package.json'), 'utf8')).version, version);
   assert.deepEqual(await readFile(join(target, 'lib/client.js')), await readFile(join(product, 'lib/client.js')));
+  for (const file of ['lib/header.js', 'locale/header/zh.json', 'locale/header/en.json']) assert.deepEqual(await readFile(join(target, file)), await readFile(join(product, file)));
   assert.equal(await readFile(join(f.profile, 'cordis.patch.yml'), 'utf8'), f.original['cordis.patch.yml']);
   execFileSync(process.execPath, [result.rollback]); await f.unchanged();
 });
@@ -136,4 +137,56 @@ test('tar path traversal is rejected even when the download digest is valid', as
 test('same or older versions cannot start a download', async t => {
   const f = await fixture(t), updater = new PluginUpdater({ profile: f.profile, currentVersion: version, fetcher: network().fetcher });
   t.after(() => updater.dispose()); await assert.rejects(updater.download(version), /不高于/); await assert.rejects(updater.download('0.1.4'), /不高于/); await f.unchanged();
+});
+
+test('host check selects the newest source and reuses its metadata for download', async t => {
+  const f = await fixture(t), net = network();
+  const updater = new PluginUpdater({ profile: f.profile, currentVersion: previousVersion, fetcher: async (url, options) => {
+    if (url.endsWith('/latest') && url.includes('npmmirror')) {
+      net.calls.push(url); return new Response(JSON.stringify({ name: UPDATE_PACKAGE, version: previousVersion }));
+    }
+    return net.fetcher(url, options);
+  } });
+  t.after(() => updater.dispose());
+  const result = await updater.check();
+  assert.equal(result.state, 'update'); assert.equal(result.latestVersion, version); assert.equal(result.mirror, false);
+  assert.equal((await downloaded(updater)).phase, 'ready');
+  assert.equal(net.calls.filter(url => !url.endsWith('.tgz')).length, 3, 'download should reuse checked metadata instead of querying the version again');
+  await f.unchanged();
+});
+
+for (const mode of ['offline', 'missing', 'wrongIdentity']) test(`host check reports ${mode} without claiming current`, async t => {
+  const f = await fixture(t);
+  const updater = new PluginUpdater({ profile: f.profile, currentVersion: previousVersion, fetcher: mode === 'missing' ? async () => new Response('', { status: 404 }) : network({ [mode]: true }).fetcher });
+  t.after(() => updater.dispose());
+  assert.equal((await updater.check()).state, mode === 'missing' ? 'unpublished' : 'error');
+  assert.equal((await updater.status()).phase, 'idle'); await f.unchanged();
+});
+
+test('host rejects malformed prerelease versions before requesting a package', async t => {
+  const f = await fixture(t), net = network();
+  const updater = new PluginUpdater({ profile: f.profile, currentVersion: previousVersion, fetcher: net.fetcher });
+  t.after(async () => { updater.dispose(); await updater.pending; });
+  for (const candidate of ['0.1.7-01', '0.1.7-a..b']) await assert.rejects(updater.download(candidate), /版本/);
+  assert.equal(net.calls.length, 0);
+});
+
+test('a different requested version cannot reuse the checked release metadata', async t => {
+  const f = await fixture(t), net = network();
+  const requestedVersion = `${version}-metadata-mismatch`;
+  const updater = new PluginUpdater({ profile: f.profile, currentVersion: previousVersion, fetcher: net.fetcher });
+  t.after(() => updater.dispose()); await updater.check();
+  await updater.download(requestedVersion); await updater.pending;
+  assert.equal((await updater.status()).phase, 'error');
+  assert.equal(net.calls.filter(url => url.endsWith(`/${requestedVersion}`)).length, 3);
+  assert.equal(net.calls.some(url => url.endsWith('.tgz')), false); await f.unchanged();
+});
+
+test('disposing the host cancels an in-flight metadata check', async t => {
+  const f = await fixture(t); let aborted = 0;
+  const updater = new PluginUpdater({ profile: f.profile, currentVersion: previousVersion, fetcher: (_url, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => { aborted++; reject(signal.reason); }, { once: true });
+  }) });
+  const checking = updater.check(); updater.dispose();
+  await assert.rejects(checking); assert.equal(aborted, 3); await f.unchanged();
 });

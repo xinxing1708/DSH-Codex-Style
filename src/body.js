@@ -58,29 +58,33 @@ function mountCodexBody(ctx) {
   });
 }
 
-function watchCodexBody(ctx) {
+// 两个独立子组件共用一次组件清单查询，各自装卸，互不改变对方状态。
+function watchCodexPresentation(ctx) {
   let disposed = false;
   let revision = 0;
-  let feature;
-  const setEnabled = enabled => {
-    if (enabled && !feature) feature = ctx.plugin({ name: 'codex-style-body-presentation', apply: mountCodexBody });
-    else if (!enabled && feature) { feature.dispose(); feature = undefined; }
+  const effects = [
+    { path: '/body', name: 'codex-style-body-presentation', apply: mountCodexBody, inject: ['slots'] },
+    { path: '/header', name: 'codex-style-header-presentation', apply: mountCodexHeader }
+  ];
+  const setEnabled = (effect, enabled) => {
+    if (enabled && !effect.feature) effect.feature = ctx.plugin({ name: effect.name, apply: effect.apply, inject: effect.inject });
+    else if (!enabled && effect.feature) { effect.feature.dispose(); effect.feature = undefined; }
   };
   const refresh = async () => {
     const request = ++revision;
     try {
       const result = await ctx.remote.pluginInventory.list();
       if (disposed || request !== revision) return;
-      if (!result.ok) throw new Error(result.error?.message || '无法读取正文组件状态');
-      setEnabled(result.value.entries.some(row => row.moduleName === PLUGIN_PACKAGE + '/body' && row.enabled && row.fiberPhase === 'active'));
+      if (!result.ok) throw new Error(result.error?.message || '无法读取呈现组件状态');
+      for (const effect of effects) setEnabled(effect, result.value.entries.some(row => row.moduleName === PLUGIN_PACKAGE + effect.path && row.enabled && row.fiberPhase === 'active'));
     } catch (error) {
       if (disposed || request !== revision) return;
-      setEnabled(false);
-      console.warn('codex-style: 正文组件状态读取失败', error);
+      for (const effect of effects) setEnabled(effect, false);
+      console.warn('codex-style: 呈现组件状态读取失败', error);
     }
   };
   const offChanged = ctx.remote.$on('plugin-manager/changed', refresh);
   const offReset = ctx.on('connection/reset', refresh);
   refresh();
-  return () => { disposed = true; revision++; offChanged(); offReset(); setEnabled(false); };
+  return () => { disposed = true; revision++; offChanged(); offReset(); for (const effect of effects) setEnabled(effect, false); };
 }

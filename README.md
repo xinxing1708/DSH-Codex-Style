@@ -2,7 +2,7 @@
 
 为 **DeepSeek Harness（DSH）** 提供 Codex 桌面端风格的深色主题。
 
-当前版本 **0.1.6**，适配 **Windows DSH 0.2.1-rc.2 / rc.3**。
+当前版本 **0.1.7**，适配 **Windows DSH 0.2.1-rc.2 / rc.3**。
 
 ## 功能
 
@@ -12,13 +12,15 @@
 
   开关支持热生效，作用于后续模型请求；如 DSH 提示需要重启，请重启后使用。关闭不会撤回已发送到模型的提示词，也不会回滚同一对话已产生的内容；正在进行的请求不受影响，切换后建议新建对话。
 
-- **Codex 正文效果（可选子模块，默认关闭）**：显示顶部「已处理」耗时和分割线，增加操作流光、步骤展开动效及铅笔、终端和图像图标；展开箭头悬停时显示。思考不显示前导图标，实时思考内容隐藏，完成后仍可展开查看。需同时开启主模块，关闭后恢复 DSH 原有正文呈现。
+- **Codex 正文效果（可选子模块，默认开启）**：显示每轮顶部「已处理」耗时和分割线，增加操作流光、步骤展开动效及铅笔、终端和图像图标；展开箭头悬停时显示。思考不显示前导图标，实时思考内容隐藏，完成后仍可展开查看。需同时开启主模块，关闭后恢复 DSH 原有正文呈现。
 
-在「自定义 → 插件 → 本插件详情 → 包含的组件」分别管理两个子模块。升级时保留用户已有的开关选择。
+- **Codex 顶部重绘（可选子模块，默认开启）**：会话顶部采用标题与右侧工具在上、模式/智能体/后台任务与视图切换在下的布局；「对话 / 轨迹」使用白色滑块胶囊，更多视图使用四格图标。与正文效果独立，需同时开启主模块；关闭后恢复 DSH 原生顶部布局和视图样式。
+
+在「自定义 → 插件 → 本插件详情 → 包含的组件」分别管理三个子模块。主界面、顶部重绘和正文效果默认开启，工作规范提示词注入默认关闭；升级时保留用户已经保存的开关选择。
 
 ## 安装
 
-在 DSH「自定义 → 插件 → 添加插件」中输入 `@xinxing1708/dsh-codex-style`；也可从 [发行页面](https://github.com/xinxing1708/DSH-Codex-Style/releases/tag/v0.1.6) 下载 Windows ZIP，退出 DSH 后运行 `install.cmd`（需要 Node.js 20+），完成后重新启动 DSH。
+在 DSH「自定义 → 插件 → 添加插件」中输入 `@xinxing1708/dsh-codex-style`；也可从 [发行页面](https://github.com/xinxing1708/DSH-Codex-Style/releases/tag/v0.1.7) 下载 Windows ZIP，退出 DSH 后运行 `install.cmd`（需要 Node.js 20+），完成后重新启动 DSH。
 
 从 0.1.6 起，发现新版后会自动下载，下载完成后点击「立即安装」，重启 DSH 生效。旧版本先按现有安装方式升级到 0.1.6；脚本如提示无法识别现有配置，请先保留原配置并核对安装来源。源码构建运行 `npm run build`，版本变更见 [更新记录](CHANGELOG.md)。
 
@@ -29,6 +31,10 @@
 <img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/ebf27c1f-22b3-453a-bcf6-ba29884c7bc9" />
 <img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/5a7d29fe-f4f0-473e-9d90-38744f764f11" />
 <img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/fa49d112-9919-47b3-a7ad-e525baf389e9" />
+
+## 开发验证
+
+首次检出运行 `npm ci`，修改源码后执行 `npm run build`，再运行 `npm test`。测试使用临时 profile 检查安装、更新和回退，不改日常 DSH 配置。
 
 ## 许可与致谢
 

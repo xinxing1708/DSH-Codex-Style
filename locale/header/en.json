@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex header layout (optional)",
+    "description": "Rearrange the conversation title, mode, agents, background jobs and right-side tools. Use a compact white sliding pill for Chat / Trajectory and a grid icon for more views. On by default and independent of body effects; requires the Codex UI component. Switching off restores DSH's native header layout and view styling while retaining the main theme and body-effects choice."
+  }
+}

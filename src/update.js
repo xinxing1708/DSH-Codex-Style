@@ -1,92 +1,22 @@
 // 固定 scoped 身份；版本查询后由宿主下载，只有用户点击「立即安装」才切换安装。
-const UPDATE_PACKAGE = '@xinxing1708/dsh-codex-style';
-const UPDATE_REGISTRIES = [
-  { id: 'npmmirror', label: 'npmmirror 中国镜像', url: 'https://registry.npmmirror.com/' },
-  { id: 'tencent', label: '腾讯云 npm 镜像', url: 'https://mirrors.cloud.tencent.com/npm/' },
-  { id: 'npm', label: 'npm 官方源', url: 'https://registry.npmjs.org/' }
-];
-
 // 客户端命名空间需要显式挂载；仅声明 Host Remote 不会自动生成浏览器方法。
 function mountPluginUpdateRemote(ctx) {
   const { z } = require('zod');
   const version = z.string().min(1);
   const snapshot = z.object({ phase: z.enum(['idle', 'downloading', 'ready', 'installing', 'installed', 'error']), version: z.string().optional(), downloaded: z.number(), total: z.number().nullable() }).passthrough();
-  return ctx.remote.$mount({ package: UPDATE_PACKAGE, descriptors: ['status', 'download', 'installUpdate'].map(method => ({
+  const checkResult = z.object({ state: z.enum(['current', 'update', 'ahead', 'error', 'unpublished']), latestVersion: z.string().optional() }).passthrough();
+  return ctx.remote.$mount({ package: UPDATE_PACKAGE, descriptors: ['status', 'check', 'download', 'installUpdate'].map(method => ({
     id: UPDATE_PACKAGE + '#codexStyleUpdates/' + method,
     service: 'codexStyleUpdates', namespace: 'codexStyleUpdates', method, invocation: { kind: 'direct' },
-    parameters: method === 'status' ? [] : [{ name: 'version', wire: 'version', source: 'json', codec: { mode: 'strict', typeSymbol: UPDATE_PACKAGE + '#update-version', create: () => version, jsonSchema: { type: 'string', minLength: 1 } } }],
-    result: { mode: 'strict', typeSymbol: UPDATE_PACKAGE + '#update-state', create: () => snapshot }
+    parameters: ['status', 'check'].includes(method) ? [] : [{ name: 'version', wire: 'version', source: 'json', codec: { mode: 'strict', typeSymbol: UPDATE_PACKAGE + '#update-version', create: () => version, jsonSchema: { type: 'string', minLength: 1 } } }],
+    result: { mode: 'strict', typeSymbol: UPDATE_PACKAGE + (method === 'check' ? '#update-check' : '#update-state'), create: () => method === 'check' ? checkResult : snapshot }
   })) });
-}
-
-function updateVersionParts(value) {
-  if (typeof value !== 'string') return null;
-  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(value);
-  if (!match) return null;
-  const pre = match[4]?.split('.');
-  if (pre?.some(part => /^\d+$/.test(part) && part.length > 1 && part[0] === '0')) return null;
-  return { core: match.slice(1, 4).map(BigInt), pre };
-}
-function compareUpdateVersions(left, right) {
-  const a = updateVersionParts(left), b = updateVersionParts(right);
-  if (!a || !b) return null;
-  for (let i = 0; i < 3; i++) if (a.core[i] !== b.core[i]) return a.core[i] > b.core[i] ? 1 : -1;
-  if (!a.pre || !b.pre) return a.pre ? -1 : b.pre ? 1 : 0;
-  for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
-    const x = a.pre[i], y = b.pre[i];
-    if (x === y) continue;
-    if (x === undefined || y === undefined) return x === undefined ? -1 : 1;
-    const xn = /^\d+$/.test(x), yn = /^\d+$/.test(y);
-    if (xn && yn) return BigInt(x) > BigInt(y) ? 1 : -1;
-    if (xn !== yn) return xn ? -1 : 1;
-    return x > y ? 1 : -1;
-  }
-  return 0;
-}
-
-async function checkPluginUpdate(currentVersion, { signal, fetcher = globalThis.fetch, timeoutMs = 6500 } = {}) {
-  signal?.throwIfAborted();
-  if (!updateVersionParts(currentVersion)) return { state: 'error', message: '无法读取当前插件版本，请重新打开插件详情。' };
-  // 并行读取多个源，取已返回的最高版本，避免先响应的滞后镜像遮住新版。
-  const sources = await Promise.all(UPDATE_REGISTRIES.map(async registry => {
-    const controller = new AbortController();
-    const abort = () => controller.abort();
-    signal?.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(abort, timeoutMs);
-    try {
-      const response = await fetcher(registry.url + UPDATE_PACKAGE.replace('/', '%2F') + '/latest', {
-        signal: controller.signal, mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer', headers: { Accept: 'application/json' }
-      });
-      if (response.status === 404) return { ...registry, status: 'missing' };
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const metadata = await response.json();
-      if (metadata.name !== UPDATE_PACKAGE || !updateVersionParts(metadata.version)) throw new Error('无效的包元数据');
-      return { ...registry, status: 'ok', version: metadata.version };
-    } catch {
-      return { ...registry, status: 'error' };
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', abort);
-    }
-  }));
-  signal?.throwIfAborted();
-  const available = sources.filter(source => source.status === 'ok');
-  if (!available.length) {
-    const unpublished = sources.find(source => source.id === 'npm')?.status === 'missing';
-    return { state: unpublished ? 'unpublished' : 'error', sources, message: unpublished ? '该包尚未发布到 npm，或已被撤回，暂时无法查询版本。' : '暂时无法从更新源读取版本，请稍后重试。' };
-  }
-  const latest = available.reduce((best, source) => {
-    const compared = compareUpdateVersions(source.version, best.version);
-    return compared > 0 || (compared === 0 && source.id === 'npm') ? source : best;
-  });
-  const comparison = compareUpdateVersions(latest.version, currentVersion);
-  return { state: comparison > 0 ? 'update' : comparison < 0 ? 'ahead' : 'current', latestVersion: latest.version, source: latest.label, mirror: latest.id !== 'npm', sources };
 }
 
 const UPDATE_CACHE_KEY = 'dsh-codex-style:update-check:v1';
 const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const UPDATE_RETRY_MS = 60 * 60 * 1000;
-function createPluginUpdateService(currentVersion, { query = checkPluginUpdate } = {}) {
+function createPluginUpdateService(currentVersion, { query } = {}) {
   let lastSuccess = 0, retryAt = 0, timer, pending, controller, started = false, disposed = false;
   let host, transferTimer, transferRequest, hostGeneration = 0;
   let cached = {};
@@ -158,6 +88,7 @@ function createPluginUpdateService(currentVersion, { query = checkPluginUpdate }
   }
   async function runScheduled() {
     if (disposed) return;
+    if (!host && !query) return; // 连接就绪时重新安排，不把启动期间的未连接当查询失败。
     if (dueIn() > 0) { schedule(dueIn()); return; }
     if (window.navigator.onLine === false) { retryAt = Date.now() + UPDATE_RETRY_MS; schedule(dueIn()); return; }
     await check();
@@ -168,7 +99,7 @@ function createPluginUpdateService(currentVersion, { query = checkPluginUpdate }
     controller = new AbortController();
     const signal = controller.signal;
     store.set({ ...store.getSnapshot(), checking: true });
-    pending = Promise.resolve().then(() => query(currentVersion, { signal })).then(async result => {
+    pending = Promise.resolve().then(() => query ? query(currentVersion, { signal }) : callHost('check')).then(async result => {
       if (disposed || signal.aborted) return result;
       store.set({ ...store.getSnapshot(), message: undefined, ...result, checking: false });
       if (['current', 'update', 'ahead'].includes(result.state)) { lastSuccess = Date.now(); retryAt = 0; save(); }
@@ -190,6 +121,7 @@ function createPluginUpdateService(currentVersion, { query = checkPluginUpdate }
     store, check, download, install,
     connect(remote) {
       host = remote; hostGeneration++;
+      if (started) schedule(Math.max(8000, dueIn()));
       refreshTransfer().then(() => {
         const state = store.getSnapshot();
         if (state.state === 'update' && !(state.transfer.version === state.latestVersion && ['ready', 'downloading', 'installing', 'installed'].includes(state.transfer.phase))) return download();

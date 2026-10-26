@@ -40,6 +40,9 @@
   --cx-border-l2: rgba(255, 255, 255, 0.04);
   --cx-border-l3: rgba(255, 255, 255, 0.16);
   --cx-border-strong: rgba(255, 255, 255, 0.16);
+  /* 侧栏分割线：2026-10-26 用户截图的静态与悬停灰度。 */
+  --cx-sidebar-divider: #323232;
+  --cx-sidebar-divider-hover: #535353;
 
   /* ---- 文本 ---- */
   --cx-text: #ffffff;
@@ -51,6 +54,7 @@
   /* ---- 强调 / 状态 ---- */
   --cx-accent: #0285ff;
   --cx-accent-soft: #339cff;
+  --cx-link: #9bc8f8;
   --cx-focus: #339cff;
   --cx-success: #40c977;
   --cx-danger: #ff6764;

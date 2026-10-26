@@ -6,4 +6,7 @@
       disabled: true
     - id: codex-style-body
       name: '@xinxing1708/dsh-codex-style/body'
-      disabled: true
+      disabled: false
+    - id: codex-style-header
+      name: '@xinxing1708/dsh-codex-style/header'
+      disabled: false

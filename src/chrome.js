@@ -115,8 +115,8 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
         const matches = panels.filter(row => row.label === label);
         return matches.length === 1 ? matches[0] : null;
       });
-      // 注册表通知可以先于原 SidebarRoot 的 React commit；只处理已能对齐的真实行。
-      if (!buttons.length || rows.some(row => !row)) return;
+      // 同名或提交时序不同的行保留原生入口，不让单行识别失败隐藏整个导航。
+      if (!buttons.length || buttons.some(button => !button)) return;
       const nextNav = buttons[0].closest('nav');
       if (!nextNav || buttons.some(button => button.closest('nav') !== nextNav)) return;
       if (nextNav !== nav) {
@@ -129,11 +129,11 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
       mark(nav, 'data-dsc-extension-nav', '');
       buttons.forEach((button, i) => {
         const row = rows[i];
-        const extension = row.available && row.id !== 'plugins' && row.id !== 'schedules';
-        mark(button, 'data-dsc-extension-row', row.id);
+        const extension = !row || (row.available && row.id !== 'plugins' && row.id !== 'schedules');
+        mark(button, 'data-dsc-extension-row', row?.id ?? '');
         mark(button, 'data-dsc-extension-hidden', extension ? null : '');
         if (!extension) return;
-        mark(button, 'title', row.label);
+        mark(button, 'title', row?.label ?? button.getAttribute('aria-label'));
         const glyph = glyphs[i].parentElement;
         mark(glyph, 'data-dsc-extension-glyph', '');
         [...button.children].filter(child => child !== glyph).forEach(child => mark(child, 'data-dsc-extension-label', ''));
@@ -381,10 +381,79 @@ function makeSidebarToggle(ctx) {
 }
 
 // 公开的会话头 leading 座负责留位；仅收起二级侧栏时显示，不覆盖标题。
+// 保留原生头部、视图按钮和子槽所有权，仅从公开锚点添加可释放的布局标记。
+function useConversationHeaderChrome(marker, enabled) {
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const header = marker.current?.closest('header');
+    if (!header) return;
+    const attributes = new Map();
+    const properties = new Map();
+    const restore = (element, saved) => {
+      for (const [name, value] of saved) {
+        if (value === null) element.removeAttribute(name); else element.setAttribute(name, value);
+      }
+    };
+    const sync = () => {
+      const touched = new Set();
+      const mark = (element, name) => {
+        if (!element) return;
+        touched.add(element);
+        let saved = attributes.get(element);
+        if (!saved) attributes.set(element, saved = new Map());
+        if (!saved.has(name)) saved.set(name, element.getAttribute(name));
+        if (!element.hasAttribute(name)) element.setAttribute(name, '');
+      };
+      const corner = header.querySelector('[data-conversation-header-corner]');
+      const row = corner?.parentElement;
+      const tabs = header.querySelector('[data-conversation-tabs]');
+      if (row && corner) {
+        mark(header, 'data-dsc-conversation-header');
+        mark(row, 'data-dsc-header-title-row');
+        const navigation = row.querySelector('nav[aria-label]');
+        mark(navigation?.parentElement, 'data-dsc-header-title-cluster');
+        mark(navigation, 'data-dsc-header-navigation');
+        mark(row.querySelector('[data-slot="conversation.session.header.actions"]')?.parentElement, 'data-dsc-header-actions');
+        mark(row.querySelector('[data-slot="conversation.session.header.utilities"]')?.parentElement, 'data-dsc-header-utilities');
+        mark(row.querySelector('[data-slot="conversation.session.header.utilities"] [data-open-target="directory"]')?.parentElement, 'data-dsc-header-open-in-app');
+        mark(corner, 'data-dsc-header-corner');
+      }
+      if (tabs) {
+        mark(tabs, 'data-dsc-view-switch');
+        // rc.2 的 tablist 本身是行；rc.3 的父行还拥有原生更多视图菜单。
+        if (tabs.parentElement !== header && tabs.parentElement?.getAttribute('data-slot') !== 'conversation.session.header') mark(tabs.parentElement, 'data-dsc-header-view-row');
+        const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+        const active = buttons.findIndex(button => button.getAttribute('aria-selected') === 'true');
+        if (!properties.has(tabs)) properties.set(tabs, new Map(['--dsc-view-count', '--dsc-view-index', '--dsc-view-active'].map(name => [name, [tabs.style.getPropertyValue(name), tabs.style.getPropertyPriority(name)]])));
+        for (const [name, value] of [['--dsc-view-count', Math.max(1, buttons.length)], ['--dsc-view-index', Math.max(0, active)], ['--dsc-view-active', active >= 0 ? 1 : 0]]) {
+          if (tabs.style.getPropertyValue(name) !== String(value)) tabs.style.setProperty(name, value);
+        }
+      }
+      for (const [element, saved] of attributes) if (!touched.has(element)) { restore(element, saved); attributes.delete(element); }
+      for (const [element, saved] of properties) if (element !== tabs) {
+        for (const [name, [value, priority]] of saved) { if (value) element.style.setProperty(name, value, priority); else element.style.removeProperty(name); }
+        properties.delete(element);
+      }
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(header, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-selected'] });
+    return () => {
+      observer.disconnect();
+      for (const [element, saved] of attributes) restore(element, saved);
+      for (const [element, saved] of properties) for (const [name, [value, priority]] of saved) {
+        if (value) element.style.setProperty(name, value, priority); else element.style.removeProperty(name);
+      }
+    };
+  }, [marker, enabled]);
+}
+
 function makeCollapsedNewChat(ctx) {
   return function CollapsedNewChat() {
+    const marker = useRef(null);
+    useConversationHeaderChrome(marker, useSource(headerPresentation));
     // startSession 返回 void；异步创建、导航和失败通知都由宿主处理。
-    return h('div', { className: 'dsc-ui dsc-collapsed-new-chat' },
+    return h('div', { ref: marker, className: 'dsc-ui dsc-collapsed-new-chat' },
       h('button', { type: 'button', className: 'dsc-icon-button', title: '新建对话', 'aria-label': '新建对话', onClick: () => ctx.uiWorkspace.startSession() }, h(PrototypeIcon, { name: 'newChat' })));
   };
 }
