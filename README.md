@@ -26,11 +26,13 @@
 
 ## 效果预览
 
-<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/c9506366-367d-45be-9ef5-9b9524621d2a" />
-<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/c2747a8d-e3e2-4e87-bdf3-ab48f0e6a4be" />
-<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/ebf27c1f-22b3-453a-bcf6-ba29884c7bc9" />
-<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/5a7d29fe-f4f0-473e-9d90-38744f764f11" />
-<img width="1923" height="1234" alt="image" src="https://github.com/user-attachments/assets/fa49d112-9919-47b3-a7ad-e525baf389e9" />
+新对话首页效果<img width="1911" height="1224" alt="image" src="https://github.com/user-attachments/assets/690fd8cb-3973-46f5-a3a8-46d516b98379" />
+搭配提示词注入后的deepseek v4.1 flash 1017任务过程效果<img width="1918" height="1222" alt="image" src="https://github.com/user-attachments/assets/23d6e604-c6ef-4c00-b2d5-d81b1995bbfb" />
+codex正文风格打开后样式<img width="1910" height="1222" alt="image" src="https://github.com/user-attachments/assets/0f40145d-87f9-4e9b-8317-e56caa4d7561" />
+侧边栏收起后鼠标悬停在导航栏图标时悬浮卡片效果<img width="1905" height="1224" alt="image" src="https://github.com/user-attachments/assets/86a2e1a6-2e4b-4cd3-ab8a-68791cf1d16c" />
+模型思考强度选择效果<img width="1909" height="1215" alt="image" src="https://github.com/user-attachments/assets/191614b4-3716-4213-bb94-1c18ae919b5f" />
+<img width="1899" height="1222" alt="image" src="https://github.com/user-attachments/assets/d70dd2c6-d8a5-4838-854a-87e5a72bc247" />
+
 
 ## 开发验证
 
