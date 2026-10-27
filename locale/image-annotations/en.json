@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex image annotations (optional)",
+    "description": "Large image preview, click-to-comment pins and freehand markup; shows a count pill after completion and sends the annotations with the message. On by default; requires the Codex UI component. Turning it off removes this component's image preview and annotation entry points while keeping the main theme, body effects and header layout choices."
+  }
+}

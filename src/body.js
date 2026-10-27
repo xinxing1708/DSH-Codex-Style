@@ -58,13 +58,15 @@ function mountCodexBody(ctx) {
   });
 }
 
-// 两个独立子组件共用一次组件清单查询，各自装卸，互不改变对方状态。
+// 三个独立子组件共用一次组件清单查询，各自装卸，互不改变对方状态。
 function watchCodexPresentation(ctx) {
   let disposed = false;
   let revision = 0;
   const effects = [
     { path: '/body', name: 'codex-style-body-presentation', apply: mountCodexBody, inject: ['slots'] },
-    { path: '/header', name: 'codex-style-header-presentation', apply: mountCodexHeader }
+    { path: '/header', name: 'codex-style-header-presentation', apply: mountCodexHeader },
+    { path: '/navigation', name: 'codex-style-navigation-presentation', apply: mountCodexNavigation, inject: ['slots', 'layout', 'sessions', 'uiWorkspace', 'shortcuts'] },
+    { path: '/image-annotations', name: 'codex-style-image-annotations-presentation', apply: mountCodexImageAnnotations, inject: ['slots', 'sessions', 'uiSession', 'conversation', 'remote'] }
   ];
   const setEnabled = (effect, enabled) => {
     if (enabled && !effect.feature) effect.feature = ctx.plugin({ name: effect.name, apply: effect.apply, inject: effect.inject });

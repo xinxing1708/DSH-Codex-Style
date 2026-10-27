@@ -64,9 +64,9 @@ function useNavigationDirectory(ctx, sidebar) {
   const moreVersion = useSlotVersion(ctx, ['sidebar.panellist.actions']);
   const hasMore = useMemo(() => ctx.slots.entriesOfSlot('sidebar.panellist.actions').some(entry => entry.options.id === 'entry-customization'), [ctx, moreVersion]);
   // 官方分组只按已核实的 main id 识别；社区入口的名称不能决定它属于自定义。
-  const pluginRows = panels.filter(row => row.available && row.id === 'plugins');
+  const pluginRows = panels.filter(row => row.available && row.id === 'plugins').concat([{ id: SKILLS_PANEL_ID, order: 90, label: '技能', available: true }]);
   const taskRows = panels.filter(row => row.available && row.id === 'schedules');
-  const category = section === 'more' && hasMore ? 'more' : panel.activePanelId === null ? 'home' : panel.activePanelId === 'plugins' ? 'plugins' : panel.activePanelId === 'schedules' ? 'tasks' : 'extension';
+  const category = section === 'more' && hasMore ? 'more' : panel.activePanelId === null ? 'home' : panel.activePanelId === 'plugins' ? 'plugins' : panel.activePanelId === SKILLS_PANEL_ID ? 'skills' : panel.activePanelId === 'schedules' ? 'tasks' : 'extension';
   return { panel, panels, pluginRows, taskRows, category, hasMore };
 }
 
@@ -224,10 +224,10 @@ function makeNavigationRail(ctx, sidebar) {
       sidebar.selectSection('more');
       if (collapsed) ctx.layout.toggleSidebar();
     };
-    const item = (id, name, icon, action) => h('button', {
-      key: id, type: 'button', className: 'dsc-rail__item' + (category === id ? ' dsc-rail__item--active' : ''),
+    const item = (id, name, icon, action, active) => h('button', {
+      key: id, type: 'button', className: 'dsc-rail__item' + ((active === true || category === id) ? ' dsc-rail__item--active' : ''),
       title: collapsed ? undefined : name, 'data-tip': name, 'data-dsc-preview-trigger': id, 'data-preview-enabled': collapsed,
-      'aria-label': name, 'aria-current': category === id ? 'page' : undefined,
+      'aria-label': name, 'aria-current': (active === true || category === id) ? 'page' : undefined,
       'aria-haspopup': collapsed ? 'dialog' : undefined, 'aria-expanded': collapsed ? preview === id : undefined,
       'aria-controls': collapsed ? 'dsc-sidebar-card' : undefined,
       onPointerEnter: e => { if (e.pointerType !== 'touch') sidebar.enter(id); }, onPointerLeave: sidebar.leave,
@@ -238,7 +238,7 @@ function makeNavigationRail(ctx, sidebar) {
       h('nav', { className: 'dsc-ui dsc-rail dsc-independent-rail', 'aria-label': '主导航' },
         item('home', '首页', 'home', () => pick(null)),
         taskRows.length > 0 && item('tasks', '定时任务', 'tasks', () => pick(taskRows[0].id)),
-        pluginRows.length > 0 && item('plugins', '自定义', 'plugins', () => pick('plugins')),
+        pluginRows.length > 0 && item('plugins', '自定义', 'plugins', () => pick(pluginRows.some(row => row.id === 'plugins') ? 'plugins' : SKILLS_PANEL_ID), category === 'skills'),
         hasMore && item('more', '更多', 'more', openMore),
         h('div', { ref: extensions, className: 'dsc-extension-navigation-anchor', 'aria-hidden': true })),
       error && h('div', { className: 'dsc-ui dsc-navigation-error' }, h(ErrorLine, { text: error }))), document.body);
@@ -320,13 +320,13 @@ function makeSidebarChrome(ctx, sidebar) {
     const shell = h('div', {
       ref: node => { if (node) node.inert = !shown; }, id: 'dsc-sidebar-card', className: 'dsc-ui dsc-sidebar-shell', style,
       'data-mode': mode, 'data-section': category, 'data-open': shown, 'aria-hidden': !shown,
-      role: mode === 'floating' ? 'dialog' : undefined, 'aria-label': mode === 'floating' ? (category === 'home' ? '首页侧栏' : category === 'tasks' ? '定时任务侧栏' : category === 'more' ? '更多侧栏' : '自定义侧栏') : undefined,
+      role: mode === 'floating' ? 'dialog' : undefined, 'aria-label': mode === 'floating' ? (category === 'home' ? '首页侧栏' : category === 'tasks' ? '定时任务侧栏' : category === 'more' ? '更多侧栏' : category === 'skills' ? '技能侧栏' : '自定义侧栏') : undefined,
       onPointerEnter: sidebar.hold, onPointerLeave: sidebar.leave,
       onPointerDownCapture: e => { insidePointer.current = e.nativeEvent; },
       onFocusCapture: sidebar.hold, onBlurCapture: sidebar.leave,
       onKeyDown: e => { if (collapsed && e.key === 'Escape' && !e.defaultPrevented) { sidebar.hide(); e.preventDefault(); } }
     },
-      h('aside', { key: category, className: 'dsc-sidebar', 'aria-label': category === 'home' ? '项目与对话' : category === 'tasks' ? '定时任务' : category === 'more' ? '更多' : '自定义' },
+      h('aside', { key: category, className: 'dsc-sidebar', 'aria-label': category === 'home' ? '项目与对话' : category === 'tasks' ? '定时任务' : category === 'more' ? '更多' : category === 'skills' ? '技能' : '自定义' },
         h('div', { className: 'dsc-sidebar__header' }, category === 'home' ? h('div', { className: 'dsc-brand' }, h('img', { className: 'dsc-brand__mark', src: BRAND_MARK, alt: '' }), h('span', { className: 'dsc-brand__wordmark' }, 'deepseek'), h('span', { className: 'dsc-brand__badge' }, 'HARNESS')) : h('strong', { className: 'dsc-section-page-title' }, category === 'tasks' ? '定时任务' : category === 'more' ? '更多' : '自定义'),
           h('div', { className: 'dsc-sidebar__header-actions' }, h('button', { type: 'button', ref: searchAnchor, className: 'dsc-icon-button', title: '搜索对话与项目', 'aria-label': '搜索对话与项目', 'aria-expanded': searchOpen, onClick: openSearch }, h(Icon, { name: 'search' })))),
         category === 'home' && h('button', { type: 'button', className: 'dsc-new-chat', title: '新聊天', onClick: () => { setSearchOpen(false); setQuery(''); run(() => { ctx.uiWorkspace.startSession(); sidebar.hide(); }); } }, h(PrototypeIcon, { name: 'newChat' }), h('span', null, '新聊天')),
@@ -335,7 +335,7 @@ function makeSidebarChrome(ctx, sidebar) {
         category === 'home' ? h(Tree, { query, tools: false, active: shown, onNavigate: sidebar.hide }) : category === 'more' ? h('div', { className: 'dsc-secondary-nav' },
           h('button', { type: 'button', className: 'dsc-secondary-item', onClick: () => moreAction(() => ctx.pluginNavigation.openList()) }, h(PrototypeIcon, { name: 'plugins' }), '浏览更多插件'),
           h('button', { type: 'button', className: 'dsc-secondary-item', onClick: () => moreAction(() => ctx.uiWorkspace.startSession(undefined, { agentPreset: 'cordis', prompt: ctx.locale.bind('entryCustomization')('createPrompt.sidebar'), whenDraftExists: 'append' })) }, h(Icon, { name: 'plus' }), '创建你的插件'))
-          : h('div', { className: 'dsc-secondary-nav' }, pageRows.map(row => h('button', { key: row.id, type: 'button', className: 'dsc-secondary-item' + (row.id === panel.activePanelId ? ' is-active' : ''), 'aria-current': row.id === panel.activePanelId ? 'page' : undefined, onClick: () => pick(row.id) }, h(PrototypeIcon, { name: category === 'tasks' ? 'tasks' : 'plugins' }), row.label)))));
+          : h('div', { className: 'dsc-secondary-nav' }, pageRows.map(row => h('button', { key: row.id, type: 'button', className: 'dsc-secondary-item' + (row.id === panel.activePanelId ? ' is-active' : ''), 'aria-current': row.id === panel.activePanelId ? 'page' : undefined, onClick: () => pick(row.id) }, h(Icon, { name: category === 'tasks' ? 'tasks' : row.id === SKILLS_PANEL_ID ? 'skill' : 'plugins' }), row.label)))));
     return h(React.Fragment, null, h('span', { ref: marker, 'aria-hidden': true }), createPortal(shell, document.body));
   };
 }
@@ -413,6 +413,8 @@ function useConversationHeaderChrome(marker, enabled) {
         const navigation = row.querySelector('nav[aria-label]');
         mark(navigation?.parentElement, 'data-dsc-header-title-cluster');
         mark(navigation, 'data-dsc-header-navigation');
+        // 末项是当前标题容器；只标记它，祖先面包屑按钮与操作保持原样。
+        mark(navigation?.lastElementChild, 'data-dsc-header-title');
         mark(row.querySelector('[data-slot="conversation.session.header.actions"]')?.parentElement, 'data-dsc-header-actions');
         mark(row.querySelector('[data-slot="conversation.session.header.utilities"]')?.parentElement, 'data-dsc-header-utilities');
         mark(row.querySelector('[data-slot="conversation.session.header.utilities"] [data-open-target="directory"]')?.parentElement, 'data-dsc-header-open-in-app');
@@ -448,13 +450,64 @@ function useConversationHeaderChrome(marker, enabled) {
   }, [marker, enabled]);
 }
 
+// 工作区归属只读宿主公开数据：sessions.list 的 retainedBy.mainView 定位当前会话，
+// Summary 的 cwd 与官方 ConversationContent 同一读取路径；workspaces.items 的
+// sessionIds 是多引用权威归属。多引用时仅用 cwd 唯一消歧，无法消歧则不显示。
+function normalizedWorkspacePath(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+function workspacePathRank(workspace, cwd) {
+  const path = normalizedWorkspacePath(workspace?.path);
+  if (!path || !cwd || (cwd !== path && !cwd.startsWith(path + '/'))) return -1;
+  return path.length;
+}
+function currentMainSessionId(sessions) {
+  const ids = Array.isArray(sessions?.ids) ? sessions.ids : [];
+  const active = ids.filter(id => ((sessions.byId?.[id]?.retainedBy?.mainView ?? 0) > 0));
+  return active.length === 1 ? active[0] : null;
+}
+function pickSessionWorkspace(sessions, workspaces) {
+  const sessionId = currentMainSessionId(sessions);
+  if (sessionId === null) return null;
+  const items = Array.isArray(workspaces?.items) ? workspaces.items : [];
+  const owners = items.filter(item => Array.isArray(item.sessionIds) && item.sessionIds.includes(sessionId));
+  if (owners.length === 1) return owners[0];
+  // 无权威成员或存在多个共享引用时，cwd 只用于唯一匹配；0/多匹配一律隐藏。
+  const pool = owners.length > 1 ? owners : items;
+  const cwd = normalizedWorkspacePath(sessions.byId?.[sessionId]?.cwd);
+  if (!cwd) return null;
+  const ranked = pool.map(workspace => [workspacePathRank(workspace, cwd), workspace]).filter(([rank]) => rank >= 0);
+  if (ranked.length === 0) return null;
+  const mostSpecific = Math.max(...ranked.map(([rank]) => rank));
+  const best = ranked.filter(([rank]) => rank === mostSpecific);
+  return best.length === 1 ? best[0][1] : null;
+}
 function makeCollapsedNewChat(ctx) {
-  return function CollapsedNewChat() {
+  return function ConversationHeaderLeading() {
     const marker = useRef(null);
+    const sessions = useSource(ctx.sessions.list);
+    const workspaces = useSource(ctx.workspaces.list);
     useConversationHeaderChrome(marker, useSource(headerPresentation));
+    const workspace = useMemo(() => pickSessionWorkspace(sessions, workspaces), [sessions, workspaces]);
+    const name = workspace ? workspace.title || workspace.path || '' : '';
+    const anchor = useRef(null);
+    const [tip, setTip] = useState(null);
+    const showTip = useCallback(() => {
+      const box = anchor.current?.getBoundingClientRect?.();
+      if (box) setTip({ left: box.left + box.width / 2, top: box.top });
+    }, []);
+    const hideTip = useCallback(() => setTip(null), []);
+    useEffect(() => { setTip(null); }, [name, workspace?.workspaceId, currentMainSessionId(sessions)]);
     // startSession 返回 void；异步创建、导航和失败通知都由宿主处理。
-    return h('div', { ref: marker, className: 'dsc-ui dsc-collapsed-new-chat' },
-      h('button', { type: 'button', className: 'dsc-icon-button', title: '新建对话', 'aria-label': '新建对话', onClick: () => ctx.uiWorkspace.startSession() }, h(PrototypeIcon, { name: 'newChat' })));
+    return h('div', { ref: marker, className: 'dsc-ui dsc-header-leading' },
+      name && h('span', {
+        ref: anchor, className: 'dsc-workspace-mark', tabIndex: 0, 'aria-label': name,
+        onPointerEnter: showTip, onPointerLeave: hideTip, onFocus: showTip, onBlur: hideTip
+      }, h(Icon, { name: 'folder' })),
+      h('div', { className: 'dsc-collapsed-new-chat' },
+        h('button', { type: 'button', className: 'dsc-icon-button', title: '新建对话', 'aria-label': '新建对话', onClick: () => ctx.uiWorkspace.startSession() }, h(PrototypeIcon, { name: 'newChat' }))),
+      tip && createPortal(h('div', { className: 'dsc-ui dsc-workspace-tooltip', role: 'tooltip', style: { left: tip.left, top: tip.top - 6 } }, name), document.body));
   };
 }
 

@@ -2,6 +2,10 @@
    display:contents 只改变排版，原 DOM、原按钮回调及菜单所有权不变。 */
 body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-conversation-header] { display: grid; grid-template-columns: auto minmax(0, 1fr) 120px 28px; align-items: center; gap: 4px 8px; min-height: 44px; padding: 6px 14px; container-type: inline-size; }
 body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-conversation-header] [data-conversation-header-leading] { grid-area: 1 / 1; }
+/* 当前会话标题灰度：宿主给标题 span 单独设色，需同时命中标题文本与容器；
+   祖先面包屑按钮、操作与视图滑块保留宿主颜色。 */
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-title],
+body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-title] > span:first-child { color: #dfdfdf; }
 body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-title-row] { display: contents; container-type: normal; }
 body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-title-cluster] { display: contents; }
 body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-navigation] { grid-area: 1 / 2; flex-wrap: wrap; min-width: 0; max-width: 100%; }

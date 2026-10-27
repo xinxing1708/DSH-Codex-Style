@@ -1,0 +1,125 @@
+/* 技能页：只作用于自有 .dsc-skills-* 结构，不改宿主令牌与布局。 */
+.dsc-skills-page {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 30px 30px 56px;
+  color: #dfdfdf;
+  background: #181818;
+  font: 14px/22px "Segoe UI", "Microsoft YaHei", sans-serif;
+  overflow: auto;
+}
+.dsc-skills-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.dsc-skills-heading h1 { margin: 0; font-size: 22px; line-height: 30px; font-weight: 600; letter-spacing: -.01em; }
+.dsc-skills-heading p { margin: 4px 0 0; color: #989898; font-size: 14px; line-height: 22px; }
+.dsc-skills-toolbar { display: flex; align-items: center; gap: 10px; }
+.dsc-skills-scope {
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 4px 10px; border: 1px solid #ffffff14; border-radius: 999px; color: #989898; font-size: 12px;
+}
+.dsc-skills-search {
+  display: inline-flex; align-items: center; gap: 6px; width: 240px; height: 32px; padding: 0 12px;
+  border: 1px solid #ffffff14; border-radius: 999px; color: #989898; background: transparent;
+}
+.dsc-skills-search:focus-within { border-color: #ffffff2e; color: #dfdfdf; }
+.dsc-skills-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #dfdfdf; font: inherit; }
+.dsc-skills-search input::placeholder { color: #777; }
+.dsc-skills-toolbar .dsc-icon-button { width: 32px; height: 32px; border-radius: 999px; color: #989898; }
+.dsc-skills-toolbar .dsc-icon-button:hover { background: #222; color: #dfdfdf; }
+
+.dsc-skills-section { margin-top: 26px; }
+.dsc-skills-section-title {
+  margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #ffffff14;
+  font-size: 16px; line-height: 22px; font-weight: 600; color: #dfdfdf;
+}
+.dsc-skills-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; }
+.dsc-skill-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; height: 60px; padding: 8px 10px;
+  border: 0; border-radius: 10px; background: transparent; color: inherit; text-align: left; cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.dsc-skill-card:hover { background: #222; }
+.dsc-skill-card:focus-visible { outline: 2px solid #ffffff2e; outline-offset: -2px; }
+.dsc-skill-card-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #141414; }
+.dsc-skill-cube { display: block; }
+.dsc-skill-card-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 2px; }
+.dsc-skill-card-title { font-size: 14px; line-height: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsc-skill-card-desc { font-size: 14px; line-height: 20px; color: #989898; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsc-skill-card-flag { flex: none; display: inline-flex; color: #989898; }
+.dsc-ui .dsc-skills-more {
+  margin-top: 6px; padding: 4px 2px; border: 0; background: transparent; color: #989898;
+  font: inherit; font-size: 13px; cursor: pointer; text-align: left;
+}
+.dsc-skills-more:hover { color: #dfdfdf; }
+
+.dsc-skills-state { padding: 22px 2px; color: #989898; font-size: 14px; }
+.dsc-skills-state button { margin-left: 10px; padding: 2px 10px; border: 1px solid #ffffff14; border-radius: 6px; background: #202020; color: #dfdfdf; font: inherit; cursor: pointer; }
+.dsc-skills-state-error { color: #fa6665; }
+.dsc-skills-state-warn { color: #d6a75a; }
+
+.dsc-skills-overlay {
+  position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center;
+  padding: 36px 24px; background: #00000026;
+}
+.dsc-skills-dialog {
+  display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden;
+  width: min(600px, calc(100vw - 48px)); max-height: calc(100vh - 72px); padding: 20px;
+  border: 1px solid #ffffff14; border-radius: 20px;
+  background: linear-gradient(180deg, #2b2a2a, #2c2b2b);
+  color: #dfdfdf; box-shadow: 0 18px 48px #00000059;
+}
+.dsc-skills-dialog-headrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dsc-skills-dialog-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #141414; }
+.dsc-skills-dialog-headactions { display: flex; align-items: center; gap: 4px; }
+.dsc-skills-dialog-headactions .dsc-icon-button { width: 30px; height: 30px; border-radius: 8px; color: #989898; }
+.dsc-skills-dialog-headactions .dsc-icon-button:hover { background: #ffffff14; color: #dfdfdf; }
+.dsc-skills-dialog-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.dsc-skills-dialog-title h2 { margin: 0; font-size: 20px; line-height: 26px; font-weight: 600; }
+.dsc-skills-dialog-kind { color: #989898; font-size: 14px; }
+.dsc-skills-dialog-desc {
+  margin: 8px 0 14px; color: #bdbdbd; font-size: 16px; line-height: 24px;
+  max-height: 28vh; overflow: auto; overflow-wrap: anywhere;
+}
+.dsc-skills-preview {
+  flex: 1 1 auto; min-height: 96px; max-height: 160px; overflow: auto; padding: 12px 14px;
+  border-radius: 12px; background: #232222; color: #c9c9c9; font-size: 13px; line-height: 20px;
+}
+.dsc-skills-preview-note { color: #989898; font-size: 13px; }
+.dsc-skills-plain { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/20px ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.dsc-skills-dialog-foot { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: none; margin-top: 14px; }
+.dsc-skills-dialog-notice { margin-right: auto; color: #fa6665; font-size: 12px; line-height: 18px; }
+.dsc-ui .dsc-skills-try {
+  display: inline-flex; align-items: center; gap: 5px; corner-shape: round;
+  padding: 6px 14px; border: 0; border-radius: 999px; background: #dfdfdf; color: #1b1b1b;
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.dsc-ui .dsc-skills-try:hover { background: #f0f0f0; }
+.dsc-skills-try:disabled { opacity: .6; cursor: default; }
+.dsc-skills-search, .dsc-skills-scope { corner-shape: round; }
+.dsc-skills-preview :is(h1, h2, h3, h4, h5, h6) { font: 600 14px/22px "Segoe UI", "Microsoft YaHei", sans-serif; margin: 12px 0 8px; }
+.dsc-skills-preview :is(h1, h2, h3):first-child { margin-top: 0; }
+.dsc-skills-preview p { margin: 8px 0; }
+
+@media (max-width: 900px) {
+  .dsc-skills-page { padding: 22px 18px 40px; }
+  .dsc-skills-grid { grid-template-columns: minmax(0, 1fr); }
+  .dsc-skills-search { width: 200px; }
+}
+@media (max-width: 620px) {
+  .dsc-skills-header { flex-direction: column; }
+  .dsc-skills-toolbar { width: 100%; }
+  .dsc-skills-search { flex: 1; width: auto; }
+  .dsc-skills-overlay { padding: 16px; }
+  .dsc-skills-dialog { padding: 16px; border-radius: 16px; max-height: calc(100vh - 32px); }
+  .dsc-skills-dialog-desc { font-size: 15px; line-height: 22px; max-height: 22vh; }
+  .dsc-skills-preview { max-height: 34vh; }
+}
+@media (max-height: 560px) {
+  .dsc-skills-dialog { overflow-y: auto; }
+  .dsc-skills-dialog > * { flex-shrink: 0; }
+  .dsc-skills-dialog-desc { max-height: 20vh; }
+  .dsc-skills-preview { flex: none; min-height: 64px; max-height: 20vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dsc-skill-card, .dsc-skills-try { transition: none; }
+}

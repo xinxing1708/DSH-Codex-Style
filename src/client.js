@@ -25,10 +25,18 @@ const paths = {
   monitor: 'M2 3h12v8H2zM5.5 13h5M8 11v2',
   arrowUpRight: 'M4.8 11.2 11.2 4.8M5.9 4.8h5.3v5.3',
   close: 'M4 4l8 8M12 4l-8 8',
-  settings: 'M6.5 2.5 7 1h2l.5 1.5 1.6.9 1.5-.3 1 1.8-1 1.2v1.8l1 1.2-1 1.8-1.5-.3-1.6.9L9 13H7l-.5-1.5-1.6-.9-1.5.3-1-1.8 1-1.2V6.1l-1-1.2 1-1.8 1.5.3ZM10.2 7a2.2 2.2 0 1 1-4.4 0 2.2 2.2 0 0 1 4.4 0Z'
+  settings: 'M6.5 2.5 7 1h2l.5 1.5 1.6.9 1.5-.3 1 1.8-1 1.2v1.8l1 1.2-1 1.8-1.5-.3-1.6.9L9 13H7l-.5-1.5-1.6-.9-1.5.3-1-1.8 1-1.2V6.1l-1-1.2 1-1.8 1.5.3ZM10.2 7a2.2 2.2 0 1 1-4.4 0 2.2 2.2 0 0 1 4.4 0Z',
+  skill: 'M8 2 14 5.2v5.6L8 14 2 10.8V5.2ZM8 2v6m6-2.8L8 11.4 2 5.2'
 };
 function Icon({ name, size = 16, ...props }) {
   return h('svg', { viewBox: '0 0 16 16', width: size, height: size, fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, ...props }, h('path', { d: paths[name] || paths.chat }));
+}
+function PluginSupportSection({ subject }) {
+  if (subject?.kind !== 'bundle' || subject.pkg?.name !== PLUGIN_PACKAGE) return null;
+  return h('aside', { className: 'dsc-plugin-support', 'aria-label': '支持插件开发' },
+    h('p', null, '如果您认为插件使用体验不错，可以到github点一颗star支持我'),
+    h('a', { href: 'https://github.com/xinxing1708/DSH-Codex-Style', target: '_blank', rel: 'noopener noreferrer' },
+      'GitHub · xinxing1708/DSH-Codex-Style', h(Icon, { name: 'arrowUpRight', size: 14 })));
 }
 // 以页面时间轴零点对齐，错开开始、等待恢复和重新挂载的运行圈保持同一转角。
 function syncSessionSpinner(svg) {
@@ -65,6 +73,12 @@ function Popover({ anchor, point, onClose, label, width = 300, children, classNa
       const size = ref.current.getBoundingClientRect();
       if (point) {
         setPosition({ position: 'fixed', left: Math.max(12, Math.min(point.x, window.innerWidth - w - 12)), top: Math.max(12, Math.min(point.y, window.innerHeight - size.height - 12)), width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
+        return;
+      }
+      if (placement === 'bottom') {
+        const left = Math.max(12, Math.min(window.innerWidth - w - 12, box.right - w));
+        const top = Math.max(12, Math.min(box.bottom + 9, window.innerHeight - size.height - 12));
+        setPosition({ position: 'fixed', left, top, width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
         return;
       }
       if (placement === 'right') {
@@ -923,8 +937,10 @@ function apply(ctx) {
     const previous = document.body.getAttribute('data-dsh-codex-style');
     document.body.setAttribute('data-dsh-codex-style', PLUGIN_VERSION);
     const style = document.createElement('style'); style.dataset.dshCodexStyle = PLUGIN_VERSION; style.textContent = CSS_TEXT; document.head.appendChild(style);
-    return () => { style.remove(); if (previous === null) document.body.removeAttribute('data-dsh-codex-style'); else document.body.setAttribute('data-dsh-codex-style', previous); };
+    const skillsStyle = document.createElement('style'); skillsStyle.dataset.dshCodexSkills = PLUGIN_VERSION; skillsStyle.textContent = SKILLS_CSS_TEXT; document.head.appendChild(skillsStyle);
+    return () => { style.remove(); skillsStyle.remove(); if (previous === null) document.body.removeAttribute('data-dsh-codex-style'); else document.body.setAttribute('data-dsh-codex-style', previous); };
   }, 'codex-style: stylesheet');
+  registerSkillsPage(ctx);
   const register = (scope, name, component, inject) => scope.slots.inject(name, () => {
     const priorities = scope.slots.entries(name).map(entry => entry.options.priority ?? 0);
     return scope.slots.register({ name, priority: Math.min(0, ...priorities) - 1, ...(inject ? { inject } : {}) }, component);
@@ -940,6 +956,7 @@ function apply(ctx) {
   ctx.inject(['remote', 'remote.codexStyleUpdates'], scope => scope.effect(() => updates.connect(scope.remote.codexStyleUpdates), 'codex-style: update download and install'));
   ctx.effect(() => { updates.start(); return () => updates.dispose(); }, 'codex-style: automatic update check');
   ctx.slots.inject('plugins.detail.actions', () => ctx.slots.register({ name: 'plugins.detail.actions', id: 'codex-style:check-update' }, props => h(PluginUpdateAction, { ...props, updates })));
+  ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({ name: 'plugins.detail.section', id: 'codex-style:support' }, PluginSupportSection));
   ctx.inject(['pluginNavigation'], scope => scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:update-notice' }, () => h(PluginUpdateNotice, { updates, onOpen: () => scope.reflect.get('pluginNavigation').openBundle(PLUGIN_PACKAGE) }))));
   // 等各区域自己的服务就绪；权限 RPC 的命名空间不能由 remote 根服务存在来推断。
   ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale', 'pluginNavigation'], scope => {

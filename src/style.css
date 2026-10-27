@@ -124,6 +124,10 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-sidebar .dsc-brand__mark { height: 19px; max-width: 25px; }
 .dsc-sidebar .dsc-brand__badge { font-size: 8px; padding: 3px 4px 2px; }
 .dsc-sidebar .dsc-sidebar__header-actions { margin-left: auto; }
+/* 用户截图灰度：品牌字标与徽章浅底压低亮度，鲸鱼标识仅以透明度匹配；不改全局正文。 */
+.dsc-sidebar .dsc-brand__mark { opacity: .72; }
+.dsc-sidebar .dsc-brand__wordmark { color: #c2c2c2; }
+.dsc-sidebar .dsc-brand__badge { background: #b8b8b8; }
 /* Codex：新聊天默认无底色、不显示快捷键，仅悬停时出现灰色背景。 */
 .dsc-sidebar .dsc-new-chat { flex: none; justify-content: flex-start; width: 100%; font-size: 13px; font-weight: var(--cx-weight-medium); background: transparent; color: #c2c2c2; margin-bottom: 8px; }
 .dsc-sidebar .dsc-new-chat:hover { background: rgba(255,255,255,.08); }
@@ -131,6 +135,9 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 /* 同时限定两个自有类，避免后面的通用 .dsc-search 把它重新变成伸展项。 */
 .dsc-search.dsc-sidebar-search { flex: none; height: 32px; margin: 2px 0 8px; min-height: 32px; }
 .dsc-sidebar-search button { padding: 0 3px; }
+/* 搜索图标与清除键：恢复被 `.dsc-ui button {color: inherit}` 覆盖的自有灰阶。 */
+.dsc-sidebar .dsc-sidebar-search button { color: #8f8f8f; }
+.dsc-sidebar .dsc-sidebar-search button:hover, .dsc-sidebar .dsc-sidebar-search button:focus-visible { color: #b4b4b4; }
 .dsc-sidebar .dsc-tree-tools { justify-content: space-between; padding: 12px 0 4px 8px; }
 .dsc-tree-tools-label { font-size: 12px; color: var(--cx-text-3); }
 .dsc-projects-toggle { display: flex; align-items: center; gap: 4px; height: 28px; padding: 0; }
@@ -145,7 +152,15 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-window-sidebar-toggle { visibility: visible; position: fixed; top: 6px; left: 12px; z-index: 35; -webkit-app-region: no-drag; }
 .dsc-collapsed-new-chat { display: none; align-items: center; margin-right: 8px; -webkit-app-region: no-drag; }
 body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collapsed-new-chat { display: flex; }
-.dsc-collapsed-new-chat .dsc-icon-button { width: 28px; height: 28px; }
+.dsc-collapsed-new-chat .dsc-icon-button { width: 28px; height: 28px; color: #8f8f8f; }
+.dsc-collapsed-new-chat .dsc-icon-button:hover, .dsc-collapsed-new-chat .dsc-icon-button:focus-visible { color: #b4b4b4; }
+/* 会话标题左侧常驻 leading：工作区标识与“仅收起显示”的新建按钮分离；无工作区时不留空位。 */
+.dsc-header-leading { display: flex; align-items: center; gap: 4px; min-width: 0; -webkit-app-region: no-drag; }
+.dsc-header-leading > .dsc-collapsed-new-chat { order: -1; }
+.dsc-workspace-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; border-radius: 7px; color: #dfdfdf; cursor: default; -webkit-app-region: no-drag; }
+.dsc-workspace-mark:focus-visible { outline: 1px solid #ffffff40; outline-offset: -1px; }
+/* 深灰圆角提示 portal 到 body，避免 header 裁剪；同一元素不设原生 title。 */
+.dsc-ui.dsc-workspace-tooltip { position: fixed; z-index: 10002; transform: translate(-50%, -100%); max-width: calc(100vw - 16px); overflow: hidden; padding: 5px 11px; border: 1px solid #ffffff08; border-radius: 12px; background: #2d2d2d; color: #dfdfdf; font-size: 13px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 2px 5px #0002; pointer-events: none; -webkit-app-region: no-drag; }
 .dsc-gear-launcher { visibility: visible; position: fixed; left: 8px; bottom: 12px; z-index: 35; }
 .dsc-gear-launcher .dsc-gear-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: var(--cx-radius-md); color: var(--cx-text-3); }
 .dsc-gear-launcher .dsc-gear-button:hover, .dsc-gear-launcher .dsc-gear-button[aria-expanded=true] { background: var(--cx-hover); color: var(--cx-text); }
@@ -183,6 +198,11 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 .dsc-search input::placeholder { color: var(--cx-text-3); }
 .dsc-icon-button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: var(--cx-text-2); }
 .dsc-icon-button:hover { background: var(--cx-active); }
+/* 用户截图灰度：自有侧栏图标常态 #8f8f8f、悬停/键盘聚焦 #b4b4b4；禁用沿用父级透明度。 */
+.dsc-sidebar .dsc-icon-button { color: #8f8f8f; }
+.dsc-sidebar .dsc-icon-button:hover, .dsc-sidebar .dsc-icon-button:focus-visible { color: #b4b4b4; }
+.dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button { color: #8f8f8f; }
+.dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button:hover, .dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button:focus-visible { color: #b4b4b4; }
 .dsc-tree-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 8px; }
 .dsc-section-title { padding: 12px 8px 6px; font-size: 12px; font-weight: 500; color: var(--cx-text-3); }
 .dsc-thread, .dsc-project { display: flex; align-items: center; height: 30px; border-radius: 7px; position: relative; }
@@ -413,6 +433,13 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
    2) 对话正文列与输入框同宽：由插件测量输入框卡片的实际视觉宽度写入 --dsc-composer-visual-width，
       正文列优先取该值，回退到宿主 --dsh-composer-card-max-width（正文 + 32px）。 */
 body[data-dsh-codex-style] [data-conversation-scroll] [class*="_column"] { max-width: var(--dsc-composer-visual-width, var(--dsh-composer-card-max-width)); }
+/* 公开详情插槽在来源信息后声明；仅在本插件详情用 flex 顺序把来源信息排在支持提示之后。 */
+body[data-dsh-codex-style] [data-plugin-detail="@xinxing1708/dsh-codex-style"] [data-plugin-source] { order: 1; }
+.dsc-plugin-support { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px 0; color: #989898; font-size: 13px; line-height: 20px; }
+.dsc-plugin-support p { margin: 0; }
+.dsc-plugin-support a { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; color: #9bc8f8; text-decoration: none; overflow-wrap: anywhere; border-radius: 4px; }
+.dsc-plugin-support a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.dsc-plugin-support a:focus-visible { outline: 2px solid #9bc8f8; outline-offset: 4px; }
 html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-sidebar-column] { border-top-left-radius: var(--dsh-windows-content-radius, 16px); }
 html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-center-column] { border-radius: 0; }
 html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] [data-dsc-center-column] { border-top-left-radius: var(--dsh-windows-content-radius, 16px); }

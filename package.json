@@ -1,6 +1,6 @@
 {
   "name": "@xinxing1708/dsh-codex-style",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "DSH 的 Codex 风格深色界面插件",
   "type": "module",
   "main": "lib/host.js",
@@ -13,11 +13,15 @@
     "./body/locale/*.json": "./locale/body/*.json",
     "./header": "./lib/header.js",
     "./header/locale/*.json": "./locale/header/*.json",
+    "./navigation": "./lib/navigation.js",
+    "./navigation/locale/*.json": "./locale/navigation/*.json",
+    "./image-annotations": "./lib/image-annotations.js",
+    "./image-annotations/locale/*.json": "./locale/image-annotations/*.json",
     "./package.json": "./package.json"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test scripts/test-install.mjs scripts/test-update.mjs scripts/test-client.mjs"
+    "test": "node --test scripts/test-install.mjs scripts/test-update.mjs scripts/test-client.mjs scripts/test-skills.mjs scripts/test-image-annotations.mjs scripts/test-image-annotations-host.mjs scripts/test-image-annotations-integration.mjs scripts/test-navigation.mjs"
   },
   "files": [
     "lib",
@@ -53,7 +57,8 @@
         "@deepseek-ai/dsh-client-ui-model-selection",
         "@deepseek-ai/dsh-client-ui-permission-presets",
         "@deepseek-ai/dsh-client-ui-settings-general",
-        "@deepseek-ai/dsh-client-ui-plugin-manager"
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },

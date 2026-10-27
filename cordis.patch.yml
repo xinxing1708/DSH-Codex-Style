@@ -10,3 +10,9 @@
     - id: codex-style-header
       name: '@xinxing1708/dsh-codex-style/header'
       disabled: false
+    - id: codex-style-navigation
+      name: '@xinxing1708/dsh-codex-style/navigation'
+      disabled: false
+    - id: codex-style-image-annotations
+      name: '@xinxing1708/dsh-codex-style/image-annotations'
+      disabled: false

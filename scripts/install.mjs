@@ -66,9 +66,13 @@ for (const name of new Set([manifest.name, legacyName])) {
 }
 await access(resolve(source, 'lib/client.js'));
 await access(resolve(source, 'lib/host.js'));
+await access(resolve(source, 'lib/skills-host.js'));
 await access(resolve(source, 'lib/behavior.js'));
 await access(resolve(source, 'lib/body.js'));
 await access(resolve(source, 'lib/header.js'));
+await access(resolve(source, 'lib/navigation.js'));
+await access(resolve(source, 'lib/image-annotations.js'));
+await access(resolve(source, 'lib/image-annotations-host.js'));
 await access(resolve(source, 'lib/updater.js'));
 await access(resolve(source, 'lib/update-common.js'));
 await access(resolve(source, 'lib/update-install.js'));
@@ -76,7 +80,7 @@ await mkdir(backup, { recursive: true });
 for (const entry of originals) await writeFile(resolve(backup, entry.path.split(/[\\/]/).pop()), entry.bytes);
 await mkdir(resolve(target, 'lib'), { recursive: true });
 await mkdir(resolve(target, 'licenses'), { recursive: true });
-for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js', 'lib/behavior.js', 'lib/body.js', 'lib/header.js', 'lib/updater.js', 'lib/update-common.js', 'lib/update-install.js', 'scripts/rollback.mjs', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'locale/body/en.json', 'locale/body/zh.json', 'locale/header/en.json', 'locale/header/zh.json']) {
+for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js', 'lib/skills-host.js', 'lib/behavior.js', 'lib/body.js', 'lib/header.js', 'lib/navigation.js', 'lib/image-annotations.js', 'lib/image-annotations-host.js', 'lib/updater.js', 'lib/update-common.js', 'lib/update-install.js', 'scripts/rollback.mjs', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'locale/body/en.json', 'locale/body/zh.json', 'locale/header/en.json', 'locale/header/zh.json', 'locale/navigation/en.json', 'locale/navigation/zh.json', 'locale/image-annotations/en.json', 'locale/image-annotations/zh.json']) {
   await mkdir(dirname(resolve(target, file)), { recursive: true });
   await copyFile(resolve(source, file), resolve(target, file));
 }

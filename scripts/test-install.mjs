@@ -87,10 +87,10 @@ test('rollback preserves subsequent user edits', async t => {
 for (const disabled of [true, false]) test(`optional components ship complete and preserve saved switches on upgrade; disabled=${disabled}`, async t => {
   const f = await fixture(t);
   const patch = join(f.profile, 'cordis.patch.yml');
-  const saved = `- id: codex-style-work-guidelines\n  disabled: ${!disabled}\n- id: codex-style-body\n  disabled: ${disabled}\n- id: codex-style-header\n  disabled: ${!disabled}\n`;
+  const saved = `- id: codex-style-work-guidelines\n  disabled: ${!disabled}\n- id: codex-style-body\n  disabled: ${disabled}\n- id: codex-style-header\n  disabled: ${!disabled}\n- id: codex-style-navigation\n  disabled: ${!disabled}\n- id: codex-style-image-annotations\n  disabled: ${disabled}\n`;
   await writeFile(patch, saved);
   const a = JSON.parse(f.success());
-  for (const file of ['lib/behavior.js', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'lib/body.js', 'locale/body/en.json', 'locale/body/zh.json', 'lib/header.js', 'locale/header/en.json', 'locale/header/zh.json']) {
+  for (const file of ['lib/behavior.js', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'lib/body.js', 'locale/body/en.json', 'locale/body/zh.json', 'lib/header.js', 'locale/header/en.json', 'locale/header/zh.json', 'lib/navigation.js', 'locale/navigation/en.json', 'locale/navigation/zh.json', 'lib/skills-host.js', 'lib/image-annotations.js', 'lib/image-annotations-host.js', 'locale/image-annotations/en.json', 'locale/image-annotations/zh.json']) {
     assert.deepEqual(await readFile(join(a.target, file)), await readFile(join(source, file)));
   }
   assert.ok((await readFile(patch, 'utf8')).startsWith(saved));
@@ -106,8 +106,16 @@ test('bundle defaults enable visual effects and keep prompt injection disabled',
   assert.notEqual(defaults.get('ui-skin-codex-style').disabled, true);
   assert.equal(defaults.get('codex-style-body').disabled, false);
   assert.equal(defaults.get('codex-style-header').disabled, false);
+  assert.equal(defaults.get('codex-style-navigation').disabled, false);
+  assert.equal(defaults.get('codex-style-image-annotations').disabled, false);
   assert.equal(defaults.get('codex-style-work-guidelines').disabled, true);
   assert.equal(defaults.get('codex-style-header').name, manifest.name + '/header');
   assert.equal(manifest.exports['./header'], './lib/header.js');
   assert.equal(manifest.exports['./header/locale/*.json'], './locale/header/*.json');
+  assert.equal(defaults.get('codex-style-navigation').name, manifest.name + '/navigation');
+  assert.equal(manifest.exports['./navigation'], './lib/navigation.js');
+  assert.equal(manifest.exports['./navigation/locale/*.json'], './locale/navigation/*.json');
+  assert.equal(defaults.get('codex-style-image-annotations').name, manifest.name + '/image-annotations');
+  assert.equal(manifest.exports['./image-annotations'], './lib/image-annotations.js');
+  assert.equal(manifest.exports['./image-annotations/locale/*.json'], './locale/image-annotations/*.json');
 });

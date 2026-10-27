@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Page back / forward (optional)",
+    "description": "Add back and forward buttons to the window's top-left corner and move through the sessions and global panels you opened during this run. This is not built into DSH: history lives only in this run's memory, resets on restart, and never restores the settings dialog, in-page sub-state or scroll position. On by default; requires the Codex UI component. Switching off removes the buttons and shortcuts and returns the existing sidebar toggle to its original position."
+  }
+}

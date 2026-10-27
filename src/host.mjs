@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { PluginUpdater } from './updater.js';
+import { apply as applySkillsHost } from './skills-host.js';
 
-// 用户授权的本插件更新服务；不注册模型或工具，不修改会话数据。
+// 用户授权的本插件更新服务与只读技能目录服务；不注册模型或工具，不修改会话数据。
 export const name = 'codex-style';
 export const inject = ['profileContext'];
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -37,4 +38,6 @@ export async function apply(ctx) {
   // 使用公开的标准装饰器调用方式，无需引入编译器或依赖私有 RPC 字段。
   for (const method of ['status', 'check', 'download', 'installUpdate']) Remote(CodexStyleUpdates.prototype[method], { kind: 'method', name: method, static: false, private: false, addInitializer: initialize => initializers.push(initialize) });
   ctx.plugin(CodexStyleUpdates);
+  // 只读技能目录/正文：复用宿主 SkillRegistry，不新增发现、启停或写文件能力。
+  applySkillsHost(ctx, { Remote, TypertRemoteService });
 }

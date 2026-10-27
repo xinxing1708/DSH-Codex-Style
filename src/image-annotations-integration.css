@@ -1,0 +1,368 @@
+/* 图片批注集成层样式：只服务本插件自绘的附件 rail、胶囊行、恢复错误与历史图片框。
+   批注编辑器本体（.dsc-ia-*）由 image-annotations.css 提供，不在这里重复。 */
+
+.dsc-iai-rail-wrap {
+  min-width: 0;
+  margin-bottom: -4px;
+  padding: 2px 10px 0;
+  position: relative;
+}
+
+.dsc-iai-rail {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.dsc-iai-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.dsc-iai-rail-item {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 168px;
+}
+
+.dsc-iai-rail-image {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.dsc-iai-thumb {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: .5px solid var(--dsw-alias-border-l2-darkmode-thin, var(--dsw-alias-border-l2, rgba(255, 255, 255, .1)));
+  border-radius: 14px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(255, 255, 255, .06));
+  cursor: zoom-in;
+  overflow: hidden;
+  display: block;
+}
+
+.dsc-iai-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dsc-iai-thumb:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #339cff);
+  outline-offset: 2px;
+}
+
+.dsc-iai-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--dsw-alias-button-contrast-fill, rgba(0, 0, 0, .72));
+  color: var(--dsw-alias-label-primary-inverted, #fff);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .2s ease-in-out;
+}
+
+.dsc-iai-rail-item:hover .dsc-iai-remove,
+.dsc-iai-file:hover .dsc-iai-remove,
+.dsc-iai-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .dsc-iai-remove {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsc-iai-remove {
+    transition: none;
+  }
+}
+
+.dsc-iai-pill-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.dsc-iai-recall-error {
+  max-width: 168px;
+  padding: 2px 6px;
+  border: 1px solid var(--dsw-alias-state-error-primary, #ff6764);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-state-error-primary, #ff6764);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dsc-iai-recall-error:hover {
+  background: var(--dsw-alias-state-error-tertiary, rgba(255, 103, 100, .12));
+}
+
+.dsc-iai-inline-error {
+  color: var(--dsw-alias-state-error-primary, #ff6764);
+  font-size: 12px;
+  line-height: 18px;
+  padding: 2px 2px 0;
+}
+
+/* ------------------------------ 文件卡 ------------------------------ */
+
+.dsc-iai-file {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 240px;
+  height: 64px;
+  padding: 0 12px;
+  border: .5px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, .1));
+  border-radius: 14px;
+  background: var(--dsw-specific-input-major, rgba(55, 55, 55, .94));
+  text-align: left;
+}
+
+.dsc-iai-file.is-error {
+  border-color: var(--dsw-alias-state-error-primary, #ff6764);
+}
+
+.dsc-iai-file-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--dsw-alias-label-secondary, rgba(255, 255, 255, .7));
+}
+
+.dsc-iai-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--dsw-alias-label-tertiary, rgba(255, 255, 255, .5));
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: dsc-iai-file-spin .8s linear infinite;
+}
+
+@keyframes dsc-iai-file-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsc-iai-spinner { animation: none; }
+}
+
+.dsc-iai-file-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+.dsc-iai-file-retry {
+  cursor: pointer;
+  font: inherit;
+}
+
+.dsc-iai-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary, #fff);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.dsc-iai-file-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-tertiary, rgba(255, 255, 255, .5));
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.dsc-iai-file-meta.is-error {
+  color: var(--dsw-alias-state-error-primary, #ff6764);
+}
+
+.dsc-iai-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 5px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--dsw-alias-fill-tertiary, rgba(255, 255, 255, .08));
+  overflow: hidden;
+}
+
+.dsc-iai-progress-bar {
+  display: block;
+  height: 100%;
+  width: 35%;
+  border-radius: inherit;
+  background: var(--dsw-alias-brand-primary, #0285ff);
+  animation: dsc-iai-file-progress 1.2s ease-in-out infinite alternate;
+}
+
+.dsc-iai-progress-bar[style] {
+  animation: none;
+}
+
+@keyframes dsc-iai-file-progress {
+  0% { transform: translate(-70%); }
+  to { transform: translate(220%); }
+}
+
+/* ------------------------------ 拖放遮罩 ------------------------------ */
+
+.dsc-iai-drop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .55);
+  pointer-events: none;
+}
+
+.dsc-iai-drop-card {
+  min-width: 280px;
+  max-width: min(420px, 80vw);
+  padding: 20px 28px;
+  border: 1px dashed var(--dsw-alias-border-l4, rgba(255, 255, 255, .18));
+  border-radius: 20px;
+  background: var(--dsw-alias-bg-layer-1, #212121);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+  text-align: center;
+}
+
+.dsc-iai-drop.is-blocked .dsc-iai-drop-card {
+  border-color: var(--dsw-alias-state-error-primary, #ff6764);
+}
+
+.dsc-iai-drop-title {
+  color: var(--dsw-alias-label-primary, #fff);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.dsc-iai-drop-desc {
+  margin-top: 4px;
+  color: var(--dsw-alias-label-tertiary, rgba(255, 255, 255, .5));
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ------------------------------ 历史图片 ------------------------------ */
+
+.dsc-iai-history-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.dsc-iai-history-group[data-align="start"] {
+  justify-content: flex-start;
+}
+
+.dsc-iai-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.dsc-iai-history[data-align="start"] {
+  align-items: flex-start;
+}
+
+.dsc-iai-history-frame {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: .5px solid var(--dsw-alias-border-l2-darkmode-thin, var(--dsw-alias-border-l2, rgba(255, 255, 255, .1)));
+  border-radius: 16px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(255, 255, 255, .06));
+  cursor: zoom-in;
+}
+
+.dsc-iai-history-frame img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.dsc-iai-history-frame:focus-visible,
+.dsc-iai-history-error:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #339cff);
+  outline-offset: 2px;
+}
+
+.dsc-iai-history-loading {
+  color: var(--dsw-alias-label-tertiary, rgba(255, 255, 255, .5));
+  font-size: 12px;
+  line-height: 18px;
+  padding: 0 10px;
+}
+
+.dsc-iai-history-error {
+  max-width: 240px;
+  padding: 10px 12px;
+  border: .5px solid var(--dsw-alias-state-error-primary, #ff6764);
+  border-radius: 12px;
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(255, 103, 100, .08));
+  color: var(--dsw-alias-label-tertiary, rgba(255, 255, 255, .5));
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}

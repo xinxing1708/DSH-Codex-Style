@@ -1,0 +1,936 @@
+/* 图片批注：仅作用于自有 .dsc-ia-* 结构，不修改宿主令牌与布局。
+   尺寸依据本轮视觉规范（30px 点、294px 弹层、44px 工具条、32x192 笔宽滑条）。 */
+
+.dsc-ia-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  font: 14px/20px "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: rgba(0, 0, 0, 0.65);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  outline: none;
+  overscroll-behavior: contain;
+}
+
+/* 只继承字体族：不能用 font/color 简写继承盖过浅色按钮上的显式深色文字。 */
+.dsc-ia-root button {
+  font-family: inherit;
+}
+
+.dsc-ia-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* 顶部动作条：图片名、缩放、适应、下载、关闭。 */
+.dsc-ia-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 8px 16px;
+  box-sizing: border-box;
+  background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.dsc-ia-top > * {
+  pointer-events: auto;
+}
+
+.dsc-ia-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  color: #e6e6e6;
+}
+
+.dsc-ia-title-name {
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.dsc-ia-title-index {
+  flex: none;
+  color: #989898;
+  font-size: 12px;
+}
+
+.dsc-ia-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.dsc-ia-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(24, 24, 24, 0.62);
+  color: #dfdfdf;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dsc-ia-action:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.dsc-ia-action:focus-visible,
+.dsc-ia-tool:focus-visible,
+.dsc-ia-toolbar-button:focus-visible,
+.dsc-ia-primary:focus-visible,
+.dsc-ia-nav:focus-visible,
+.dsc-ia-popup button:focus-visible,
+.dsc-ia-pill button:focus-visible,
+.dsc-ia-grip:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 1px;
+}
+
+.dsc-ia-zoom-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* 舞台：图片居中 contain，可平移；点与 SVG 覆盖在图片内容 rect 上。 */
+.dsc-ia-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.dsc-ia-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.dsc-ia-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  background: #111;
+  box-sizing: border-box;
+}
+
+/* 评论编号点：30px，蓝色水滴（左下角 3px），缩放时反向补偿保持视觉大小。 */
+.dsc-ia-dots {
+  position: absolute;
+  inset: 0;
+}
+
+.dsc-ia-dot {
+  position: absolute;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50% 50% 50% 3px;
+  background: #8bc3fe;
+  color: #fff;
+  cursor: pointer;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%) scale(var(--dsc-ia-dot-scale, 1));
+  transform-origin: center center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.dsc-ia-dot-label {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dsc-ia-dot.is-draft {
+  pointer-events: none;
+  cursor: default;
+}
+
+.dsc-ia-dot:hover,
+.dsc-ia-dot.is-active {
+  border-color: #fff;
+  transform: translate(-50%, -50%) scale(calc(var(--dsc-ia-dot-scale, 1) * 1.05));
+}
+
+.dsc-ia-cursor-dot {
+  position: absolute;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 3px;
+  background: #8bc3fe;
+  opacity: 0.55;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(var(--dsc-ia-dot-scale, 1));
+  transform-origin: center center;
+}
+
+/* 手绘 SVG */
+.dsc-ia-marks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.dsc-ia-marks[data-tool="select"] {
+  cursor: default;
+}
+
+.dsc-ia-marks[data-tool="eraser"] {
+  cursor: cell;
+}
+
+.dsc-ia-marks[data-tool="text"] {
+  cursor: text;
+}
+
+.dsc-ia-marks[data-tool="preview"] {
+  cursor: default;
+}
+
+.dsc-ia-marks .dsc-ia-mark {
+  pointer-events: none;
+}
+
+.dsc-ia-marks[data-tool="select"] .dsc-ia-mark,
+.dsc-ia-marks[data-tool="eraser"] .dsc-ia-mark {
+  pointer-events: auto;
+  cursor: move;
+}
+
+.dsc-ia-marks[data-tool="eraser"] .dsc-ia-mark {
+  cursor: cell;
+}
+
+.dsc-ia-selection {
+  pointer-events: none;
+}
+
+/* 左右切图 */
+.dsc-ia-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 6;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  transition: background-color 120ms ease;
+}
+
+.dsc-ia-nav:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.dsc-ia-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.dsc-ia-nav-prev {
+  left: 20px;
+}
+
+.dsc-ia-nav-next {
+  right: 20px;
+}
+
+/* 预览态底部浮动工具条（标注 / 添加评论） */
+.dsc-ia-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 48px;
+  padding: 2px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(45, 45, 45, 0.95);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+  touch-action: none;
+}
+
+.dsc-ia-toolbar:active {
+  cursor: grabbing;
+}
+
+.dsc-ia-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #dfdfdf;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dsc-ia-toolbar-button:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+/* 评论态底部栏：拖拽柄 + 提示/计数 + 完成批注 + 关闭 */
+.dsc-ia-bottom {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 48px;
+  padding: 2px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(45, 45, 45, 0.95);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+}
+
+.dsc-ia-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8f8f8f;
+  cursor: grab;
+}
+
+.dsc-ia-grip:active {
+  cursor: grabbing;
+}
+
+.dsc-ia-bottom-label {
+  padding: 0 10px;
+  color: #cfcfcf;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.dsc-ia-primary {
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #dfdfdf;
+  color: #111;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.dsc-ia-primary:hover {
+  background: #fff;
+}
+
+/* 评论输入弹层：294x44 / 294x120 */
+.dsc-ia-popup {
+  position: fixed;
+  z-index: 8;
+  width: 294px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  background: #303030;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.dsc-ia-popup.is-unpositioned,
+.dsc-ia-text-editor.is-unpositioned {
+  visibility: hidden;
+}
+
+.dsc-ia-popup.is-new {
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 16px;
+  height: 44px;
+}
+
+.dsc-ia-popup.is-edit {
+  display: flex;
+  flex-direction: column;
+  height: 120px;
+  padding: 8px 16px 0;
+}
+
+.dsc-ia-popup-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font: 14px/20px "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.dsc-ia-popup-input::placeholder {
+  color: #8d8d8d;
+}
+
+.dsc-ia-popup-textarea {
+  width: 100%;
+  height: auto;
+  padding: 0;
+  resize: none;
+  overflow: auto;
+}
+
+.dsc-ia-popup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: 48px;
+}
+
+.dsc-ia-popup-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dsc-ia-popup-trash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #bdbdbd;
+  cursor: pointer;
+}
+
+.dsc-ia-popup-trash:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ff6764;
+}
+
+.dsc-ia-popup-cancel {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #cfcfcf;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dsc-ia-popup-cancel:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.dsc-ia-popup-save {
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #dfdfdf;
+  color: #111;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dsc-ia-popup-save:hover {
+  background: #fff;
+}
+
+.dsc-ia-popup-save:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dsc-ia-popup-send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #dfdfdf;
+  color: #111;
+  cursor: pointer;
+}
+
+.dsc-ia-popup-send:hover {
+  background: #fff;
+}
+
+/* 手绘文字的独立输入框 */
+.dsc-ia-text-editor {
+  position: fixed;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 240px;
+  height: 38px;
+  padding: 0 6px 0 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 19px;
+  background: #303030;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.dsc-ia-text-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font: 14px/20px "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.dsc-ia-text-input::placeholder {
+  color: #8d8d8d;
+}
+
+.dsc-ia-text-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+/* 手绘工具条：44px 深灰，图标工具与菜单 */
+.dsc-ia-markup-anchor {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 7;
+  touch-action: none;
+}
+
+.dsc-ia-markup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 44px;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(45, 45, 45, 0.96);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+}
+
+.dsc-ia-markup-toolbar:active {
+  cursor: grabbing;
+}
+
+.dsc-ia-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #d6d6d6;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dsc-ia-tool:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.dsc-ia-tool.is-active {
+  background: #363636;
+  color: #fff;
+}
+
+.dsc-ia-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.dsc-ia-tool:disabled:hover {
+  background: transparent;
+}
+
+.dsc-ia-tool-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.dsc-ia-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.dsc-ia-tool-color {
+  width: 36px;
+}
+
+.dsc-ia-color-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+/* 弹出菜单：形状与颜色 */
+.dsc-ia-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: #2d2d2d;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dsc-ia-shape-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 116px;
+}
+
+.dsc-ia-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #dfdfdf;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dsc-ia-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dsc-ia-menu-item.is-active {
+  background: #363636;
+  color: #fff;
+}
+
+.dsc-ia-color-menu {
+  display: flex;
+  gap: 6px;
+}
+
+.dsc-ia-color-swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.dsc-ia-color-swatch.is-active {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.75);
+}
+
+.dsc-ia-zoom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 108px;
+  top: calc(100% + 8px);
+  bottom: auto;
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* 左侧竖向笔宽滑条：32x192，轨道上下各 16px */
+.dsc-ia-size-slider {
+  position: fixed;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 7;
+  width: 32px;
+  height: 192px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(45, 45, 45, 0.92);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.dsc-ia-size-rail {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  bottom: 16px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: rgba(175, 175, 175, 0.4);
+  transition: width 300ms ease, margin-left 300ms ease, background-color 300ms ease;
+}
+
+.dsc-ia-size-slider:hover .dsc-ia-size-rail,
+.dsc-ia-size-slider:focus-visible .dsc-ia-size-rail,
+.dsc-ia-size-slider.is-dragging .dsc-ia-size-rail {
+  width: 8px;
+  margin-left: -4px;
+  background: rgba(220, 220, 220, 0.5);
+}
+
+.dsc-ia-size-thumb {
+  position: absolute;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: transform 120ms ease;
+}
+
+.dsc-ia-size-slider:hover .dsc-ia-size-thumb,
+.dsc-ia-size-slider:focus-visible .dsc-ia-size-thumb,
+.dsc-ia-size-slider.is-dragging .dsc-ia-size-thumb {
+  transform: scale(1.1);
+}
+
+.dsc-ia-size-slider:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* 图片旁“N 条批注”胶囊 */
+.dsc-ia-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(45, 45, 45, 0.95);
+  color: #dfdfdf;
+  font-size: 12px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.dsc-ia-pill-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dsc-ia-pill-open:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.dsc-ia-pill-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: #989898;
+  cursor: pointer;
+}
+
+.dsc-ia-pill-clear:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* 错误与无障碍 */
+.dsc-ia-error {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  z-index: 10;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 14px;
+  border: 1px solid #ff6764;
+  border-radius: 10px;
+  background: rgba(60, 20, 20, 0.96);
+  color: #ffd6d5;
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.dsc-ia-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dsc-ia-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bdbdbd;
+  font-size: 14px;
+}
+
+/* 小视口：弹层不越界，工具条不撑破屏幕 */
+@media (max-width: 640px) {
+  .dsc-ia-popup {
+    width: min(294px, calc(100vw - 16px));
+  }
+
+  .dsc-ia-bottom,
+  .dsc-ia-toolbar {
+    max-width: calc(100vw - 16px);
+  }
+
+  .dsc-ia-bottom-label {
+    white-space: normal;
+    line-height: 16px;
+  }
+
+  .dsc-ia-size-slider {
+    left: 8px;
+    height: 160px;
+  }
+
+  .dsc-ia-title-name {
+    max-width: 34vw;
+  }
+
+  .dsc-ia-nav-prev {
+    left: 8px;
+  }
+
+  .dsc-ia-nav-next {
+    right: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsc-ia-root *,
+  .dsc-ia-root *::before,
+  .dsc-ia-root *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

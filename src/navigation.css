@@ -1,0 +1,129 @@
+/* 页面前进后退：只在导航组件启用时生效；关闭后侧栏按钮回到原位置与尺寸。 */
+body[data-dsc-codex-navigation] {
+  --dsc-navigation-native-shift: 68px;
+}
+
+/* 后退 / 前进：两个 32px 按钮，left 8，gap 2；中心约 24 / 58。 */
+body[data-dsc-codex-navigation] .dsc-nav-controls {
+  position: fixed;
+  top: 4px;
+  left: 8px;
+  z-index: 36;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.dsc-nav-controls .dsc-nav-button {
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8f8f8f;
+  cursor: default;
+  -webkit-app-region: no-drag;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dsc-nav-controls .dsc-nav-button[aria-disabled='true'] {
+  color: #535353;
+}
+
+.dsc-nav-controls .dsc-nav-button:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
+.dsc-nav-controls .dsc-nav-button:not([aria-disabled='true']):hover,
+.dsc-nav-controls .dsc-nav-button:not([aria-disabled='true']):focus-visible {
+  background: #ffffff14;
+  color: #b4b4b4;
+}
+
+.dsc-nav-controls .dsc-nav-button:focus-visible {
+  outline: 1px solid #ffffff40;
+  outline-offset: -1px;
+}
+
+/* 复用的侧栏按钮移到第三位：中心约 92；内部按钮同步 32px / 8px 圆角。 */
+body[data-dsc-codex-navigation] .dsc-window-sidebar-toggle {
+  top: 4px;
+  left: 76px;
+}
+
+body[data-dsc-codex-navigation] .dsc-window-sidebar-toggle .dsc-icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+/* 悬停/键盘聚焦提示：深灰圆角；portal 到 body 且高于标题栏拖拽区。 */
+.dsc-nav-tooltip {
+  position: fixed;
+  z-index: 10002;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100vw - 16px);
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #303030;
+  color: #e8e8e8;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+  box-shadow: 0 6px 20px #0006;
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+}
+
+.dsc-nav-tooltip__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+}
+
+.dsc-nav-tooltip__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: #505050;
+  color: #ededed;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.dsc-nav-tooltip__plus {
+  padding: 0 1px;
+  color: #8a8a8a;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+/* 原顶部快捷栏右移：只标记最小宿主节点；右上窗口按钮与标题栏拖拽区不移动。 */
+body[data-dsc-codex-navigation] [data-dsc-navigation-menubar],
+body[data-dsc-codex-navigation] [data-dsc-navigation-titlebar-row],
+body[data-dsc-codex-navigation] [data-dsc-navigation-native-shift] {
+  transform: translateX(var(--dsc-navigation-native-shift));
+}
+
+/* 自绘侧栏按钮覆盖原生旧位置；原生切换键隐藏，避免两套按钮露出或重叠。 */
+body[data-dsc-codex-navigation] [data-dsc-navigation-native-toggle] {
+  visibility: hidden !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsc-nav-controls .dsc-nav-button {
+    transition: none;
+  }
+}
