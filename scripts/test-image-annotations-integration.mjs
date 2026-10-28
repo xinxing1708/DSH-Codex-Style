@@ -179,7 +179,7 @@ function createMiniReact() {
     if (typeof node.type === 'function') {
       const key = node.key !== undefined ? 'k:' + String(node.key) : 'i:' + parent.materializeIndex;
       parent.materializeIndex += 1;
-      let child = parent.nextChildren.get(key);
+      let child = parent.nextChildren.get(key) || parent.children.get(key);
       if (!child || child.type !== node.type) {
         if (child) disposeInstance(child);
         child = createInstance(node.type, key);
@@ -283,6 +283,11 @@ function createMiniReact() {
       throw error;
     }
     current = null;
+    // 与真实 React 一致：同一实例两次渲染的 Hook 数量必须相同（否则 React #310/#300）。
+    if (instance.hookCount !== undefined && instance.hookCount !== instance.cursor) {
+      throw new Error('Hook 数量变化：' + instance.hookCount + ' → ' + instance.cursor);
+    }
+    instance.hookCount = instance.cursor;
     instance.rawOutput = output;
     instance.output = materialize(instance, output);
     for (const [key, child] of Array.from(instance.children.entries())) {
@@ -862,10 +867,19 @@ function createHarness(options = {}) {
     }
   });
 
-  const makeContext = lifetime => {
+  // 与 Cordis 一致：'remote.<ns>' 是独立服务，只有在 inject 里声明过它的作用域才能读取。
+  const remoteView = declared => new Proxy(remoteApi, {
+    get(target, key) {
+      if (typeof key === 'string' && !key.startsWith('$') && key in target && !declared.has('remote.' + key)) {
+        throw new Error('cannot get property "remote.' + key + '" without inject');
+      }
+      return target[key];
+    }
+  });
+  const makeContext = (lifetime, declared = new Set()) => {
     const context = {
       slots: makeSlots(lifetime),
-      remote: remoteApi,
+      remote: remoteView(declared),
       conversation,
       effects: [],
       effect(effect) {
@@ -879,7 +893,7 @@ function createHarness(options = {}) {
       },
       inject(deps, callback) {
         const local = [];
-        const scope = makeContext(local);
+        const scope = makeContext(local, new Set([...declared, ...(Array.isArray(deps) ? deps : [])]));
         callback(scope);
         const dispose = () => {
           for (const item of local.splice(0).reverse()) {
@@ -927,7 +941,7 @@ function createHarness(options = {}) {
   const mountComposer = params => {
     const entry = activeEntry('conversation.input.attachments');
     assert.ok(entry, '应有可用的附件槽入口');
-    const input = inputFor(params.sessionId);
+    const input = inputFor(params.sessionId === undefined ? 's1' : params.sessionId);
     const initial = (params.attachments || []).slice();
     const descriptorFor = id => {
       const existing = initial.find(row => row.id === id);
@@ -937,12 +951,16 @@ function createHarness(options = {}) {
       return null;
     };
     // 模拟宿主 InputBar：attachments 由 input.attachmentIds 每次渲染重新解析，而不是固定的 owner props。
-    function ComposerHost() {
+    function ComposerHost(hostProps) {
       const snapshot = input.useInput(state => state);
-      const attachments = snapshot.attachmentIds.map(descriptorFor).filter(Boolean);
+      // rerender({ sessionId, attachments }) 可模拟 session-maybe 槽位的会话过渡。
+      const overrides = hostProps && Object.prototype.hasOwnProperty.call(hostProps, 'sessionId') ? hostProps : null;
+      if (overrides && overrides.attachments) for (const row of overrides.attachments) if (!initial.some(item => item.id === row.id)) initial.push(row);
+      const sessionId = overrides ? overrides.sessionId : params.sessionId;
+      const attachments = sessionId === undefined ? [] : snapshot.attachmentIds.map(descriptorFor).filter(Boolean);
       return bundle.mini.React.createElement(entry.component, {
         ...params.props,
-        sessionId: params.sessionId,
+        sessionId,
         attachments,
         canAcceptDrop: params.canAcceptDrop !== false,
         uploads: params.uploads || {},
@@ -1253,6 +1271,18 @@ test('待发附件 rail：顺序、文件卡上传/重试/移除、空态与胶�
   assert.equal(nodesByClass(tree, 'dsc-ia-pill').length, 0, '无批注时不显示胶囊');
 });
 
+test('session-maybe：同一附件槽实例从无会话过渡到有会话时 Hook 数量不变（React #310 回归）', async () => {
+  const harness = createHarness();
+  const input = harness.inputFor('s1');
+  input.setIds(['d1']);
+  const attachments = imagesAndFiles(harness, 's1', [{ id: 'd1', name: 'a.png', marker: 'A_BYTES' }]);
+  const composer = harness.mountComposer({ sessionId: undefined, attachments: [] });
+  assert.equal(nodesByClass(composer.output, 'dsc-iai-rail-item').length, 0, '无会话时不渲染');
+  composer.rerender({ sessionId: 's1', attachments });
+  await harness.settle();
+  assert.equal(nodesByClass(composer.output, 'dsc-iai-rail-item').length, 1, '会话就绪后渲染图片且可点击打开预览');
+});
+
 test('拖放：document 级监听保留文件/目录/可接受与重置语义，卸载后移除', async () => {
   const harness = createHarness();
   const input = harness.inputFor('s1');
@@ -1266,6 +1296,8 @@ test('拖放：document 级监听保留文件/目录/可接受与重置语义，
   });
   assert.equal(harness.browser.countListeners('document', 'dragenter'), 1);
   assert.equal(harness.browser.countListeners('document', 'drop'), 1);
+  // 输入卡片是带 gap 的 flex 列：无附件时不得留下空容器，否则提示语与卡片顶部距离变大。
+  assert.equal(nodeByClass(composer.output, 'dsc-iai-rail-wrap'), undefined, '无附件时不渲染空容器');
 
   const fileA = makeFile(harness, 'photo.png', 'PHOTO');
   const fileB = makeFile(harness, 'folder-member.png', 'DIR');

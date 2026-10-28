@@ -1,6 +1,9 @@
 // 保留官方 sidebar/settings/composer 的所有者；导航在 shell.overlay 独立挂载。
 // 二级侧栏复用同一内容与真实动作；收起态只改变呈现方式，不导航或展开宿主列。
 const DEFAULT_SIDEBAR_WIDTH = 288;
+// 「更多」是插件自有 main 面板；与技能页同模式，点击即切换布局页面，
+// 历史、右侧内容与轨道高亮全部由 activePanelId 推导，不再使用侧栏局部状态。
+const MORE_PANEL_ID = 'codex-style-more';
 
 // 0.2.1-rc.2/rc.3 的 root store handle.create() 返回 AppFrame 已持有的同一布局实例。
 // 仅将启动/重新展开时的默认值 280 改为 288；真实 grid、分隔条和宽度变量仍由宿主计算。
@@ -57,16 +60,31 @@ function usePanelDirectory(ctx) {
     })).sort((a, b) => a.order - b.order);
   }, [ctx, version, locale]);
 }
+// 导航分类只由当前 main 面板决定；「更多」注册为真实面板后与其他页面同源。
+function navigationCategoryOf(panel) {
+  const activePanelId = panel === null || panel === undefined || panel.activePanelId === undefined ? null : panel.activePanelId;
+  if (activePanelId === MORE_PANEL_ID) return 'more';
+  if (activePanelId === null) return 'home';
+  if (activePanelId === 'plugins') return 'plugins';
+  if (activePanelId === SKILLS_PANEL_ID) return 'skills';
+  if (activePanelId === 'schedules') return 'tasks';
+  return 'extension';
+}
+// 侧栏二级区域：第三方页沿用最近的常规区域；「更多」只在它自己的页面显示，
+// 从「更多」后退到第三方页时不残留「更多」菜单。
+function sidebarSectionOf(category, last, hasMore) {
+  if (category !== 'extension' && category !== 'more') last.current = category;
+  return category === 'more' && hasMore ? 'more' : last.current;
+}
 function useNavigationDirectory(ctx, sidebar) {
   const panel = useSource(ctx.layout.panelInfo);
   const panels = usePanelDirectory(ctx);
-  const { section } = useSource(sidebar.store);
   const moreVersion = useSlotVersion(ctx, ['sidebar.panellist.actions']);
   const hasMore = useMemo(() => ctx.slots.entriesOfSlot('sidebar.panellist.actions').some(entry => entry.options.id === 'entry-customization'), [ctx, moreVersion]);
   // 官方分组只按已核实的 main id 识别；社区入口的名称不能决定它属于自定义。
   const pluginRows = panels.filter(row => row.available && row.id === 'plugins').concat([{ id: SKILLS_PANEL_ID, order: 90, label: '技能', available: true }]);
   const taskRows = panels.filter(row => row.available && row.id === 'schedules');
-  const category = section === 'more' && hasMore ? 'more' : panel.activePanelId === null ? 'home' : panel.activePanelId === 'plugins' ? 'plugins' : panel.activePanelId === SKILLS_PANEL_ID ? 'skills' : panel.activePanelId === 'schedules' ? 'tasks' : 'extension';
+  const category = navigationCategoryOf(panel);
   return { panel, panels, pluginRows, taskRows, category, hasMore };
 }
 
@@ -95,7 +113,7 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
       node.style.setProperty(name, value);
     };
     const hidePreview = () => sidebar.hide();
-    const followNative = () => { sidebar.selectSection(null); sidebar.hide(); };
+    const followNative = () => sidebar.hide();
     const detach = () => {
       nav?.removeEventListener('pointerenter', hidePreview);
       nav?.removeEventListener('focusin', hidePreview);
@@ -173,7 +191,7 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
 
 // 导航与二级侧栏共享呈现状态；悬停计时不调用 layout，也不发起模型请求。
 function createSidebarPresentation() {
-  const store = createSnapshotStore({ collapsed: true, preview: null, section: null });
+  const store = createSnapshotStore({ collapsed: true, preview: null });
   let opening;
   let closing;
   const cancel = () => { clearTimeout(opening); clearTimeout(closing); };
@@ -184,10 +202,6 @@ function createSidebarPresentation() {
   };
   return {
     store, hide, show, hold: cancel, dispose: cancel,
-    selectSection(section) {
-      cancel();
-      store.set({ ...store.getSnapshot(), section, preview: null });
-    },
     setCollapsed(collapsed) {
       if (store.getSnapshot().collapsed === collapsed) return;
       cancel();
@@ -205,25 +219,28 @@ function createSidebarPresentation() {
   };
 }
 
+// 点击「更多」= 选中插件自有 main 面板；失败只回显错误，不改变当前页面。
+function openMorePanel(ctx, sidebar, setError) {
+  setError('');
+  sidebar.hide();
+  try { ctx.layout.selectPanel(MORE_PANEL_ID); } catch (e) { setError(errorText(e)); return false; }
+  if (sidebar.store.getSnapshot().collapsed) ctx.layout.toggleSidebar();
+  return true;
+}
+
 function makeNavigationRail(ctx, sidebar) {
   return function NavigationRail() {
-    const { panel, panels, pluginRows, taskRows, category, hasMore } = useNavigationDirectory(ctx, sidebar);
+    const { panels, pluginRows, taskRows, category, hasMore } = useNavigationDirectory(ctx, sidebar);
     const { collapsed, preview } = useSource(sidebar.store);
     const [error, setError] = useState('');
     const extensions = useRef(null);
     useNativeExtensionNavigation(sidebar, extensions, panels);
-    useEffect(() => { sidebar.selectSection(null); }, [panel.activePanelId]);
     const pick = id => {
-      sidebar.selectSection(null);
       sidebar.hide();
       setError('');
       try { ctx.layout.selectPanel(id); } catch (e) { setError(errorText(e)); }
     };
-    const openMore = () => {
-      setError('');
-      sidebar.selectSection('more');
-      if (collapsed) ctx.layout.toggleSidebar();
-    };
+    const openMore = () => { openMorePanel(ctx, sidebar, setError); };
     const item = (id, name, icon, action, active) => h('button', {
       key: id, type: 'button', className: 'dsc-rail__item' + ((active === true || category === id) ? ' dsc-rail__item--active' : ''),
       title: collapsed ? undefined : name, 'data-tip': name, 'data-dsc-preview-trigger': id, 'data-preview-enabled': collapsed,
@@ -245,9 +262,22 @@ function makeNavigationRail(ctx, sidebar) {
   };
 }
 
+// 「更多」main 页面：只是深色空白正文；入口动作全部在左侧二级菜单。
+function MoreMain() {
+  return h('div', { className: 'dsc-ui dsc-more-page', 'aria-label': '更多' });
+}
+
+// 面板无条件注册；侧栏「更多」入口的显示仍由原宿主 entry-customization 判定。
+function registerMorePage(ctx) {
+  return ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: MORE_PANEL_ID }, function MoreMainPage() {
+    return h(MoreMain);
+  }));
+}
+
 function makeSidebarChrome(ctx, sidebar) {
   const completions = createSessionCompletionTracker(ctx);
   ctx.effect(() => completions.start(), 'codex-style: unread session completions');
+  ctx.effect(() => registerMorePage(ctx), 'codex-style: more page');
   const Tree = makeWorkspaceTree(ctx, completions.store);
   return function SidebarChrome() {
     const { panel, pluginRows, taskRows, category: selectedCategory, hasMore } = useNavigationDirectory(ctx, sidebar);
@@ -260,9 +290,8 @@ function makeSidebarChrome(ctx, sidebar) {
     const insidePointer = useRef(null);
     const lastWidth = useRef(DEFAULT_SIDEBAR_WIDTH);
     const lastSection = useRef('home');
-    if (selectedCategory !== 'extension') lastSection.current = selectedCategory;
-    if (!hasMore && lastSection.current === 'more') lastSection.current = 'home';
-    const presentation = useRef({ category: lastSection.current, mode: 'docked' });
+    const section = sidebarSectionOf(selectedCategory, lastSection, hasMore);
+    const presentation = useRef({ category: section, mode: 'docked' });
     const search = useRef(null);
     const searchAnchor = useRef(null);
     useLayoutEffect(() => {
@@ -287,7 +316,7 @@ function makeSidebarChrome(ctx, sidebar) {
       return () => { size.disconnect(); state.disconnect(); window.removeEventListener('resize', measure); };
     }, []);
     // 第三方直接打开原 main，保留最近的二级区域，不给它再造一层目录。
-    const visibleCategory = collapsed ? preview : lastSection.current;
+    const visibleCategory = collapsed ? preview : section;
     const shown = geometry !== null && visibleCategory !== null;
     if (shown) presentation.current = { category: visibleCategory, mode: collapsed ? 'floating' : 'docked' };
     const { category, mode } = presentation.current;
@@ -306,10 +335,9 @@ function makeSidebarChrome(ctx, sidebar) {
       return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('blur', blur); };
     }, [collapsed, preview]);
     const run = async action => { setError(''); try { await action(); } catch (e) { setError(errorText(e)); } };
-    const pick = id => run(() => { sidebar.selectSection(null); ctx.layout.selectPanel(id); sidebar.hide(); });
+    const pick = id => run(() => { ctx.layout.selectPanel(id); sidebar.hide(); });
     const moreAction = action => run(() => {
       action();
-      sidebar.selectSection(null);
       sidebar.hide();
     });
     const openSearch = () => { if (collapsed) sidebar.show('home'); else pick(null); setSearchOpen(true); };

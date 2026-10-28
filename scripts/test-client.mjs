@@ -163,3 +163,77 @@ test('inactive inventory, errors and stale replies cannot enable presentation ef
   replies[0]({ ok: true, value: { entries: ['header', 'body', 'navigation'].map(name => ({ moduleName: '@xinxing1708/dsh-codex-style/' + name, enabled: true, fiberPhase: 'active' })) } }); await old; await f.flush();
   assert.equal(f.state().styles, 0);
 });
+
+// 「更多」不再由侧栏局部状态旁路；点击必须切换真实 main 面板。
+async function moreFixture() {
+  let plugin;
+  const window = { __ModuleLoader__: { load: definition => {
+    plugin = definition.factory(name => {
+      if (name === 'react') return { Component: class {} };
+      if (name === '@deepseek-ai/dsh-client-store') return { createSnapshotStore: value => ({ getSnapshot: () => value, set: next => { value = next; } }) };
+      return {};
+    });
+  } }, localStorage: { getItem: () => null } };
+  const document = {
+    body: { getAttribute: () => null, setAttribute() {}, removeAttribute() {} },
+    head: { appendChild() {} },
+    createElement: () => ({ dataset: {}, remove() {} }),
+    documentElement: { hasAttribute: () => false },
+    querySelector: () => null,
+    querySelectorAll: () => []
+  };
+  const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')).replace('    return module.exports;', 'module.exports.fixture = { navigationCategoryOf, openMorePanel, registerMorePage, MORE_PANEL_ID, sidebarSectionOf }; return module.exports;');
+  new Script(bundle).runInNewContext({ window, document, console: { warn() {}, error() {} }, queueMicrotask, requestAnimationFrame: () => 1, cancelAnimationFrame() {} });
+  return plugin.fixture;
+}
+
+test('more entry selects the plugin main panel and derives its category from activePanelId', async () => {
+  const fixture = await moreFixture();
+  assert.equal(fixture.MORE_PANEL_ID, 'codex-style-more');
+  // 页面以插件自有 main 面板注册；侧栏入口是否显示仍由原生 entry-customization 决定。
+  const registered = [];
+  const slots = {
+    inject: (name, callback) => { assert.equal(name, 'main'); return callback(); },
+    register: (options, component) => { registered.push({ options, component }); return () => {}; }
+  };
+  fixture.registerMorePage({ slots });
+  // vm 内对象与宿主不同 realm，逐字段比较原语。
+  assert.equal(registered.length, 1);
+  assert.equal(registered[0].options.name, 'main');
+  assert.equal(registered[0].options.key, 'codex-style-more');
+  assert.equal(typeof registered[0].component, 'function');
+  const calls = [];
+  const errors = [];
+  const rail = { hide: () => calls.push('hide'), store: { getSnapshot: () => ({ collapsed: true, preview: null }) } };
+  const layout = { selectPanel: id => calls.push(['selectPanel', id]), toggleSidebar: () => calls.push('toggleSidebar') };
+  assert.equal(fixture.openMorePanel({ layout }, rail, text => errors.push(text)), true);
+  // 先收起预览、再切换页面、最后在收起态展开侧栏（保持原「点更多会展开」行为）。
+  assert.deepEqual(calls, ['hide', ['selectPanel', 'codex-style-more'], 'toggleSidebar']);
+  assert.deepEqual(errors, ['']);
+  calls.length = 0;
+  const expanded = { hide: () => calls.push('hide'), store: { getSnapshot: () => ({ collapsed: false, preview: null }) } };
+  fixture.openMorePanel({ layout }, expanded, text => errors.push(text));
+  assert.deepEqual(calls, ['hide', ['selectPanel', 'codex-style-more']]);
+  // 失败只回显错误，不展开侧栏，也不伪造分类。
+  calls.length = 0;
+  const failing = { layout: { selectPanel: () => { throw new Error('boom'); }, toggleSidebar: () => calls.push('toggleSidebar') } };
+  assert.equal(fixture.openMorePanel(failing, rail, text => errors.push(text)), false);
+  assert.deepEqual(calls, ['hide']);
+  assert.deepEqual(errors.slice(-1), ['boom']);
+  // 分类只由 activePanelId 决定，与侧栏 section 无关。
+  assert.equal(fixture.navigationCategoryOf({ activePanelId: 'codex-style-more' }), 'more');
+  assert.equal(fixture.navigationCategoryOf({ activePanelId: null }), 'home');
+  assert.equal(fixture.navigationCategoryOf({ activePanelId: 'plugins' }), 'plugins');
+  assert.equal(fixture.navigationCategoryOf({ activePanelId: 'codex-style-skills' }), 'skills');
+  assert.equal(fixture.navigationCategoryOf({ activePanelId: 'schedules' }), 'tasks');
+  assert.equal(fixture.navigationCategoryOf({ activePanelId: 'community-third-party' }), 'extension');
+  assert.equal(fixture.navigationCategoryOf(null), 'home');
+  // 侧栏区域：首页→市场→更多→后退（市场），侧栏回到首页，不残留「更多」菜单。
+  const last = { current: 'home' };
+  assert.equal(fixture.sidebarSectionOf('home', last, true), 'home');
+  assert.equal(fixture.sidebarSectionOf('extension', last, true), 'home');
+  assert.equal(fixture.sidebarSectionOf('more', last, true), 'more');
+  assert.equal(fixture.sidebarSectionOf('extension', last, true), 'home');
+  assert.equal(fixture.sidebarSectionOf('plugins', last, true), 'plugins');
+  assert.equal(fixture.sidebarSectionOf('more', last, false), 'plugins');
+});

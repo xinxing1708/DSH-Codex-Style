@@ -1241,12 +1241,12 @@ function makeImageAnnotationIntegrationComposer(runtime) {
       lastCount.current = count;
     }, [attachments.length]);
 
-    if (!sessionId) return null;
-
+    // 注意：本槽位为 session-maybe，同一实例会从“无会话”过渡到“有会话”；
+    // 任何提前 return 都必须放在全部 Hook 之后，否则 Hook 数量变化导致 React #310 崩溃。
     const imageItems = [];
     const imageItemByDraftId = new Map();
     for (const attachment of attachments) {
-      if (!attachment || attachment.kind !== 'image') continue;
+      if (!sessionId || !attachment || attachment.kind !== 'image') continue;
       const info = imageAnnotationIntegrationEnsureDraftTarget(runtime, sessionId, attachment);
       const item = { key: info.key, target: info.target, attachment };
       imageItems.push(item);
@@ -1256,10 +1256,13 @@ function makeImageAnnotationIntegrationComposer(runtime) {
     // 草稿图若已带 token（本运行时同步过，或宿主恢复了带 token 的草稿），尝试 recall 找回评论。
     const recallTokens = imageItems.map(item => item.target.token || '').join('|');
     useEffect(() => {
+      if (!sessionId) return;
       for (const item of imageItems) {
         if (item.target.token) imageAnnotationIntegrationScheduleRecall(runtime, sessionId, item.target);
       }
     }, [sessionId, recallTokens]);
+
+    if (!sessionId) return null;
 
     const openViewerAt = index => {
       const viewerImages = imageItems.map(item => ({
@@ -1328,8 +1331,12 @@ function makeImageAnnotationIntegrationComposer(runtime) {
           : null));
     }
 
+    // 输入卡片是带 gap 的纵向 flex：无附件也无错误时不能留下空容器，否则会多出一个间隙，
+    // 把提示语推离卡片顶部。拖放层为 fixed 定位，不占流内间隙。
+    const dropOverlay = dragActive ? h(ImageAnnotationDropOverlay, { blocked: !canAcceptDrop, limits: dropLimits }) : null;
+    if (children.length === 0 && !error) return dropOverlay;
     return h('div', { className: 'dsc-iai-rail-wrap', 'data-slot': 'image-annotation-attachments' },
-      dragActive ? h(ImageAnnotationDropOverlay, { blocked: !canAcceptDrop, limits: dropLimits }) : null,
+      dropOverlay,
       children.length > 0
         ? h('div', {
           className: 'dsc-iai-rail',
@@ -1579,7 +1586,7 @@ function mountImageAnnotationIntegrationRemote(ctx) {
   const remote = ctx.remote && typeof ctx.remote.$mount === 'function' ? ctx.remote : null;
   if (!remote) throw new Error('remote 服务尚未就绪');
   return remote.$mount({
-    package: PLUGIN_PACKAGE,
+    package: PLUGIN_PACKAGE + '/image-annotations',
     descriptors: [
       {
         id: PLUGIN_PACKAGE + '#codexStyleImageAnnotations/clear',
@@ -1685,8 +1692,14 @@ function mountCodexImageAnnotations(ctx) {
   remember(ctx.effect(() => imageAnnotationIntegrationInstallStyles(), 'codex-style: image annotation styles'));
 
   const remoteFiber = ctx.inject(['remote'], scope => {
-    runtime.remoteAccessor = () => scope.remote && scope.remote.codexStyleImageAnnotations;
     scope.effect(() => mountImageAnnotationIntegrationRemote(scope), 'codex-style: image annotation remote methods');
+    // gateway 把命名空间发布为独立服务 'remote.codexStyleImageAnnotations'；
+    // Cordis 只允许声明了它的作用域读取，故由子 inject 在发布后接上访问器。
+    scope.inject(['remote.codexStyleImageAnnotations'], inner => inner.effect(() => {
+      const service = inner.remote.codexStyleImageAnnotations;
+      runtime.remoteAccessor = () => service;
+      return () => { if (runtime.remoteAccessor && runtime.remoteAccessor() === service) runtime.remoteAccessor = null; };
+    }, 'codex-style: image annotation service connection'));
   });
   remember(remoteFiber);
 

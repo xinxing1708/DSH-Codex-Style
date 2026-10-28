@@ -25,7 +25,7 @@ function mountSkillsRemote(ctx) {
   }).passthrough();
   const definition = z.union([z.null(), skill.extend({ content: z.string() }).passthrough()]);
   return ctx.remote.$mount({
-    package: SKILLS_PACKAGE,
+    package: SKILLS_PACKAGE + '/skills',
     descriptors: [
       { id: SKILLS_PACKAGE + '#codexStyleSkills/catalog', service: 'codexStyleSkills', namespace: 'codexStyleSkills', method: 'catalog', invocation: { kind: 'direct' },
         parameters: [{ name: 'request', wire: 'request', source: 'json', codec: { mode: 'strict', typeSymbol: SKILLS_PACKAGE + '#skills-scope', create: () => scope, jsonSchema: { type: 'object' } } }],
@@ -76,6 +76,9 @@ function createSkillsController(ctx) {
   const store = createSnapshotStore({ phase: 'idle', skills: [], complete: true, unavailable: '', error: '', refreshing: false, scope: initialScope, scopeKey: scopeKeyOf(initialScope) });
   let generation = 0;
   let disposed = false;
+  // Cordis 只在声明了 'remote.codexStyleSkills' 的作用域里暴露该命名空间；由独立 inject 连接注入。
+  let service;
+  let connectedListener = null;
   // 作用范围一变就丢弃旧范围的数据；详情由页面按 scopeKey 关闭，避免同名技能串正文。
   const syncScope = scope => {
     const key = scopeKeyOf(scope);
@@ -93,7 +96,7 @@ function createSkillsController(ctx) {
     const current = generation += 1;
     store.set({ ...store.getSnapshot(), refreshing: true, error: '', unavailable: '' });
     try {
-      const remote = ctx.remote?.codexStyleSkills;
+      const remote = service;
       if (remote === undefined) {
         if (!disposed && current === generation) store.set({ ...store.getSnapshot(), phase: 'unavailable', unavailable: '技能服务尚未就绪', refreshing: false });
         return;
@@ -114,11 +117,18 @@ function createSkillsController(ctx) {
     }
   };
   const content = async (skill, scope) => {
-    const remote = ctx.remote?.codexStyleSkills;
+    const remote = service;
     if (remote === undefined) throw new Error('技能服务尚未就绪');
     return unwrapRemote(await remote.content({ name: skill.name, ...scopeRequest(scope) }));
   };
-  return { store, load, content, dispose() { disposed = true; generation += 1; } };
+  // 命名空间就绪/断开时由外部调用；已显示“尚未就绪”的页面在连上后自动重读。
+  const connect = remote => {
+    service = remote;
+    if (typeof connectedListener === 'function') connectedListener();
+    return () => { if (service === remote) service = undefined; };
+  };
+  const onConnected = listener => { connectedListener = listener; return () => { if (connectedListener === listener) connectedListener = null; }; };
+  return { store, load, content, connect, onConnected, dispose() { disposed = true; generation += 1; service = undefined; connectedListener = null; } };
 }
 
 function groupSkills(skills) {
@@ -353,6 +363,7 @@ function SkillsPage({ ctx, controller, active }) {
   const workspaces = useSource(ctx.workspaces.list);
   const scope = useMemo(() => skillScopeOf(ctx), [sessions, workspaces]);
   useEffect(() => { if (active) controller.load(); }, [active, scope.sessionId, scope.cwd]);
+  useEffect(() => (active ? controller.onConnected(() => controller.load()) : undefined), [active]);
   useEffect(() => { setSelected(null); }, [state.scopeKey]);
   const filtered = query === '' ? state.skills : state.skills.filter(skill => (skill.name + ' ' + skill.description + ' ' + (skill.whenToUse || '')).toLowerCase().includes(query.toLowerCase()));
   const groups = groupSkills(filtered);
@@ -387,6 +398,8 @@ function registerSkillsPage(ctx) {
     scope.effect(() => mountSkillsRemote(scope), 'codex-style: skills remote methods');
     const controller = createSkillsController(scope);
     scope.effect(() => () => controller.dispose(), 'codex-style: skills catalog');
+    // 页面不等命名空间；命名空间由 $mount 发布后，这个子 inject 才激活并把服务交给 controller。
+    scope.inject(['remote.codexStyleSkills'], inner => inner.effect(() => controller.connect(inner.remote.codexStyleSkills), 'codex-style: skills service connection'));
     scope.slots.inject('main', function* () {
       yield scope.slots.register({ name: 'main', key: SKILLS_PANEL_ID }, function SkillsMain() {
         const panel = useSource(scope.layout.panelInfo);

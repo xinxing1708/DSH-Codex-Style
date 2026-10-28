@@ -51,7 +51,8 @@ export function apply(ctx, dependencies) {
      * Resolve the registry a Session composition would use. Failures propagate: a caller must be able
      * to distinguish "no skills" from "this Session or preset could not be read".
      */
-    async resolve(request = {}, signal) {
+    async resolve(request, signal) {
+      request = request ?? {};
       const agents = this.ctx.get('agents');
       const presets = this.ctx.get('agentPresets');
       const sessionQuery = this.ctx.get('sessionQuery');
@@ -89,7 +90,7 @@ export function apply(ctx, dependencies) {
     }
 
     /** Read the invocation-neutral catalog for one Session composition or workspace. */
-    async catalog(request = {}, signal) {
+    async catalog(request, signal) {
       const view = await this.resolve(request, signal);
       try {
         const snapshot = await view.registry.snapshot({ cwd: view.cwd, scope: view.scope, signal });
@@ -104,7 +105,7 @@ export function apply(ctx, dependencies) {
     }
 
     /** Read one skill definition, including its Markdown body, from the same registry view. */
-    async content(request = {}, signal) {
+    async content(request, signal) {
       const name = request?.name;
       if (typeof name !== 'string' || name === '') return null;
       const view = await this.resolve(request, signal);

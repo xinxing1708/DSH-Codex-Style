@@ -49,6 +49,12 @@
   pointer-events: auto;
 }
 
+/* Windows 自绘标题栏的最小化/最大化/关闭键固定在右上角并压在页面之上；
+   顶部动作条整体下移到标题栏以下，避免图片的关闭键被窗口关闭键遮住。 */
+html[data-windows-titlebar] .dsc-ia-top {
+  top: 36px;
+}
+
 .dsc-ia-title {
   display: flex;
   align-items: baseline;

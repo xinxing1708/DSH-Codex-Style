@@ -5,7 +5,7 @@ function mountPluginUpdateRemote(ctx) {
   const version = z.string().min(1);
   const snapshot = z.object({ phase: z.enum(['idle', 'downloading', 'ready', 'installing', 'installed', 'error']), version: z.string().optional(), downloaded: z.number(), total: z.number().nullable() }).passthrough();
   const checkResult = z.object({ state: z.enum(['current', 'update', 'ahead', 'error', 'unpublished']), latestVersion: z.string().optional() }).passthrough();
-  return ctx.remote.$mount({ package: UPDATE_PACKAGE, descriptors: ['status', 'check', 'download', 'installUpdate'].map(method => ({
+  return ctx.remote.$mount({ package: UPDATE_PACKAGE + '/updates', descriptors: ['status', 'check', 'download', 'installUpdate'].map(method => ({
     id: UPDATE_PACKAGE + '#codexStyleUpdates/' + method,
     service: 'codexStyleUpdates', namespace: 'codexStyleUpdates', method, invocation: { kind: 'direct' },
     parameters: ['status', 'check'].includes(method) ? [] : [{ name: 'version', wire: 'version', source: 'json', codec: { mode: 'strict', typeSymbol: UPDATE_PACKAGE + '#update-version', create: () => version, jsonSchema: { type: 'string', minLength: 1 } } }],

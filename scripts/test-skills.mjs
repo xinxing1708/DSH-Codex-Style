@@ -20,7 +20,8 @@ async function loadBundle() {
     localStorage: { getItem: () => null, setItem() {} }
   };
   const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8'))
-    .replace('    return module.exports;', 'module.exports.fixture = { createSkillsController, skillScopeOf, groupSkills, registerSkillsPage, startFreshDraft, SKILLS_PANEL_ID, mountSkillsRemote, skillFileAddress, SkillsDetail, SkillMarkdown, SKILL_MARKDOWN_LABELS }; return module.exports;');
+    .replace('function createSkillsController(ctx) {', 'let __lastSkillsController; function createSkillsController(ctx) { return __lastSkillsController = __createSkillsController(ctx); } function __createSkillsController(ctx) {')
+    .replace('    return module.exports;', 'module.exports.fixture = { lastSkillsController: () => __lastSkillsController, createSkillsController, skillScopeOf, groupSkills, registerSkillsPage, startFreshDraft, SKILLS_PANEL_ID, mountSkillsRemote, skillFileAddress, SkillsDetail, SkillMarkdown, SKILL_MARKDOWN_LABELS, mountPluginUpdateRemote, mountImageAnnotationIntegrationRemote }; return module.exports;');
   new Script(bundle).runInNewContext({ window, document: { body: { setAttribute() {}, removeAttribute() {}, getAttribute: () => null }, head: { appendChild() {} }, createElement: () => ({ dataset: {}, remove() {} }), activeElement: null }, console: { warn() {}, error() {} }, setInterval: () => ({}), clearInterval() {}, requestAnimationFrame: () => 0, cancelAnimationFrame() {}, setTimeout: () => ({}), clearTimeout() {}, navigator: {} });
   return plugin.fixture;
 }
@@ -71,6 +72,7 @@ function fakeContext(skills, options = {}) {
   return { ctx, state, calls };
 }
 
+const connected = (f, ctx) => { const controller = f.createSkillsController(ctx); controller.connect(ctx.remote.codexStyleSkills); return controller; };
 const sample = (name, source, extra = {}) => ({ name, description: name + ' 描述', whenToUse: '', invocation: { modelInvocable: true, userInvocable: true }, source, provider: 'p', ...extra });
 
 test('scope is global without a retained session and uses the retained session cwd otherwise', async () => {
@@ -78,7 +80,7 @@ test('scope is global without a retained session and uses the retained session c
   const skills = { catalog: async () => ({ ok: true, value: { skills: [sample('alpha', 'project-dsh')], complete: true } }), content: async () => ({ ok: true, value: null }) };
   const { ctx, state, calls } = fakeContext(skills);
   assert.deepEqual(plain(f.skillScopeOf(ctx)), { sessionId: 's1', cwd: 'C:/work/proj', workspaceId: 'w1', workspaceTitle: 'proj', agentPreset: 'custom-preset' });
-  const controller = f.createSkillsController(ctx);
+  const controller = connected(f, ctx);
   await controller.load();
   assert.deepEqual(plain(calls.catalog.at(-1)), { sessionId: 's1', cwd: 'C:/work/proj' });
   state.sessions = { ids: [], byId: {} };
@@ -94,7 +96,7 @@ test('out-of-order replies, incomplete catalogs and failures never fabricate an 
   const pending = [];
   const skills = { catalog: () => new Promise(resolve => pending.push(resolve)), content: async () => ({ ok: true, value: null }) };
   const { ctx } = fakeContext(skills);
-  const controller = f.createSkillsController(ctx);
+  const controller = connected(f, ctx);
   const first = controller.load();
   const second = controller.load();
   pending[1]({ ok: true, value: { skills: [sample('beta', 'bundled')], complete: true } });
@@ -117,7 +119,7 @@ test('scope changes drop old rows; failures keep last same-scope rows and report
   const f = await loadBundle();
   const skills = { catalog: async request => ({ ok: true, value: { skills: request.cwd === undefined ? [] : [sample('alpha', 'project-dsh')], complete: true } }), content: async () => ({ ok: true, value: null }) };
   const { ctx, state } = fakeContext(skills);
-  const controller = f.createSkillsController(ctx);
+  const controller = connected(f, ctx);
   await controller.load();
   assert.equal(controller.store.getSnapshot().skills.length, 1);
   state.sessions = { ids: [], byId: {} };
@@ -127,7 +129,7 @@ test('scope changes drop old rows; failures keep last same-scope rows and report
   assert.deepEqual(plain(controller.store.getSnapshot().scopeKey), JSON.stringify([null, null]));
   state.sessions = { ids: ['s2'], byId: { s2: { cwd: 'C:/other', retainedBy: { mainView: 1 } } } };
   state.workspaces = { items: [{ workspaceId: 'w2', path: 'C:/other', sessionIds: ['s2'], title: 'other' }] };
-  const failing = f.createSkillsController({ ...ctx, remote: { codexStyleSkills: { catalog: async () => ({ ok: false, error: { message: 'fixture disconnect' } }), content: async () => ({ ok: true, value: null }) } } });
+  const failing = connected(f, { ...ctx, remote: { codexStyleSkills: { catalog: async () => ({ ok: false, error: { message: 'fixture disconnect' } }), content: async () => ({ ok: true, value: null }) } } });
   await failing.load();
   const stateAfter = failing.store.getSnapshot();
   assert.equal(stateAfter.phase, 'error');
@@ -140,7 +142,7 @@ test('content is pinned to the scope captured when the detail opened', async () 
   const f = await loadBundle();
   const skills = { catalog: async () => ({ ok: true, value: { skills: [sample('alpha', 'project-dsh')], complete: true } }), content: async request => ({ ok: true, value: request.name === 'alpha' ? { ...sample('alpha', 'project-dsh'), content: '# Alpha' } : null }) };
   const { ctx, calls } = fakeContext(skills);
-  const controller = f.createSkillsController(ctx);
+  const controller = connected(f, ctx);
   const pinned = { sessionId: 's1', cwd: 'C:/work/proj' };
   const value = await controller.content({ name: 'alpha' }, pinned);
   assert.equal(value.content, '# Alpha');
@@ -197,9 +199,17 @@ async function cordisFixture() {
   ctx.provide('uiWorkspace', { openSession() {} });
   ctx.provide('layout', { panelInfo: source({ activePanelId: null }), selectPanel() {} });
   ctx.provide('sidebarRight', {});
-  const remote = { mounts: 0, $mount: () => { remote.mounts += 1; return () => {}; } };
-  ctx.provide('remote', remote);
-  return { ctx, remote, registered, publish: () => { remote.codexStyleSkills = { catalog: async () => ({ ok: true, value: { skills: [], complete: true } }), content: async () => ({ ok: true, value: null }) }; }, dispose: () => ctx.fiber.dispose() };
+  // 与 dsh-api-gateway 一致：remote 是 Service，命名空间是独立的 'remote.<ns>' Service；
+  // 未在 inject 声明 'remote.codexStyleSkills' 的作用域读取它会被 Cordis 拒绝。
+  class Remote extends Service { constructor(scope) { super(scope, 'remote'); this.mounts = 0; } $mount() { this.mounts += 1; return () => {}; } }
+  await ctx.plugin(Remote).await?.();
+  const remote = ctx.get('remote');
+  class SkillsNamespace extends Service {
+    constructor(scope) { super(scope, 'remote.codexStyleSkills'); }
+    async catalog() { return { ok: true, value: { skills: [sample('alpha', 'user-dsh')], complete: true } }; }
+    async content() { return { ok: true, value: null }; }
+  }
+  return { ctx, remote, registered, publish: () => ctx.plugin(SkillsNamespace), dispose: () => ctx.fiber.dispose() };
 }
 
 test('skills page registers without the mounted namespace and the mount publishes it afterwards', async () => {
@@ -212,10 +222,15 @@ test('skills page registers without the mounted namespace and the mount publishe
     // 页面已可到达：main 注册先于 namespace 建立，mount 也已发生。
     assert.ok(cordis.remote.mounts >= 1, 'mount should run');
     assert.equal(cordis.registered.filter(entry => entry.options?.key === f.SKILLS_PANEL_ID).length, 1);
-    assert.equal(cordis.remote.codexStyleSkills, undefined);
+    const controller = f.lastSkillsController();
+    await controller.load();
+    assert.equal(controller.store.getSnapshot().phase, 'unavailable', '命名空间未发布前显示尚未就绪');
     cordis.publish();
-    await new Promise(setImmediate);
-    assert.equal(typeof cordis.remote.codexStyleSkills.catalog, 'function');
+    for (let tick = 0; tick < 20; tick++) await new Promise(setImmediate);
+    // 回归：命名空间发布后必须真的能读到技能（此前 inject 只声明 'remote'，Cordis 拒绝读取子命名空间，页面永远“尚未就绪”）。
+    await controller.load();
+    assert.equal(controller.store.getSnapshot().phase, 'ready');
+    assert.deepEqual(plain(controller.store.getSnapshot().skills.map(skill => skill.name)), ['alpha']);
     assert.equal(cordis.registered.filter(entry => entry.options?.key === f.SKILLS_PANEL_ID).length, 1);
   } finally {
     await cordis.dispose();
@@ -265,4 +280,26 @@ test('SkillMarkdown passes the complete native labels contract', async () => {
   const markdown = tree.children[0];
   assert.equal(typeof markdown.type, 'function');
   assert.deepEqual(plain(markdown.props.labels), plain(labels));
+});
+
+// 宿主 typert.remotes.register 拒绝重复的 package 名；同一插件的三处 $mount 必须各用独立 package，
+// 否则后挂载者抛错，命名空间永不发布，技能页一直显示“尚未就绪”。
+test('every client $mount contribution uses a distinct typert package name', async () => {
+  const f = await loadBundle();
+  const packages = new Set();
+  const endpoints = new Set();
+  const remote = { $mount(contribution) {
+    if (packages.has(contribution.package)) throw new Error(`typert: Remote package "${contribution.package}" is already registered`);
+    packages.add(contribution.package);
+    for (const d of contribution.descriptors) {
+      const endpoint = d.namespace + '/' + d.method;
+      assert.equal(endpoints.has(endpoint), false, endpoint);
+      endpoints.add(endpoint);
+    }
+    return async () => {};
+  } };
+  f.mountPluginUpdateRemote({ remote });
+  f.mountImageAnnotationIntegrationRemote({ remote });
+  f.mountSkillsRemote({ remote });
+  assert.equal(packages.size, 3);
 });
