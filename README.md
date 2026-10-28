@@ -41,6 +41,10 @@ codex正文风格打开后样式<img width="1910" height="1222" alt="image" src=
 模型思考强度选择效果<img width="1909" height="1215" alt="image" src="https://github.com/user-attachments/assets/191614b4-3716-4213-bb94-1c18ae919b5f" />
 <img width="1899" height="1222" alt="image" src="https://github.com/user-attachments/assets/d70dd2c6-d8a5-4838-854a-87e5a72bc247" />
 
+可选的图片批注功能，打开后，在聊天框内复制粘贴图片后，单击图片，可以发送批注<img width="1903" height="1216" alt="image" src="https://github.com/user-attachments/assets/25d7205a-87e7-493c-8f43-599358a4c028" />
+<img width="1905" height="1214" alt="image" src="https://github.com/user-attachments/assets/41ea7c4f-0dea-4d09-a2ef-dcafb9b5908e" />
+
+
 
 ## 开发验证
 
