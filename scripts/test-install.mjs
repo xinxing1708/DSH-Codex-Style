@@ -45,7 +45,7 @@ async function fixture(t, { layout = 'legacy', withLock = true, version = '0.2.1
   };
   return { root, home, profile, installDir, runtimeFile, markerPath, environment, run, success, restored };
 }
-for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.5']) for (const withLock of [true, false]) {
+for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5']) for (const withLock of [true, false]) {
   test(`install, same-version upgrade and two rollbacks; runtime=${version}, lock=${withLock}`, async t => {
     const f = await fixture(t, { version, withLock, dependencies: withLock });
     const a = JSON.parse(f.success()); const link = join(f.profile, 'node_modules', manifest.name);
@@ -129,10 +129,10 @@ test('community DSH Desktop without a readable runtime is refused, never guessed
 });
 
 test('unsupported community runtime is refused without touching the profile or environment marker', async t => {
-  const f = await fixture(t, { layout: 'custom', version: '0.2.1-rc.4' });
+  const f = await fixture(t, { layout: 'custom', version: '0.2.1-rc.6' });
   const hosts = JSON.stringify([{ ...desktop, location: f.installDir }]);
   const r = f.run(undefined, { ...registryMode, DSH_CODEX_STYLE_TEST_HOSTS: hosts });
-  assert.notEqual(r.status, 0); assert.match(r.stderr, /版本不匹配：检测到 0\.2\.1-rc\.4/); assert.match(r.stderr, /未作任何修改/);
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /版本不匹配：检测到 0\.2\.1-rc\.6/); assert.match(r.stderr, /未作任何修改/);
   await f.restored(); await assert.rejects(lstat(f.markerPath), { code: 'ENOENT' });
 });
 
@@ -189,7 +189,7 @@ test('explicit DSH_INSTALL_DIR stays official even when a community host is pres
   const a = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
   f.success(a.rollback); await f.restored();
 });
-for (const version of ['0.2.1-rc.1', '0.2.1-rc.4', '0.2.1', '0.2.2', '2.0.19-next']) test(`unsupported runtime ${version} refuses to modify profile`, async t => {
+for (const version of ['0.2.1-rc.1', '0.2.1-rc.6', '0.2.1', '0.2.2', '2.0.19-next']) test(`unsupported runtime ${version} refuses to modify profile`, async t => {
   const f = await fixture(t, { version }); const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, new RegExp(`版本不匹配：检测到 ${version.replaceAll('.', '\\.')}`)); assert.match(r.stderr, /未作任何修改/); await f.restored();
 });
 test('invalid explicit runtime does not silently use another installation', async t => {

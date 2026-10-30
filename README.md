@@ -2,11 +2,11 @@
 
 为 **DeepSeek Harness（DSH）** 提供 Codex 桌面端风格的深色主题。
 
-当前版本 **0.2.0**，适配 **Windows DSH 0.2.1-rc.2 / rc.3 / rc.5**。
+当前版本 **0.2.1**，适配 **Windows DSH 0.2.1-rc.2 / rc.3 / rc.4 / rc.5**。
 
 ## 功能
 
-本版新增 DSH 本体更新按钮并适配 DSH 0.2.1-rc.5，安装器能找到装在其他目录的 DSH，「Codex 风格工作规范」改用新版提示词。各可选子模块的默认开关不变，升级保留已有选择。
+本版补充适配 DSH 0.2.1-rc.4。0.2.0 起新增 DSH 本体更新按钮并适配 rc.5，安装器能找到装在其他目录的 DSH，「Codex 风格工作规范」改用新版提示词。各可选子模块的默认开关不变，升级保留已有选择。
 
 - **主题界面（主模块）**：Codex 风格的导航、可收起侧栏和输入区，支持项目/会话搜索与管理、模型和权限选择、思考强度滑条与 MAX 动效、会话运行/完成提示，以及本插件的检查更新、自动下载、下载进度和确认安装。DSH 有新版时，左下角齿轮上方显示蓝色更新按钮，悬停可看下载进度，下载和安装仍由 DSH 完成。保留 DSH 原生编辑器、附件、工具调用与审批流程。
 
@@ -28,7 +28,7 @@
 
 ## 安装
 
-在 DSH「自定义 → 插件 → 添加插件」中输入 `@xinxing1708/dsh-codex-style`；也可从 [发行页面](https://github.com/xinxing1708/DSH-Codex-Style/releases/tag/v0.2.0) 下载 Windows ZIP，退出 DSH 后运行 `install.cmd`（需要 Node.js 20+），完成后重新启动 DSH。
+在 DSH「自定义 → 插件 → 添加插件」中输入 `@xinxing1708/dsh-codex-style`；也可从 [发行页面](https://github.com/xinxing1708/DSH-Codex-Style/releases/tag/v0.2.1) 下载 Windows ZIP，退出 DSH 后运行 `install.cmd`（需要 Node.js 20+），完成后重新启动 DSH。
 
 从 0.1.6 起，发现新版后会自动下载，下载完成后点击「立即安装」，重启 DSH 生效。旧版本先按现有安装方式升级到 0.1.6；脚本如提示无法识别现有配置，请先保留原配置并核对安装来源。源码构建运行 `npm run build`，版本变更见 [更新记录](CHANGELOG.md)。
 

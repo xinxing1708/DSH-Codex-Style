@@ -19,7 +19,7 @@ const anchorUnder = path => join(path, 'resources', 'app.asar', 'dsh', 'node_mod
 const marker = ({ official, installRoot = root, community = [] }) => ({
   schemaVersion: 1,
   writtenAt: '2026-10-28T00:00:00.000Z',
-  pluginVersion: '0.2.0',
+  pluginVersion: '0.2.1',
   target: { name: official === false ? 'DSH Desktop' : 'DeepSeek Harness', official, installRoot, runtimePath: join(installRoot, 'resources/runtime/primary-runtime/runtime.json'), desktopVersion: '0.2.1-rc.3' },
   communityHosts: community.map(installRoot => ({ name: 'DSH Desktop', version: '1.0.6', installRoot }))
 });

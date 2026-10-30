@@ -1,6 +1,6 @@
 {
   "name": "@xinxing1708/dsh-codex-style",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DSH 的 Codex 风格深色界面插件",
   "type": "module",
   "main": "lib/host.js",
@@ -72,7 +72,7 @@
   },
   "engines": {
     "node": ">=20",
-    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5"
+    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
