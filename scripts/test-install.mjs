@@ -10,28 +10,42 @@ const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
 const installer = join(source, 'scripts/install.mjs');
 const lock = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      fixture:\n        specifier: 1.0.0\n        version: 1.0.0\n";
-async function fixture(t, { layout = 'legacy', withLock = true, version = '0.2.1-rc.3', dependencies = true, patchText = '[]\n' } = {}) {
+async function fixture(t, { layout = 'legacy', withLock = true, version = '0.2.1-rc.3', dependencies = true, patchText = '[]\n', writeRuntime = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-codex-install-test-'));
   t.after(async () => { assert.ok(root.startsWith(join(tmpdir(), 'dsh-codex-install-test-'))); await rm(root, { recursive: true, force: true }); });
   const home = join(root, 'home'), profile = join(home, 'profiles/desktop'), appData = join(root, 'local');
-  const runtimeFile = layout === 'legacy' ? join(home, 'dsh-runtimes/dsh-primary-runtime/runtime.json') : join(appData, 'Programs/DeepSeek Harness/resources/runtime/primary-runtime/runtime.json');
-  await mkdir(profile, { recursive: true }); await mkdir(dirname(runtimeFile), { recursive: true });
-  await writeFile(runtimeFile, JSON.stringify({ desktopVersion: version }));
+  const installDir = join(root, 'custom/DeepSeek-Harness');
+  const runtimeFile = layout === 'legacy' ? join(home, 'dsh-runtimes/dsh-primary-runtime/runtime.json') : layout === 'custom' ? join(installDir, 'resources/runtime/primary-runtime/runtime.json') : join(appData, 'Programs/DeepSeek Harness/resources/runtime/primary-runtime/runtime.json');
+  await mkdir(profile, { recursive: true });
+  if (writeRuntime) { await mkdir(dirname(runtimeFile), { recursive: true }); await writeFile(runtimeFile, JSON.stringify({ desktopVersion: version })); }
+  const markerPath = join(home, 'dsh-codex-style', 'install-environment.json');
+  const environment = async () => JSON.parse(await readFile(markerPath, 'utf8'));
   const config = { name: 'fixture', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } } };
   if (dependencies) config.dependencies = { fixture: '1.0.0' };
   const original = { 'package.json': JSON.stringify(config, null, 2), 'cordis.patch.yml': patchText };
   if (withLock) original['pnpm-lock.yaml'] = lock;
   for (const [file, bytes] of Object.entries(original)) await writeFile(join(profile, file), bytes);
-  const env = { ...process.env, DSH_HOME: home, DSH_RUNTIME_FILE: '', LOCALAPPDATA: appData, ProgramFiles: join(root, 'programs') };
-  const run = (script = installer, extraEnv = {}) => spawnSync(process.execPath, [script], { env: { ...env, ...extraEnv }, encoding: 'utf8' });
-  const success = (script, extraEnv) => { const result = run(script, extraEnv); assert.equal(result.status, 0, result.stderr); return result.stdout; };
+  // 固定 DSH_INSTALL_DIR，避免测试读到本机注册表中的真实 DSH 安装；模拟注册表时用 undefined 移除该变量。
+  const env = { ...process.env, DSH_HOME: home, DSH_RUNTIME_FILE: '', DSH_INSTALL_DIR: join(root, 'no-registered-install'), DSH_CODEX_STYLE_TEST_HOSTS: '', DSH_CODEX_STYLE_ALLOW_THIRD_PARTY: '', LOCALAPPDATA: appData, ProgramFiles: join(root, 'programs') };
+  const run = (script = installer, extraEnv = {}) => {
+    const environmentVariables = { ...env, ...extraEnv };
+    for (const key of Object.keys(environmentVariables)) if (environmentVariables[key] === undefined) delete environmentVariables[key];
+    return spawnSync(process.execPath, [script], { env: environmentVariables, encoding: 'utf8' });
+  };
+  // 社区安装会在 JSON 回执前输出可读警告；调用方仍可用 JSON.parse 解析回执，rollback 等纯文本输出原样返回。
+  const success = (script, extraEnv) => {
+    const result = run(script, extraEnv);
+    assert.equal(result.status, 0, result.stderr);
+    const start = result.stdout.indexOf('{');
+    return start === -1 ? result.stdout : result.stdout.slice(start);
+  };
   const restored = async () => {
     for (const [file, bytes] of Object.entries(original)) assert.equal(await readFile(join(profile, file), 'utf8'), bytes);
     if (!withLock) await assert.rejects(lstat(join(profile, 'pnpm-lock.yaml')), { code: 'ENOENT' });
   };
-  return { root, home, profile, runtimeFile, run, success, restored };
+  return { root, home, profile, installDir, runtimeFile, markerPath, environment, run, success, restored };
 }
-for (const version of ['0.2.1-rc.2', '0.2.1-rc.3']) for (const withLock of [true, false]) {
+for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.5']) for (const withLock of [true, false]) {
   test(`install, same-version upgrade and two rollbacks; runtime=${version}, lock=${withLock}`, async t => {
     const f = await fixture(t, { version, withLock, dependencies: withLock });
     const a = JSON.parse(f.success()); const link = join(f.profile, 'node_modules', manifest.name);
@@ -68,12 +82,115 @@ test('Windows official runtime takes priority over a leftover legacy runtime', {
   const a = JSON.parse(f.success()); assert.equal(resolve(a.runtimePath), resolve(f.runtimeFile)); assert.equal(a.runtimeVersion, '0.2.1-rc.3');
   f.success(a.rollback); await f.restored();
 });
-test('explicit runtime file supports a custom installation', async t => {
-  const f = await fixture(t, { layout: 'official', withLock: false }); const a = JSON.parse(f.success(undefined, { DSH_RUNTIME_FILE: f.runtimeFile }));
-  assert.equal(resolve(a.runtimePath), resolve(f.runtimeFile)); f.success(a.rollback); await f.restored();
+test('installation directory on another drive is found before default locations', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { layout: 'custom', withLock: false });
+  const official = join(f.root, 'local/Programs/DeepSeek Harness/resources/runtime/primary-runtime/runtime.json');
+  await mkdir(dirname(official), { recursive: true }); await writeFile(official, JSON.stringify({ desktopVersion: '0.2.1-rc.2' }));
+  const a = JSON.parse(f.success(undefined, { DSH_INSTALL_DIR: f.installDir }));
+  assert.equal(resolve(a.runtimePath), resolve(f.runtimeFile)); assert.equal(a.runtimeVersion, '0.2.1-rc.3');
+  f.success(a.rollback); await f.restored();
+});
+test('missing runtime lists searched locations and the DSH_INSTALL_DIR hint', async t => {
+  const f = await fixture(t, { layout: 'custom' }); const r = f.run();
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /未找到 DSH runtime\.json/); assert.match(r.stderr, /DSH_INSTALL_DIR/);
+  assert.ok(r.stderr.includes(join(f.home, 'dsh-runtimes')), r.stderr); await f.restored();
+});
+const desktop = { name: 'DSH Desktop', version: '1.0.6', location: 'X:\\DSH Desktop', official: false };
+// 模拟注册表模式：移除夹具默认的显式安装目录，让注入的注册表主机参与候选。
+const registryMode = { DSH_INSTALL_DIR: undefined };
+
+test('community DSH Desktop with a valid runtime installs after a warning and records its target', async t => {
+  const f = await fixture(t, { layout: 'custom' });
+  const hosts = JSON.stringify([{ ...desktop, location: f.installDir }]);
+  const r = f.run(undefined, { ...registryMode, DSH_CODEX_STYLE_TEST_HOSTS: hosts });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /检测到的不是 DeepSeek 官方版/);
+  assert.match(r.stdout, /社区版 DSH Desktop 1\.0\.6/);
+  assert.match(r.stdout, /效果可能一般/);
+  const a = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
+  assert.equal(resolve(a.runtimePath), resolve(f.runtimeFile));
+  assert.equal(await realpath(join(f.profile, 'node_modules', manifest.name)), await realpath(a.target));
+  const marker = await f.environment();
+  assert.equal(marker.schemaVersion, 1);
+  assert.equal(marker.target.official, false);
+  assert.equal(resolve(marker.target.installRoot), resolve(f.installDir));
+  assert.equal(resolve(marker.target.runtimePath), resolve(f.runtimeFile));
+  assert.deepEqual(marker.communityHosts.map(host => resolve(host.installRoot)), [resolve(f.installDir)]);
+  f.success(a.rollback); await f.restored();
+});
+
+test('community DSH Desktop without a readable runtime is refused, never guessed from the registry version', async t => {
+  const f = await fixture(t, { layout: 'custom', writeRuntime: false });
+  const hosts = JSON.stringify([{ ...desktop, location: f.installDir }]);
+  const r = f.run(undefined, { ...registryMode, DSH_CODEX_STYLE_TEST_HOSTS: hosts });
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /未找到 DSH runtime\.json/); assert.doesNotMatch(r.stderr, /版本不匹配/);
+  assert.doesNotMatch(r.stderr, /at file:/); await f.restored();
+  await assert.rejects(lstat(f.markerPath), { code: 'ENOENT' });
+});
+
+test('unsupported community runtime is refused without touching the profile or environment marker', async t => {
+  const f = await fixture(t, { layout: 'custom', version: '0.2.1-rc.4' });
+  const hosts = JSON.stringify([{ ...desktop, location: f.installDir }]);
+  const r = f.run(undefined, { ...registryMode, DSH_CODEX_STYLE_TEST_HOSTS: hosts });
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /版本不匹配：检测到 0\.2\.1-rc\.4/); assert.match(r.stderr, /未作任何修改/);
+  await f.restored(); await assert.rejects(lstat(f.markerPath), { code: 'ENOENT' });
+});
+
+test('official installation leaves no community warning and marks the official target', async t => {
+  const f = await fixture(t);
+  const r = f.run();
+  assert.equal(r.status, 0, r.stderr); assert.doesNotMatch(r.stdout, /不是 DeepSeek 官方版/);
+  const marker = await f.environment();
+  assert.equal(marker.target.official, true);
+  assert.equal(resolve(marker.target.runtimePath), resolve(f.runtimeFile));
+  assert.deepEqual(marker.communityHosts, []);
+  const a = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
+  f.success(a.rollback); await f.restored();
+});
+
+test('official Harness alongside DSH Desktop requires confirmation and records the official target', async t => {
+  const f = await fixture(t, { withLock: false }); const hosts = JSON.stringify([desktop]);
+  const r = f.run(undefined, { DSH_CODEX_STYLE_TEST_HOSTS: hosts });
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /还装有 DSH Desktop 1\.0\.6/); await f.restored();
+  const confirmed = f.run(undefined, { DSH_CODEX_STYLE_TEST_HOSTS: hosts, DSH_CODEX_STYLE_ALLOW_THIRD_PARTY: '1' });
+  assert.equal(confirmed.status, 0, confirmed.stderr);
+  assert.doesNotMatch(confirmed.stdout, /不是 DeepSeek 官方版/);
+  const a = JSON.parse(confirmed.stdout.slice(confirmed.stdout.indexOf('{')));
+  const marker = await f.environment();
+  assert.equal(marker.target.official, true);
+  assert.notEqual(resolve(marker.target.installRoot), resolve(desktop.location));
+  assert.ok(marker.communityHosts.some(host => resolve(host.installRoot) === resolve(desktop.location)));
+  f.success(a.rollback); await f.restored();
+});
+test('explicit runtime file supports a custom installation without blaming a nearby community host', async t => {
+  const f = await fixture(t, { layout: 'official', withLock: false });
+  const extra = { DSH_RUNTIME_FILE: f.runtimeFile, DSH_CODEX_STYLE_TEST_HOSTS: JSON.stringify([desktop]), DSH_CODEX_STYLE_ALLOW_THIRD_PARTY: '1' };
+  const r = f.run(undefined, extra);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /不是 DeepSeek 官方版/);
+  const a = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
+  assert.equal(resolve(a.runtimePath), resolve(f.runtimeFile));
+  const marker = await f.environment();
+  assert.equal(marker.target.official, null);
+  assert.equal(resolve(marker.target.installRoot), resolve(dirname(dirname(dirname(dirname(f.runtimeFile))))));
+  assert.ok(marker.communityHosts.some(host => host.name === 'DSH Desktop'));
+  f.success(a.rollback); await f.restored();
+});
+
+test('explicit DSH_INSTALL_DIR stays official even when a community host is present', async t => {
+  const f = await fixture(t, { layout: 'custom' });
+  const extra = { DSH_INSTALL_DIR: f.installDir, DSH_CODEX_STYLE_TEST_HOSTS: JSON.stringify([desktop]), DSH_CODEX_STYLE_ALLOW_THIRD_PARTY: '1' };
+  const r = f.run(undefined, extra);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /不是 DeepSeek 官方版/);
+  const marker = await f.environment();
+  assert.equal(marker.target.official, true);
+  assert.equal(resolve(marker.target.installRoot), resolve(f.installDir));
+  const a = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
+  f.success(a.rollback); await f.restored();
 });
 for (const version of ['0.2.1-rc.1', '0.2.1-rc.4', '0.2.1', '0.2.2', '2.0.19-next']) test(`unsupported runtime ${version} refuses to modify profile`, async t => {
-  const f = await fixture(t, { version }); const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, /版本不匹配/); await f.restored();
+  const f = await fixture(t, { version }); const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, new RegExp(`版本不匹配：检测到 ${version.replaceAll('.', '\\.')}`)); assert.match(r.stderr, /未作任何修改/); await f.restored();
 });
 test('invalid explicit runtime does not silently use another installation', async t => {
   const f = await fixture(t); const r = f.run(undefined, { DSH_RUNTIME_FILE: join(f.root, 'missing.json') }); assert.notEqual(r.status, 0); assert.match(r.stderr, /未找到 DSH/); await f.restored();

@@ -50,6 +50,31 @@ function useSource(source) {
   const snapshot = useCallback(() => source.getSnapshot(), [source]);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
+// 社区版提醒：宿主公开 Toast 固定顶部居中；用户要求右下角，这里沿用 shell.overlay 自绘轻量提醒。
+const COMMUNITY_NOTICE_TEXT = '检测到当前为社区版 DSH Desktop，不是 DeepSeek 官方版。本插件针对官方 DeepSeek Harness，效果可能一般。';
+const COMMUNITY_NOTICE_HOLD_MS = 6000;
+function createCommunityNotice() {
+  let snapshot = null;
+  const listeners = new Set();
+  const publish = next => { snapshot = next; for (const listener of listeners) listener(); };
+  return {
+    getSnapshot: () => snapshot,
+    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    show(text) { publish({ text }); },
+    clear() { if (snapshot !== null) publish(null); }
+  };
+}
+function CommunityNotice({ notice }) {
+  const current = useSource(notice);
+  const dismiss = useCallback(() => notice.clear(), [notice]);
+  useEffect(() => {
+    if (!current) return undefined;
+    const timer = setTimeout(dismiss, COMMUNITY_NOTICE_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [current, dismiss]);
+  if (!current) return null;
+  return createPortal(h('div', { className: 'dsc-ui dsc-community-notice', role: 'status', 'aria-live': 'polite' }, h('span', { className: 'dsc-community-notice-text' }, current.text)), document.body);
+}
 function errorText(error) { return error?.message || String(error); }
 function ErrorLine({ text }) { return text ? h('div', { className: 'dsc-error', role: 'alert' }, text) : null; }
 // 用 aria-disabled 代替原生 disabled：避免全局 `.dsc-ui button:disabled { opacity: .45 }` 在提交瞬间造成变暗闪烁。
@@ -888,6 +913,19 @@ function makeModelPicker(ctx) {
 function apply(ctx) {
   console.warn('[codex-style] apply 开始 v' + PLUGIN_VERSION);
   ctx.inject(['remote', 'remote.pluginInventory'], scope => scope.effect(() => watchCodexPresentation(scope), 'codex-style: presentation component states'));
+  // 社区版提醒：每次主客户端激活最多一次；官方环境、读取失败、提前卸载均不显示。
+  const communityNotice = createCommunityNotice();
+  let communityNoticeShown = false;
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'codex-style:community-notice' }, () => h(CommunityNotice, { notice: communityNotice })));
+  ctx.inject(['remote', 'remote.codexStyleEnvironment'], scope => scope.effect(() => {
+    let active = true;
+    Promise.resolve(scope.remote.codexStyleEnvironment.status()).then(result => {
+      if (!active || communityNoticeShown || result?.community !== true) return;
+      communityNoticeShown = true;
+      communityNotice.show(COMMUNITY_NOTICE_TEXT);
+    }).catch(error => { if (active) console.warn('codex-style: 无法读取运行环境', error); });
+    return () => { active = false; communityNotice.clear(); };
+  }, 'codex-style: community notice'));
   const tokenValues = {
     '--dsw-alias-bg-base': '#181818', '--dsw-alias-bg-layer-1': '#212121', '--dsw-alias-bg-layer-2': '#282828', '--dsw-alias-bg-layer-3': '#2d2d2d', '--dsw-alias-bg-overlay': '#282828',
     '--dsw-alias-bg-module-platform': '#212121', '--dsw-alias-label-primary': '#fff', '--dsw-alias-label-secondary': 'rgba(255,255,255,.7)', '--dsw-alias-label-tertiary': 'rgba(255,255,255,.5)',
@@ -967,6 +1005,11 @@ function apply(ctx) {
     register(scope, 'conversation.header.leading', makeCollapsedNewChat(scope));
   });
   ctx.inject(['modules', 'locale', 'remote', 'remote.account'], scope => register(scope, 'settings.launcher', makeGearLauncher(scope)));
+  const desktopUpdates = createDesktopUpdateSource();
+  ctx.effect(() => desktopUpdates.start(globalThis.dshDesktop), 'codex-style: desktop update carrier');
+  // 原生设置行指示器随被隐藏的宿主侧栏不可见；侧栏展开键上的蓝点由公开单槽位让给蓝圆入口。
+  register(ctx, 'sidebar.toggle.badge', () => null);
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'codex-style:desktop-update' }, () => createPortal(h('div', { className: 'dsc-ui dsc-desktop-update-launcher' }, h(DesktopUpdateRailButton, { source: desktopUpdates })), document.body)));
   ctx.inject(['workspaces'], scope => {
     register(scope, 'conversation.hero.brand.mark', EmptyHero);
     register(scope, 'conversation.hero.workspace', makeHeroWorkspace(scope));

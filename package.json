@@ -1,6 +1,6 @@
 {
   "name": "@xinxing1708/dsh-codex-style",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "DSH 的 Codex 风格深色界面插件",
   "type": "module",
   "main": "lib/host.js",
@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test scripts/test-install.mjs scripts/test-update.mjs scripts/test-client.mjs scripts/test-skills.mjs scripts/test-image-annotations.mjs scripts/test-image-annotations-host.mjs scripts/test-image-annotations-integration.mjs scripts/test-navigation.mjs scripts/test-host-signatures.mjs"
+    "test": "node --test scripts/test-install.mjs scripts/test-update.mjs scripts/test-client.mjs scripts/test-skills.mjs scripts/test-image-annotations.mjs scripts/test-image-annotations-host.mjs scripts/test-image-annotations-integration.mjs scripts/test-navigation.mjs scripts/test-host-signatures.mjs scripts/test-community-environment.mjs"
   },
   "files": [
     "lib",
@@ -72,7 +72,7 @@
   },
   "engines": {
     "node": ">=20",
-    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3"
+    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",

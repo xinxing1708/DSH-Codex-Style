@@ -41,6 +41,7 @@ await mkdir(resolve(root, 'lib'), { recursive: true });
 await writeFile(resolve(root, 'lib/client.js'), output);
 await writeFile(resolve(root, 'lib/host.js'), await readFile(resolve(root, 'src/host.mjs')));
 await writeFile(resolve(root, 'lib/skills-host.js'), skillsHost);
+await writeFile(resolve(root, 'lib/community-environment.js'), await readFile(resolve(root, 'src/community-environment.mjs')));
 await writeFile(resolve(root, 'lib/update-common.js'), updateCommon);
 await writeFile(resolve(root, 'lib/updater.js'), await readFile(resolve(root, 'src/updater.mjs')));
 await writeFile(resolve(root, 'lib/update-install.js'), await readFile(resolve(root, 'src/update-install.mjs')));
