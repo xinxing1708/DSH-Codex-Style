@@ -75,6 +75,73 @@ function CommunityNotice({ notice }) {
   if (!current) return null;
   return createPortal(h('div', { className: 'dsc-ui dsc-community-notice', role: 'status', 'aria-live': 'polite' }, h('span', { className: 'dsc-community-notice-text' }, current.text)), document.body);
 }
+// 归档成功提示：顶部居中「已归档」+ 真实撤销/关闭；停留 6 秒后用 1 秒原路淡出。
+const ARCHIVE_NOTICE_HOLD_MS = 6000;
+const ARCHIVE_NOTICE_FADE_MS = 1000;
+function createArchiveNotice(unarchive) {
+  const store = createSnapshotStore(null);
+  let seq = 0;
+  const show = sessionId => {
+    seq += 1;
+    store.set({ id: seq, sessionId, phase: 'visible', pending: false, error: '' });
+  };
+  const leave = id => {
+    const current = store.getSnapshot();
+    if (!current || current.id !== id || current.phase !== 'visible') return;
+    store.set({ ...current, phase: 'leaving' });
+  };
+  const clear = id => {
+    const current = store.getSnapshot();
+    if (current && current.id === id) store.set(null);
+  };
+  const close = id => {
+    const current = store.getSnapshot();
+    if (!current || current.id !== id) return;
+    store.set({ ...current, phase: 'leaving', pending: false });
+  };
+  const undo = async id => {
+    const current = store.getSnapshot();
+    if (!current || current.id !== id || current.pending || current.phase !== 'visible') return;
+    store.set({ ...current, pending: true, error: '' });
+    try {
+      const result = await unarchive(current.sessionId);
+      if (result?.ok === false) throw result.error || new Error('取消归档失败');
+      const latest = store.getSnapshot();
+      if (latest && latest.id === id) store.set({ ...latest, pending: false, phase: 'leaving' });
+    } catch (error) {
+      const latest = store.getSnapshot();
+      if (latest && latest.id === id) store.set({ ...latest, pending: false, error: errorText(error) });
+    }
+  };
+  // 停用插件时清空并推进序号，让在途的撤销/关闭完成回调失效。
+  const dispose = () => { seq += 1; store.set(null); };
+  return { store, show, leave, clear, close, undo, dispose };
+}
+function ArchiveNotice({ notice }) {
+  const current = useSource(notice.store);
+  const id = current?.id;
+  const phase = current?.phase;
+  const pending = current?.pending === true;
+  const error = current?.error || '';
+  useEffect(() => {
+    if (id === undefined) return undefined;
+    if (phase === 'leaving') {
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+      const timer = setTimeout(() => notice.clear(id), reduced ? 0 : ARCHIVE_NOTICE_FADE_MS);
+      return () => clearTimeout(timer);
+    }
+    if (pending || error) return undefined;
+    const timer = setTimeout(() => notice.leave(id), ARCHIVE_NOTICE_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [id, phase, pending, error, notice]);
+  if (!current) return null;
+  return createPortal(h('div', { key: current.id, className: 'dsc-ui dsc-archive-notice', 'data-phase': current.phase, role: 'status', 'aria-live': 'polite' },
+    h('div', { className: 'dsc-archive-notice-body' },
+      h('span', { className: 'dsc-archive-notice-text' }, '已归档'),
+      error && h('span', { className: 'dsc-archive-notice-error' }, '撤销失败：' + error)),
+    h('button', { type: 'button', className: 'dsc-archive-notice-undo', disabled: pending, onClick: () => notice.undo(id) }, '撤销'),
+    h('button', { type: 'button', className: 'dsc-archive-notice-close', 'aria-label': '关闭归档提示', onClick: () => notice.close(id) }, h(Icon, { name: 'close', size: 14 }))), document.body);
+}
 function errorText(error) { return error?.message || String(error); }
 function ErrorLine({ text }) { return text ? h('div', { className: 'dsc-error', role: 'alert' }, text) : null; }
 // 用 aria-disabled 代替原生 disabled：避免全局 `.dsc-ui button:disabled { opacity: .45 }` 在提交瞬间造成变暗闪烁。
@@ -408,7 +475,10 @@ function createSessionCompletionTracker(ctx) {
   return { store, start };
 }
 
-function makeWorkspaceTree(ctx, completionStore) {
+// 项目内默认只显示最近 6 条；活动行位于后方时按需放宽，置顶、最近与搜索结果不受影响。
+const PROJECT_SESSION_LIMIT = 6;
+
+function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
   return function WorkspaceTree({ query = '', tools = true, active = true, onNavigate }) {
     const catalog = useSource(ctx.sessions.list);
     const workspaces = useSource(ctx.workspaces.list);
@@ -416,6 +486,7 @@ function makeWorkspaceTree(ctx, completionStore) {
     const completions = useSource(completionStore);
     const panel = useSource(ctx.layout.panelInfo);
     const [expanded, setExpanded] = useState({});
+    const [moreExpanded, setMoreExpanded] = useState({});
     const [projectsOpen, setProjectsOpen] = useState(true);
     const [showArchived, setShowArchived] = useState(false);
     const [message, setMessage] = useState('');
@@ -470,6 +541,38 @@ function makeWorkspaceTree(ctx, completionStore) {
       }
       return { projects, pins, recent };
     }, [visible, pinned, memberships]);
+    // 归属只读宿主公开目录：首次发现当前会话所属项目时固化为展开，避免切换会话后按 currentId 实时派生把它误折叠。
+    // 已有记录（含用户显式收起）一律保留；空白会话或目录异步到达时，等 currentId / memberships 更新再补记。
+    useLayoutEffect(() => {
+      if (currentId === undefined) return;
+      const owners = memberships.get(currentId);
+      if (!owners?.length) return;
+      setExpanded(previous => {
+        if (owners.every(workspace => previous[workspace.workspaceId] !== undefined)) return previous;
+        const next = { ...previous };
+        for (const workspace of owners) if (next[workspace.workspaceId] === undefined) next[workspace.workspaceId] = true;
+        return next;
+      });
+    }, [currentId, memberships]);
+    // 活动判据沿用现有状态源：当前会话、等待处理、父会话运行（live 优先，目录行只兜底）、子代理仍在运行、未读完成。
+    const sessionActive = session => {
+      if (session.sessionId === currentId) return true;
+      const state = status.get(session.sessionId);
+      if (state?.pendingInteraction) return true;
+      // 父会话自身运行：live 状态优先，避免目录行旧的 running=true 压过 live false。
+      if ((state?.running ?? session.running) === true) return true;
+      // 子代理运行不并入父 running；沿宿主公开快照的 subagentCatalog 逐个子会话核对，任一仍在运行即视为活动。
+      const subagents = catalog.projectionsBySession?.[session.sessionId]?.values?.subagentCatalog;
+      if (Array.isArray(subagents) && subagents.some(child => (status.get(child.id)?.running ?? catalog.byId[child.id]?.running) === true)) return true;
+      return completions.has(session.sessionId);
+    };
+    // 每个项目独立截断：默认前 6 条，后方有活动行时放宽到包含该行；手动展开后显示全部。
+    const projectSessions = (workspaceId, children) => {
+      if (moreExpanded[workspaceId] === true) return children;
+      let count = Math.min(PROJECT_SESSION_LIMIT, children.length);
+      for (let index = PROJECT_SESSION_LIMIT; index < children.length; index += 1) if (sessionActive(children[index])) count = index + 1;
+      return children.slice(0, count);
+    };
     const cancelHover = () => clearTimeout(hoverTimer.current);
     const hideHover = () => { clearTimeout(hoverTimer.current); setHover(null); };
     const closeHover = () => { cancelHover(); hoverTimer.current = setTimeout(() => setHover(null), 140); };
@@ -497,7 +600,16 @@ function makeWorkspaceTree(ctx, completionStore) {
       if (result?.ok === false) throw result.error;
     };
     const togglePin = s => run(() => pinned.has(s.sessionId) ? ctx.uiWorkspace.unpinSession(s.sessionId) : ctx.uiWorkspace.pinSession(s.sessionId));
-    const toggleArchive = s => run(() => archived.has(s.sessionId) ? ctx.uiWorkspace.unarchiveSession(s.sessionId) : ctx.uiWorkspace.archiveSession(s.sessionId));
+    // 归档成功才提示；取消归档仍走原动作且不提示。失败沿用 run/ErrorLine，不把失败当成功。
+    const toggleArchive = s => {
+      hideHover();
+      if (archived.has(s.sessionId)) return run(() => ctx.uiWorkspace.unarchiveSession(s.sessionId));
+      return run(async () => {
+        const result = await ctx.uiWorkspace.archiveSession(s.sessionId);
+        if (result?.ok === false) throw result.error || new Error('归档失败');
+        archiveNotice.show(s.sessionId);
+      });
+    };
     // 继续使用原来的菜单与动作，只把入口改为整行右键（含 Shift+F10 / 菜单键）。
     const openThreadMenu = (event, s) => {
       event.preventDefault(); event.stopPropagation();
@@ -553,12 +665,20 @@ function makeWorkspaceTree(ctx, completionStore) {
           projectHeading,
           h(ProjectFold, { open: projectsOpen, className: 'dsc-project-list-fold' }, h('div', { className: 'dsc-project-list' }, workspaces.items.map(w => {
             const children = groups.projects.get(w.workspaceId) || [];
+            // 初帧保留当前会话派生作为过渡；useLayoutEffect 会在绘制前把尚无记录的所属项目固化为 true。
             const open = expanded[w.workspaceId] ?? w.sessionIds.includes(currentId);
+            const shown = projectSessions(w.workspaceId, children);
+            const hidden = children.length - shown.length;
+            const more = moreExpanded[w.workspaceId] === true;
+            const toggleMore = () => { hideHover(); setMenu(null); setProjectMenu(null); setMoreExpanded(previous => ({ ...previous, [w.workspaceId]: !(previous[w.workspaceId] === true) })); };
             return h('section', { key: w.workspaceId }, h('div', { className: 'dsc-project', onPointerEnter: e => enterHover(e.currentTarget, { kind: 'project', id: w.workspaceId, workspace: w, title: w.title || '未命名项目', count: children.length, path: w.path, pinned: w.pinned === true }), onPointerLeave: closeHover },
-              h('button', { type: 'button', className: 'dsc-project-main', onClick: () => { hideHover(); setMenu(null); setProjectMenu(null); setExpanded({ ...expanded, [w.workspaceId]: !open }); }, 'aria-expanded': open }, h(Icon, { name: open ? 'folderOpen' : 'folder' }), h('span', null, w.title || '未命名项目')),
+              h('button', { type: 'button', className: 'dsc-project-main', onClick: () => { hideHover(); setMenu(null); setProjectMenu(null); setExpanded(previous => ({ ...previous, [w.workspaceId]: !(previous[w.workspaceId] ?? w.sessionIds.includes(currentId)) })); }, 'aria-expanded': open }, h(Icon, { name: open ? 'folderOpen' : 'folder' }), h('span', null, w.title || '未命名项目')),
               h('button', { type: 'button', className: 'dsc-row-action', title: '项目菜单', 'aria-label': '项目菜单', 'aria-haspopup': 'menu', 'aria-expanded': projectMenu?.workspaceId === w.workspaceId, onClick: e => { projectAnchor.current = e.currentTarget; setHover(null); setProjectMenu(projectMenu?.workspaceId === w.workspaceId ? null : w); } }, '⋯'),
               h('button', { type: 'button', className: 'dsc-row-action', title: '在此项目新建对话', 'aria-label': '在此项目新建对话', onClick: () => { ctx.uiWorkspace.startSession(w.workspaceId); onNavigate?.(); } }, h(Icon, { name: 'pencil', size: 14 }))),
-              h(ProjectFold, { open }, h('div', { className: 'dsc-project-children' }, children.length ? children.map(s => row(s, active && projectsOpen && open)) : h('small', { className: 'dsc-empty' }, '暂无对话'))));
+              h(ProjectFold, { open }, h('div', { className: 'dsc-project-children' }, children.length
+                ? h(React.Fragment, null, shown.map(s => row(s, active && projectsOpen && open)),
+                  children.length > PROJECT_SESSION_LIMIT && (more || hidden > 0) && h('button', { type: 'button', className: 'dsc-project-more', 'aria-expanded': more, onClick: toggleMore }, more ? '收起' : `显示更多（剩余 ${hidden}）`))
+                : h('small', { className: 'dsc-empty' }, '暂无对话'))));
           }))),
           h('div', { className: 'dsc-section-title' }, '最近'), groups.recent.map(s => row(s))),
         !visible.length && catalog.phase === 'ready' && h('div', { className: 'dsc-empty' }, query ? '没有匹配的对话' : '选择项目，开始新对话'),
@@ -1000,7 +1120,11 @@ function apply(ctx) {
   ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale', 'pluginNavigation'], scope => {
     const sidebar = createSidebarPresentation();
     scope.effect(() => () => sidebar.dispose(), 'codex-style: sidebar presentation');
-    register(scope, 'sidebar.workspaces', makeSidebarChrome(scope, sidebar));
+    // 归档提示状态由插件持有并独立注册到 shell.overlay：侧栏子树卸载仍可见，随插件 scope 卸载清理。
+    const archiveNotice = createArchiveNotice(sessionId => scope.uiWorkspace.unarchiveSession(sessionId));
+    scope.effect(() => () => archiveNotice.dispose(), 'codex-style: archive notice');
+    scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:archive-notice' }, () => h(ArchiveNotice, { notice: archiveNotice })));
+    register(scope, 'sidebar.workspaces', makeSidebarChrome(scope, sidebar, archiveNotice));
     scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:shell' }, makeShellChrome(scope, sidebar)));
     register(scope, 'conversation.header.leading', makeCollapsedNewChat(scope));
   });

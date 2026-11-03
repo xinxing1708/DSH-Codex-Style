@@ -63,6 +63,19 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 .dsc-community-notice { position: fixed; right: 24px; bottom: 24px; z-index: 10001; box-sizing: border-box; width: max-content; max-width: min(420px, calc(100vw - 48px)); padding: 12px 16px; border: 1px solid var(--cx-border-l1); border-radius: 14px; background: var(--cx-popover-fill); color: var(--cx-text); font-size: 13px; line-height: 20px; box-shadow: var(--cx-shadow-2xl); animation: dsc-pop-in 130ms ease both; -webkit-app-region: no-drag; }
 .dsc-community-notice-text { display: block; }
 @media (prefers-reduced-motion: reduce) { .dsc-community-notice { animation: none; } }
+/* 归档成功提示：顶部居中；入场 160ms，退场 1000ms（与 client.js ARCHIVE_NOTICE_FADE_MS 对应）。 */
+.dsc-ui.dsc-archive-notice { position: fixed; top: 40px; left: 50%; z-index: 10001; display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100vw - 32px); padding: 7px 8px 7px 12px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-lg); background: var(--cx-popover-fill); color: var(--cx-text); font-size: 13px; line-height: 18px; box-shadow: var(--cx-shadow-2xl); transform: translate(-50%, 0); animation: dsc-archive-notice-in 160ms ease both; -webkit-app-region: no-drag; }
+.dsc-ui.dsc-archive-notice[data-phase=leaving] { animation: dsc-archive-notice-out 1000ms ease both; }
+.dsc-archive-notice-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.dsc-archive-notice-text { color: var(--cx-text); white-space: nowrap; }
+.dsc-archive-notice-error { color: var(--cx-danger); font-size: 12px; line-height: 17px; overflow-wrap: anywhere; }
+.dsc-ui .dsc-archive-notice-undo { display: inline-flex; align-items: center; flex: none; height: 24px; padding: 0 9px; border-radius: var(--cx-radius-sm); color: var(--cx-accent-soft); font-size: 13px; }
+.dsc-ui .dsc-archive-notice-undo:hover:not(:disabled) { background: var(--cx-active); color: var(--cx-text); }
+.dsc-ui .dsc-archive-notice-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; padding: 0; border-radius: var(--cx-radius-sm); color: var(--cx-text-3); }
+.dsc-ui .dsc-archive-notice-close:hover, .dsc-ui .dsc-archive-notice-close:focus-visible { background: var(--cx-hover); color: var(--cx-text); }
+@keyframes dsc-archive-notice-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes dsc-archive-notice-out { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -6px); } }
+@media (prefers-reduced-motion: reduce) { .dsc-ui.dsc-archive-notice, .dsc-ui.dsc-archive-notice[data-phase=leaving] { animation: none; } }
 .dsc-ui.dsc-update-panel { padding: 14px; }
 .dsc-update-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .dsc-ui .dsc-update-close { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 6px; color: var(--cx-text-2); }
@@ -264,6 +277,10 @@ body[data-dsh-codex-chrome]:has(.dsc-desktop-update) .dsc-independent-rail { pad
 .dsc-project-children, .dsc-project-list { transform: translateY(-4px); transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
 .dsc-project-fold[data-open=true] > .dsc-project-clip > :is(.dsc-project-children, .dsc-project-list) { transform: translateY(0); }
 .dsc-project-children .dsc-state { display: none; }
+/* 项目内“显示更多/收起”：真实按钮，缩进随项目子列表，颜色与行文字一致；不引入额外布局动画。 */
+.dsc-ui .dsc-project-more { display: flex; align-items: center; width: 100%; height: 26px; padding: 0 8px; border-radius: 7px; text-align: left; font-size: 12px; color: var(--cx-text-3); }
+.dsc-ui .dsc-project-more:hover, .dsc-ui .dsc-project-more:focus-visible { color: #c2c2c2; background: #ffffff0d; }
+.dsc-ui .dsc-project-more:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: -2px; }
 .dsc-empty { display: block; color: var(--cx-text-3); padding: 10px 12px; font-size: 12px; }
 .dsc-archive-toggle { padding: 8px 12px; display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--cx-text-3); }
 .dsc-archive-toggle input { accent-color: var(--cx-accent); }

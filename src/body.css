@@ -79,12 +79,35 @@ body[data-dsc-codex-body] [data-step-process]:has([data-process-activity][aria-e
 body[data-dsc-codex-body] [data-chat-flow] [data-disclosure-header] + *,
 body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][aria-expanded="true"] + * { animation: dsc-body-reveal 180ms cubic-bezier(.2,.8,.2,1) both; }
 @keyframes dsc-body-reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+/* 正文流式平滑：脚本把正文容器裁到光标所在行，只露出已揭示的部分。 */
+body[data-dsc-codex-body] .dsc-body-smooth-clip { overflow: hidden; overflow-anchor: none; }
+/* 容器整体裁剪时子块保持自然高度，避免被 flex 收缩压扁或改变换行。 */
+body[data-dsc-codex-body] .dsc-body-smooth-clip > * { flex: 0 0 auto; }
+/* 含行内元素的段落与代码块无法逐字裁剪，降级为整块淡入。 */
+body[data-dsc-codex-body] .dsc-body-smooth-fade { animation: dsc-body-smooth-in 200ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes dsc-body-smooth-in { from { opacity: 0; } to { opacity: 1; } }
+/* 写头柔边层，位置与高度由脚本逐帧设置；底色实色 + 左缘 mask 渐变淡入。 */
+body[data-dsc-codex-body] .dsc-body-edge {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 2px;
+  background: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px);
+  mask-image: linear-gradient(90deg, transparent 0, #000 14px);
+}
 @media (prefers-reduced-motion: reduce) {
   body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] { display: none; }
   body[data-dsc-codex-body] [data-process-activity="thinking"]::after { animation: none !important; color: #969696 !important; background: none !important; }
   body[data-dsc-codex-body] [data-step-process-content],
   body[data-dsc-codex-body] [data-chat-flow] [data-disclosure-header] + *,
   body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] + * { animation: none !important; }
+  body[data-dsc-codex-body] .dsc-body-smooth-fade { animation: none !important; }
   body[data-dsc-codex-body] .dsc-body-turn__label svg,
   body[data-dsc-codex-body] [data-step-process-chevron],
   body[data-dsc-codex-body] [data-chat-flow] [aria-expanded]::after { transition: none; }

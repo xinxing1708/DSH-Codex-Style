@@ -274,11 +274,11 @@ function registerMorePage(ctx) {
   }));
 }
 
-function makeSidebarChrome(ctx, sidebar) {
+function makeSidebarChrome(ctx, sidebar, archiveNotice) {
   const completions = createSessionCompletionTracker(ctx);
   ctx.effect(() => completions.start(), 'codex-style: unread session completions');
   ctx.effect(() => registerMorePage(ctx), 'codex-style: more page');
-  const Tree = makeWorkspaceTree(ctx, completions.store);
+  const Tree = makeWorkspaceTree(ctx, completions.store, archiveNotice);
   return function SidebarChrome() {
     const { panel, pluginRows, taskRows, category: selectedCategory, hasMore } = useNavigationDirectory(ctx, sidebar);
     const { collapsed, preview } = useSource(sidebar.store);
