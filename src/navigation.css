@@ -127,3 +127,10 @@ body[data-dsc-codex-navigation] [data-dsc-navigation-native-toggle] {
     transition: none;
   }
 }
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-nav-controls .dsc-nav-button { color: #898989; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-nav-controls .dsc-nav-button[aria-disabled='true'] { color: #c1c1c1; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-nav-controls .dsc-nav-button:not([aria-disabled='true']):hover,
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-nav-controls .dsc-nav-button:not([aria-disabled='true']):focus-visible { background: #0000000d; color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-nav-controls .dsc-nav-button:focus-visible { outline-color: #2b68cb; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-nav-tooltip { background: #0d0d0d; color: #fff; }

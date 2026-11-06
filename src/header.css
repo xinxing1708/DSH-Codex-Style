@@ -49,3 +49,15 @@ body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-header-view-row] but
 @media (prefers-reduced-motion: reduce) {
   body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch]::before, body[data-dsh-codex-style][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"] { transition: none; }
 }
+
+/* 浅色下保留顶部布局、选中滑块与原生操作，只换颜色。 */
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-header-title],
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-header-title] > span:first-child { color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch] { border-color: #dedede; background: #f3f3f3; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch]::before { background: #fff; box-shadow: 0 1px 3px #00000014; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"] { color: #898989; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"] + [role="tab"]::before { background: #d4d4d4; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"][aria-selected="true"],
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"]:first-child[aria-selected="false"],
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"][aria-selected="false"]:hover { color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-header] [data-dsc-view-switch] > [role="tab"]:focus-visible { outline-color: #2b68cb; }

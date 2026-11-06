@@ -123,3 +123,22 @@
 @media (prefers-reduced-motion: reduce) {
   .dsc-skill-card, .dsc-skills-try { transition: none; }
 }
+
+/* 技能目录与详情继承同一个浅色状态，不改变数据、预览与打开动作。 */
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-page { color: #303030; background: #fff; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-skills-heading p, .dsc-skills-scope, .dsc-skills-search, .dsc-skills-toolbar .dsc-icon-button, .dsc-skill-card-desc, .dsc-skill-card-flag, .dsc-ui .dsc-skills-more, .dsc-skills-state, .dsc-skills-dialog-headactions .dsc-icon-button, .dsc-skills-dialog-kind, .dsc-skills-preview-note) { color: #898989; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-skills-scope, .dsc-skills-search, .dsc-skills-section-title, .dsc-skills-state button, .dsc-skills-dialog) { border-color: #00000014; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-skills-search:focus-within, .dsc-skills-search input, .dsc-skills-section-title, .dsc-skills-more:hover, .dsc-skills-state button, .dsc-skills-dialog) { color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-search:focus-within { border-color: #2b68cb; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-search input::placeholder { color: #898989; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-skills-toolbar .dsc-icon-button:hover, .dsc-skill-card:hover, .dsc-skills-dialog-headactions .dsc-icon-button:hover) { background: #f3f3f3; color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skill-card:focus-visible { outline-color: #2b68cb; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-skill-card-icon, .dsc-skills-dialog-icon) { background: #f3f3f3; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-state button { background: #f5f5f5; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-skills-state-error, .dsc-skills-dialog-notice) { color: #c93634; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-state-warn { color: #a56a12; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-dialog { background: #fff; box-shadow: 0 18px 48px #00000026; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-dialog-desc { color: #505050; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-skills-preview { background: #f5f5f5; color: #505050; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui .dsc-skills-try { background: #0d0d0d; color: #fff; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui .dsc-skills-try:hover { background: #303030; }

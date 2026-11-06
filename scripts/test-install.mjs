@@ -204,7 +204,7 @@ test('rollback preserves subsequent user edits', async t => {
   assert.notEqual(f.run(a.rollback).status, 0); assert.equal(await readFile(file, 'utf8'), '# user edit\n');
 });
 
-for (const disabled of [true, false]) test(`optional components ship complete and preserve saved switches on upgrade; disabled=${disabled}`, async t => {
+for (const disabled of [true, false]) test(`upgrade preserves optional switches and inert legacy overrides; disabled=${disabled}`, async t => {
   const f = await fixture(t);
   const patch = join(f.profile, 'cordis.patch.yml');
   const saved = `- id: codex-style-work-guidelines\n  disabled: ${!disabled}\n- id: codex-style-body\n  disabled: ${disabled}\n- id: codex-style-header\n  disabled: ${!disabled}\n- id: codex-style-navigation\n  disabled: ${!disabled}\n- id: codex-style-image-annotations\n  disabled: ${disabled}\n`;
@@ -220,16 +220,16 @@ for (const disabled of [true, false]) test(`optional components ship complete an
   assert.equal(await readFile(patch, 'utf8'), saved);
 });
 
-test('bundle defaults enable visual effects and keep prompt injection disabled', async () => {
+test('bundle exposes no header/body switches, keeps compatibility entries and optional defaults', async () => {
   const [{ insert }] = parseYaml(await readFile(join(source, 'cordis.patch.yml'), 'utf8'));
   const defaults = new Map(insert.map(row => [row.id, row]));
   assert.notEqual(defaults.get('ui-skin-codex-style').disabled, true);
-  assert.equal(defaults.get('codex-style-body').disabled, false);
-  assert.equal(defaults.get('codex-style-header').disabled, false);
+  assert.equal(defaults.has('codex-style-body'), false);
+  assert.equal(defaults.has('codex-style-header'), false);
   assert.equal(defaults.get('codex-style-navigation').disabled, false);
   assert.equal(defaults.get('codex-style-image-annotations').disabled, false);
   assert.equal(defaults.get('codex-style-work-guidelines').disabled, true);
-  assert.equal(defaults.get('codex-style-header').name, manifest.name + '/header');
+  assert.equal(manifest.exports['./body'], './lib/body.js');
   assert.equal(manifest.exports['./header'], './lib/header.js');
   assert.equal(manifest.exports['./header/locale/*.json'], './locale/header/*.json');
   assert.equal(defaults.get('codex-style-navigation').name, manifest.name + '/navigation');
@@ -268,8 +268,8 @@ async function gateFixture(t, { engines, version }) {
   };
 }
 
-test('shipped manifest declares the P0 compatibility range and keeps version 0.2.4', () => {
-  assert.equal(manifest.version, '0.2.4');
+test('shipped manifest declares the compatibility range and release version 0.2.5', () => {
+  assert.equal(manifest.version, '0.2.5');
   assert.equal(manifest.engines.dsh, '>=0.2.1-rc.2 <0.3.0-0');
 });
 

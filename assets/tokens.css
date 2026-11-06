@@ -24,10 +24,10 @@
   --cx-radius-composer: 24px;
   --cx-radius-full: 9999px;
 
-  /* ---- 暗色面（深色界面：导航/顶栏 #202020、侧栏 #1b1b1b、对话区 #181818） ---- */
-  --cx-window: #202020;
-  --cx-sidebar: #1b1b1b;
-  --cx-surface: #181818;
+  /* ---- 暗色面（第 134 轮按新版 Codex 默认主题：导航/顶栏 #0f0f0f、侧栏 #101010、对话区 #111111） ---- */
+  --cx-window: #0f0f0f;
+  --cx-sidebar: #101010;
+  --cx-surface: #111111;
   --cx-thread: #171717;
   --cx-nested: #212121;
   --cx-elevated: #282828;
@@ -40,16 +40,26 @@
   --cx-border-l2: rgba(255, 255, 255, 0.04);
   --cx-border-l3: rgba(255, 255, 255, 0.16);
   --cx-border-strong: rgba(255, 255, 255, 0.16);
-  /* 侧栏分割线：2026-10-26 用户截图的静态与悬停灰度。 */
-  --cx-sidebar-divider: #323232;
+  /* 侧栏分割线：静态按 2026-11-06 Codex 截图取 #212121；悬停/拖拽保留原加深加粗。 */
+  --cx-sidebar-divider: #212121;
   --cx-sidebar-divider-hover: #535353;
+  /* 外框：Codex 截图在 150% 缩放下为 1 设备像素 #191919；0.667px × 1.5 = 1 设备像素。 */
+  --cx-frame-line: #191919;
+  --cx-frame-line-width: 0.667px;
+  --cx-frame-radius: 16px;
 
   /* ---- 文本 ---- */
-  --cx-text: #ffffff;
+  --cx-text: #fcfcfc;
   --cx-text-2: rgba(255, 255, 255, 0.7);
   --cx-text-3: rgba(255, 255, 255, 0.5);
   --cx-text-4: rgba(255, 255, 255, 0.32);
   --cx-text-inverse: #0d0d0d;
+
+  /* ---- 第 134 轮侧栏/导航语义色（只落在自有侧栏与 rail，不外扩菜单） ---- */
+  --cx-nav-icon: #7f7f7f;
+  --cx-sidebar-text: #d8d8d8;
+  --cx-sidebar-muted: #7f7f7f;
+  --cx-sidebar-selected: #212121;
 
   /* ---- 强调 / 状态 ---- */
   --cx-accent: #0285ff;
@@ -114,7 +124,7 @@
 
   /* ---- 输入区实测色（真实截图取色） ---- */
   --cx-picker-fill: #282828;
-  --cx-composer-fill: rgba(55, 55, 55, 0.94);
+  --cx-composer-fill: #2b2b2b;
 
   /* ---- 应用视口 ----
      真实 DSH 窗口截图 1988×1292（Windows 150% 缩放）换算为 1325×861 CSS。
@@ -162,4 +172,58 @@
   --cx-z-drawer: 40;
   --cx-z-popover: 50;
   --cx-z-overlay: 70;
+}
+
+/* 浅色只覆盖颜色令牌；深色原值、几何与动效保持不变。
+   data-dsc-color-scheme 由宿主主题状态同步，不通过滤镜改变图像内容。 */
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] {
+  --cx-window: #f3f3f3;
+  --cx-sidebar: #fbfbfb;
+  --cx-surface: #fff;
+  --cx-thread: #fff;
+  --cx-nested: #f5f5f5;
+  --cx-elevated: #fff;
+  --cx-summary: #f3f3f3;
+  --cx-hover: rgba(0, 0, 0, 0.045);
+  --cx-active: rgba(0, 0, 0, 0.065);
+  --cx-border-l1: rgba(0, 0, 0, 0.12);
+  --cx-border-l2: rgba(0, 0, 0, 0.055);
+  --cx-border-l3: rgba(0, 0, 0, 0.18);
+  --cx-border-strong: rgba(0, 0, 0, 0.10);
+  --cx-sidebar-divider: #e9e9e9;
+  --cx-sidebar-divider-hover: #c6c6c6;
+  --cx-frame-line: #dedede;
+  --cx-text: #0d0d0d;
+  --cx-text-2: #505050;
+  --cx-text-3: #898989;
+  --cx-text-4: #ababab;
+  --cx-text-inverse: #fff;
+  --cx-nav-icon: #898989;
+  --cx-sidebar-text: #303030;
+  --cx-sidebar-muted: #898989;
+  --cx-sidebar-selected: #eee;
+  --cx-accent: #2b68cb;
+  --cx-accent-soft: #2b68cb;
+  --cx-link: #2867bc;
+  --cx-focus: #2b68cb;
+  --cx-success: #17834a;
+  --cx-danger: #c93634;
+  --cx-warning: #dd5512;
+  --cx-attention: #2b68cb;
+  --cx-diff-add-bg: rgba(64, 201, 119, 0.14);
+  --cx-diff-del-bg: rgba(255, 103, 100, 0.12);
+  --cx-diff-add-mark: #17834a;
+  --cx-diff-del-mark: #c93634;
+  --cx-picker-fill: #f3f3f3;
+  --cx-composer-fill: #fff;
+  --cx-reasoning-blue: #2b68cb;
+  --cx-reasoning-track: #e5e4e4;
+  --cx-reasoning-title: #2b68cb;
+  --cx-reasoning-max-text: #7744c4;
+  --cx-popover-fill: #fff;
+  --cx-shadow-2xl: 0 8px 24px rgb(0 0 0 / 0.10);
+  --cx-composer-shadow:
+    0 0 0 0.5px #ededed,
+    0 3px 7.5px rgb(0 0 0 / 0.025),
+    0 0 20px rgb(0 0 0 / 0.035);
 }

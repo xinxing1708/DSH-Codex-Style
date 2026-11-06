@@ -375,7 +375,7 @@ function makeShellChrome(ctx, sidebar) {
   return function ShellChrome() {
     const marker = useRef(null);
     useLayoutEffect(() => {
-      // 0.2.1-rc.2/rc.3 的窄适配：由公开 overlay/slot 锚点找到它们所属的列，
+      // 由公开 overlay/slot 锚点找到它们所属的列，
       // 外壳仅增加插件标记；宽度通过已有布局动作初始化，不改写 grid 或搬移 DOM。
       const overlay = marker.current?.closest('[data-shell-overlay]');
       const frame = overlay?.parentElement;
@@ -386,10 +386,16 @@ function makeShellChrome(ctx, sidebar) {
         saved.push([element, name, element.getAttribute(name)]);
         element.setAttribute(name, value);
       };
+      // main 插槽外还有 MainPanel；圆角裁剪属于 frame 的直接子列，不能标到内层。
+      const columnFor = slot => {
+        let element = frame.querySelector(`[data-slot="${slot}"]`);
+        while (element && element.parentElement !== frame) element = element.parentElement;
+        return element;
+      };
       mark(document.body, 'data-dsh-codex-chrome', PLUGIN_VERSION);
       mark(frame, 'data-dsc-frame');
-      mark(frame.querySelector('[data-slot="sidebar"]')?.parentElement, 'data-dsc-sidebar-column');
-      mark(frame.querySelector('[data-slot="main"]')?.parentElement, 'data-dsc-center-column');
+      mark(columnFor('sidebar'), 'data-dsc-sidebar-column');
+      mark(columnFor('main'), 'data-dsc-center-column');
       const restoreWidth = initializeSidebarWidth(ctx);
       return () => {
         restoreWidth?.();

@@ -1,7 +1,7 @@
 {
   "id": "codex-style",
   "name": "Codex Style",
-  "tagline": "为 DSH 提供 Codex 风格的深色界面",
+  "tagline": "随 DSH 外观设置切换的 Codex 风格深浅色界面",
   "package": "@xinxing1708/dsh-codex-style",
   "bodyAttr": "data-dsh-codex-style",
   "accent": "#0285ff",

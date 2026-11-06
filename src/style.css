@@ -19,16 +19,26 @@ body[data-dsh-codex-style]:has([data-slot="conversation.composer.bar"] [data-com
 /* 顶部工作区/模式只改触发器轮廓，菜单和宿主动作继续沿用。 */
 body[data-dsh-codex-style] :is([data-slot="conversation.hero.workspace"],[data-slot="conversation.hero.agentPreset"]) button { border-radius: 999px; corner-shape: round; }
 /* 所有提交状态共享占位；保留原提交/中断回调、Tooltip 和快捷键。 */
-body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"]) { width: 28px; height: 28px; }
-body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"]) svg { width: 14px; height: 14px; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"], [data-sending]) { box-sizing: border-box; flex: none; display: grid; place-items: center; width: 28px; height: 28px; min-width: 0; padding: 0; }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"], [data-sending]) svg { width: 14px; height: 14px; }
 /* 中英文发送标签；保留宿主提交与禁用状态。 */
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"]) { --dsw-alias-button-info-fill: #dfdfdf; --dsw-alias-button-info-hover: #dfdfdf; color: #363636; opacity: 1; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"]):disabled { --dsw-alias-button-info-fill: #8b8b8b; }
 /* 停止生成复用宿主按钮与中断动作；普通态、悬停态均为参考图的浅灰圆底和深灰方块。 */
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="停止生成"], [aria-label="Stop generating"]) { --dsw-alias-button-info-fill: #dfdfdf; --dsw-alias-button-info-hover: #dfdfdf; color: #2d2d2d; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="停止生成"], [aria-label="Stop generating"]) svg rect { rx: 1.5px; }
-/* 正文字体颜色：按 Codex 截图采样 #dfdfdf（原 #ffffff 偏亮）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
-body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #dfdfdf; --dsw-alias-link: var(--cx-link); }
+/* 新版宿主在提交窗口把按钮换成 34px 蓝底 + data-sending；这里统一为发送/停止的 28px 灰底，环由伪元素绘制，宿主 disabled/Tooltip/回调保持。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button[data-sending] { position: relative; --dsw-alias-button-info-fill: #dfdfdf; --dsw-alias-button-info-hover: #dfdfdf; background: #dfdfdf; color: #363636; opacity: 1; }
+/* 隐藏宿主 16px 白色环并停掉它自己的 .8s 动画，避免与下方 1.7s 灰环双转。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button[data-sending] > svg { visibility: hidden; animation: none; }
+/* 14px 槽位内 12px 外径、1.5px 线宽；360° 连续深浅灰渐变环，顺时针 1.7s。 */
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button[data-sending]::before { content: ""; position: absolute; inset: 0; margin: auto; width: 12px; height: 12px; border-radius: 50%; pointer-events: none; background: conic-gradient(from 0deg, #b8b8b8 0deg, #363636 270deg 360deg); -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px)); mask: radial-gradient(circle closest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px)); animation: dsc-composer-sending-spin 1.7s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button[data-sending]::before { animation: none; }
+}
+@keyframes dsc-composer-sending-spin { to { transform: rotate(360deg); } }
+/* 正文字体颜色：第 134 轮按新版 Codex 默认主题取 #fcfcfc（原 #dfdfdf 偏暗）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
+body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #fcfcfc; --dsw-alias-link: var(--cx-link); }
 /* 正文列随输入卡宽度对齐，隐藏宿主两侧的宽度拖拽柄及其整条命中区域。 */
 body[data-dsh-codex-style] [data-conversation-content] > [data-width-handle] { display: none; }
 /* 原 sidebar/settings 父级继续挂载以保留原生页面与子槽位所有权；只隐藏其旧外观。 */
@@ -98,7 +108,7 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 /* 同一内容 portal 到 body：常驻时跟随宿主列，退场与浮卡不受 0px 列裁剪。只动画透明度和位移。 */
 .dsc-sidebar-shell { visibility: hidden; position: fixed; z-index: 20; min-width: 0; min-height: 0; display: flex; opacity: 0; transform: translateX(-24px); pointer-events: none; transition: opacity 180ms ease, transform 240ms var(--cx-ease-out), visibility 0s 240ms; -webkit-app-region: no-drag; }
 .dsc-sidebar-shell[data-open=true] { visibility: visible; opacity: 1; transform: translateX(0); pointer-events: auto; transition: opacity 180ms ease, transform 260ms var(--cx-ease-out), visibility 0s; }
-.dsc-sidebar-shell[data-mode=docked] > .dsc-sidebar { border-top-left-radius: 16px; border-right-color: transparent; }
+.dsc-sidebar-shell[data-mode=docked] > .dsc-sidebar { border-top-left-radius: var(--cx-frame-radius); border-bottom-left-radius: var(--cx-frame-radius); border-right-color: transparent; corner-shape: round; }
 /* rc.2/rc.3 原生 DragHandle 的公开 data-side 保留指针捕获与宽度动作。
    热区仍为原生 8px；抬到常驻侧栏 portal 之上，避免左半边被遮住。
    只绘制伪元素，不增加占位；悬停/拖动用 transform 加粗，移出恢复。 */
@@ -115,13 +125,15 @@ body[data-dsh-codex-chrome] [data-dsc-frame] > [data-side="sidebar"]:is(:hover,[
 .dsc-sidebar-shell[data-mode=floating][data-open=true] > .dsc-sidebar { animation: dsc-sidebar-content-in 150ms var(--cx-ease-out) both; }
 @keyframes dsc-sidebar-content-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
 .dsc-independent-rail { visibility: visible; position: fixed; top: var(--dsh-frame-chrome-top, 0px); bottom: 0; left: 0; width: var(--cx-rail-w); z-index: 25; min-height: 0; padding-bottom: 56px; -webkit-app-region: no-drag; }
+/* 外框左缘由常驻 frame 的单条描边统一绘制；原生 1px 边框保留宽度但不再着色，避免出现第二条线。 */
+body[data-dsh-codex-chrome] .dsc-independent-rail { border-right-color: transparent; background-clip: padding-box; }
 .dsc-extension-navigation-anchor { flex: 1; align-self: stretch; min-height: 0; }
 /* 原生 panellist 继续负责图标注入、选中态、点击和卸载；只重排其可见区域。
    位置来自自有轨道的剩余空间，超高时独立滚动，不覆盖底部齿轮。
    Windows 原样式在 collapsed 时 display:none，并在开合时淡出，故明确覆盖这两项。 */
 body[data-dsh-codex-chrome] [data-dsc-extension-nav] { visibility: visible; display: flex !important; position: fixed; left: var(--dsc-extension-left); top: var(--dsc-extension-top); width: var(--dsc-extension-width); max-height: var(--dsc-extension-height); min-height: 0; z-index: 26; flex-direction: column; align-items: center; gap: 4px !important; padding: 0; margin: 0 !important; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #ffffff26 transparent; opacity: 1 !important; transform: none !important; animation: none !important; transition: none !important; -webkit-app-region: no-drag; }
 body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-hidden] { display: none !important; }
-body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-row] { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; min-height: 36px; padding: 0; margin: 0; border: 0; border-radius: var(--cx-radius-md); background: transparent; color: var(--cx-text-3); cursor: pointer; }
+body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-row] { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; min-height: 36px; padding: 0; margin: 0; border: 0; border-radius: var(--cx-radius-md); background: transparent; color: var(--cx-nav-icon); cursor: pointer; }
 body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-row]:hover { color: var(--cx-text); background: var(--cx-hover); }
 body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-row][aria-current=page] { color: var(--cx-text); background: var(--cx-active); }
 body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-row]:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: -2px; }
@@ -129,7 +141,7 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-label] 
 body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] svg { display: block; max-width: 20px; max-height: 20px; }
 .dsc-navigation-error { position: fixed; left: calc(var(--cx-rail-w) + 8px); top: var(--dsh-frame-overlay-top, 20px); z-index: 50; max-width: 320px; }
-.dsc-rail .dsc-rail__item { color: var(--cx-text-3); background: transparent; flex: none; padding: 0; }
+.dsc-rail .dsc-rail__item { color: var(--cx-nav-icon); background: transparent; flex: none; padding: 0; }
 .dsc-rail .dsc-rail__item:hover { color: var(--cx-text); background: var(--cx-hover); }
 .dsc-rail .dsc-rail__item--active { color: var(--cx-text); background: var(--cx-active); }
 .dsc-rail__item[data-preview-enabled=true]::after { display: none; }
@@ -143,22 +155,22 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-sidebar .dsc-sidebar__header-actions { margin-left: auto; }
 /* 用户截图灰度：品牌字标与徽章浅底压低亮度，鲸鱼标识仅以透明度匹配；不改全局正文。 */
 .dsc-sidebar .dsc-brand__mark { opacity: .72; }
-.dsc-sidebar .dsc-brand__wordmark { color: #c2c2c2; }
+.dsc-sidebar .dsc-brand__wordmark { color: var(--cx-sidebar-text); }
 .dsc-sidebar .dsc-brand__badge { background: #b8b8b8; }
 /* Codex：新聊天默认无底色、不显示快捷键，仅悬停时出现灰色背景。 */
-.dsc-sidebar .dsc-new-chat { flex: none; justify-content: flex-start; width: 100%; font-size: 13px; font-weight: var(--cx-weight-medium); background: transparent; color: #c2c2c2; margin-bottom: 8px; }
+.dsc-sidebar .dsc-new-chat { flex: none; justify-content: flex-start; width: 100%; font-size: 13px; font-weight: var(--cx-weight-medium); background: transparent; color: var(--cx-sidebar-text); margin-bottom: 8px; }
 .dsc-sidebar .dsc-new-chat:hover { background: rgba(255,255,255,.08); }
 .dsc-sidebar .dsc-workspaces { flex: 1; min-height: 0; height: auto; }
 /* 同时限定两个自有类，避免后面的通用 .dsc-search 把它重新变成伸展项。 */
 .dsc-search.dsc-sidebar-search { flex: none; height: 32px; margin: 2px 0 8px; min-height: 32px; }
 .dsc-sidebar-search button { padding: 0 3px; }
 /* 搜索图标与清除键：恢复被 `.dsc-ui button {color: inherit}` 覆盖的自有灰阶。 */
-.dsc-sidebar .dsc-sidebar-search button { color: #8f8f8f; }
-.dsc-sidebar .dsc-sidebar-search button:hover, .dsc-sidebar .dsc-sidebar-search button:focus-visible { color: #b4b4b4; }
+.dsc-sidebar .dsc-sidebar-search button { color: var(--cx-sidebar-muted); }
+.dsc-sidebar .dsc-sidebar-search button:hover, .dsc-sidebar .dsc-sidebar-search button:focus-visible { color: var(--cx-sidebar-text); }
 .dsc-sidebar .dsc-tree-tools { justify-content: space-between; padding: 12px 0 4px 8px; }
-.dsc-tree-tools-label { font-size: 12px; color: var(--cx-text-3); }
+.dsc-tree-tools-label { font-size: 12px; color: var(--cx-sidebar-muted); }
 .dsc-projects-toggle { display: flex; align-items: center; gap: 4px; height: 28px; padding: 0; }
-.dsc-projects-toggle svg { color: var(--cx-text-3); transform: rotate(-90deg); transition: transform 180ms ease; }
+.dsc-projects-toggle svg { color: var(--cx-sidebar-muted); transform: rotate(-90deg); transition: transform 180ms ease; }
 .dsc-projects-toggle[aria-expanded=true] svg { transform: rotate(0); }
 .dsc-sidebar .dsc-tree-scroll { padding: 0; scrollbar-color: #ffffff26 transparent; scrollbar-width: thin; }
 .dsc-section-page-title { font-size: 17px; font-weight: 600; }
@@ -171,8 +183,8 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-window-sidebar-toggle { visibility: visible; position: fixed; top: 6px; left: 12px; z-index: 35; -webkit-app-region: no-drag; }
 .dsc-collapsed-new-chat { display: none; align-items: center; margin-right: 8px; -webkit-app-region: no-drag; }
 body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collapsed-new-chat { display: flex; }
-.dsc-collapsed-new-chat .dsc-icon-button { width: 28px; height: 28px; color: #8f8f8f; }
-.dsc-collapsed-new-chat .dsc-icon-button:hover, .dsc-collapsed-new-chat .dsc-icon-button:focus-visible { color: #b4b4b4; }
+.dsc-collapsed-new-chat .dsc-icon-button { width: 28px; height: 28px; color: var(--cx-sidebar-muted); }
+.dsc-collapsed-new-chat .dsc-icon-button:hover, .dsc-collapsed-new-chat .dsc-icon-button:focus-visible { color: var(--cx-sidebar-text); }
 /* 会话标题左侧常驻 leading：工作区标识与“仅收起显示”的新建按钮分离；无工作区时不留空位。 */
 .dsc-header-leading { display: flex; align-items: center; gap: 4px; min-width: 0; -webkit-app-region: no-drag; }
 .dsc-header-leading > .dsc-collapsed-new-chat { order: -1; }
@@ -181,8 +193,8 @@ body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collap
 /* 深灰圆角提示 portal 到 body，避免 header 裁剪；同一元素不设原生 title。 */
 .dsc-ui.dsc-workspace-tooltip { position: fixed; z-index: 10002; transform: translate(-50%, -100%); max-width: calc(100vw - 16px); overflow: hidden; padding: 5px 11px; border: 1px solid #ffffff08; border-radius: 12px; background: #2d2d2d; color: #dfdfdf; font-size: 13px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 2px 5px #0002; pointer-events: none; -webkit-app-region: no-drag; }
 .dsc-gear-launcher { visibility: visible; position: fixed; left: 8px; bottom: 12px; z-index: 35; }
-.dsc-gear-launcher .dsc-gear-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: var(--cx-radius-md); color: var(--cx-text-3); }
-.dsc-gear-launcher .dsc-gear-button:hover, .dsc-gear-launcher .dsc-gear-button[aria-expanded=true] { background: var(--cx-hover); color: var(--cx-text); }
+.dsc-gear-launcher .dsc-gear-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: var(--cx-radius-md); color: var(--cx-sidebar-muted); }
+.dsc-gear-launcher .dsc-gear-button:hover, .dsc-gear-launcher .dsc-gear-button[aria-expanded=true] { background: var(--cx-hover); color: var(--cx-sidebar-text); }
 /* 自绘悬停提示，避免系统 title 突然出现；菜单打开时不叠加提示。 */
 .dsc-gear-launcher .dsc-gear-button { position: relative; isolation: isolate; transition: color 150ms ease; }
 .dsc-gear-launcher .dsc-gear-button:hover, .dsc-gear-launcher .dsc-gear-button[aria-expanded=true] { background: none; }
@@ -262,22 +274,23 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-settings-trigger { display: inline-flex; gap: 8px; align-items: center; }
 .dsc-workspaces { height: 100%; min-height: 0; width: 100%; display: flex; flex-direction: column; background: var(--cx-sidebar); }
 .dsc-tree-tools { display: flex; gap: 4px; align-items: center; padding: 6px 8px 12px; }
-.dsc-search { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; border-radius: 8px; background: #ffffff08; padding: 3px 8px; color: var(--cx-text-3); }
+.dsc-search { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; border-radius: 8px; background: #ffffff08; padding: 3px 8px; color: var(--cx-sidebar-muted); }
 .dsc-search input { min-width: 0; width: 100%; border: 0; outline: none; background: none; font-size: 12px; }
 .dsc-search:focus-within { box-shadow: 0 0 0 1px var(--cx-border-l3); }
-.dsc-search input::placeholder { color: var(--cx-text-3); }
+.dsc-search input::placeholder { color: var(--cx-sidebar-muted); }
 .dsc-icon-button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: var(--cx-text-2); }
 .dsc-icon-button:hover { background: var(--cx-active); }
 /* 用户截图灰度：自有侧栏图标常态 #8f8f8f、悬停/键盘聚焦 #b4b4b4；禁用沿用父级透明度。 */
-.dsc-sidebar .dsc-icon-button { color: #8f8f8f; }
-.dsc-sidebar .dsc-icon-button:hover, .dsc-sidebar .dsc-icon-button:focus-visible { color: #b4b4b4; }
-.dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button { color: #8f8f8f; }
-.dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button:hover, .dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button:focus-visible { color: #b4b4b4; }
+.dsc-sidebar .dsc-icon-button { color: var(--cx-sidebar-muted); }
+.dsc-sidebar .dsc-icon-button:hover, .dsc-sidebar .dsc-icon-button:focus-visible { color: var(--cx-sidebar-text); }
+.dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button { color: var(--cx-sidebar-muted); }
+.dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button:hover, .dsc-ui.dsc-window-sidebar-toggle .dsc-icon-button:focus-visible { color: var(--cx-sidebar-text); }
 .dsc-tree-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 8px; }
-.dsc-section-title { padding: 12px 8px 6px; font-size: 12px; font-weight: 500; color: var(--cx-text-3); }
+.dsc-section-title { padding: 12px 8px 6px; font-size: 12px; font-weight: 500; color: var(--cx-sidebar-muted); }
 .dsc-thread, .dsc-project { display: flex; align-items: center; height: 30px; border-radius: 7px; position: relative; }
 .dsc-thread:hover, .dsc-project:hover, .dsc-thread.is-active { background: #ffffff0d; }
-.dsc-ui .dsc-thread-main, .dsc-ui .dsc-project-main { display: flex; flex: 1; align-items: center; gap: 7px; min-width: 0; height: 100%; padding: 0 8px; text-align: left; color: #c2c2c2; }
+.dsc-thread.is-active { background: var(--cx-sidebar-selected); }
+.dsc-ui .dsc-thread-main, .dsc-ui .dsc-project-main { display: flex; flex: 1; align-items: center; gap: 7px; min-width: 0; height: 100%; padding: 0 8px; text-align: left; color: var(--cx-sidebar-text); }
 .dsc-thread-title, .dsc-project-main > span { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dsc-ui .dsc-thread-main { padding-right: 62px; }
 .dsc-thread-title-text { display: inline-block; width: max-content; max-width: none; vertical-align: top; }
@@ -285,9 +298,9 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-thread:hover .dsc-thread-title[data-overflow=true] .dsc-thread-title-text,
 .dsc-thread-main:focus-visible .dsc-thread-title[data-overflow=true] .dsc-thread-title-text { animation: dsc-title-scroll var(--dsc-title-duration) linear 250ms infinite alternate; }
 @keyframes dsc-title-scroll { from { transform: translateX(0); } to { transform: translateX(var(--dsc-title-shift)); } }
-.dsc-thread-time { position: absolute; right: 9px; font-size: 10px; color: var(--cx-text-4); transition: opacity 120ms ease; }
+.dsc-thread-time { position: absolute; right: 9px; font-size: 10px; color: var(--cx-sidebar-muted); transition: opacity 120ms ease; }
 .dsc-thread-completion { position: absolute; right: 9px; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: #4c9bfe; transform: translateY(-50%); pointer-events: none; }
-.dsc-thread-running { position: absolute; right: 9px; top: 50%; display: grid; place-items: center; width: 12px; height: 12px; color: #969696; transform: translateY(-50%); pointer-events: none; }
+.dsc-thread-running { position: absolute; right: 9px; top: 50%; display: grid; place-items: center; width: 12px; height: 12px; color: var(--cx-sidebar-muted); transform: translateY(-50%); pointer-events: none; }
 .dsc-running-spinner { animation: dsc-session-spin 1.9s linear infinite; }
 .dsc-thread:hover .dsc-thread-time, .dsc-thread:has(:focus-visible) .dsc-thread-time { display: none; }
 .dsc-thread:hover .dsc-thread-completion, .dsc-thread:has(:focus-visible) .dsc-thread-completion { opacity: 0; }
@@ -295,16 +308,17 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-thread .dsc-state[data-state=idle] { display: none; }
 .dsc-thread-actions { position: absolute; top: 0; right: 4px; height: 100%; display: flex; align-items: center; gap: 1px; opacity: 0; pointer-events: none; transition: opacity 150ms ease; }
 .dsc-thread:hover .dsc-thread-actions, .dsc-thread:has(:focus-visible) .dsc-thread-actions { opacity: 1; pointer-events: auto; }
-.dsc-ui .dsc-thread-action { display: grid; place-items: center; flex: none; width: 25px; height: 26px; padding: 0; border-radius: 5px; color: #969696; transition: color 120ms ease; }
-.dsc-ui .dsc-thread-action:hover, .dsc-ui .dsc-thread-action:focus-visible { color: #d2d2d2; }
+.dsc-ui .dsc-thread-action { display: grid; place-items: center; flex: none; width: 25px; height: 26px; padding: 0; border-radius: 5px; color: var(--cx-sidebar-muted); transition: color 120ms ease; }
+.dsc-ui .dsc-thread-action:hover, .dsc-ui .dsc-thread-action:focus-visible { color: var(--cx-sidebar-text); }
 .dsc-thread-action svg { width: 14px; height: 14px; }
 .dsc-row-tooltip { position: fixed; z-index: 10001; pointer-events: none; padding: 5px 11px; border: 1px solid #ffffff08; border-radius: 13px; color: #dfdfdf; background: #2d2d2d; font-size: 13px; line-height: 18px; white-space: nowrap; box-shadow: 0 2px 5px #0002; opacity: 0; visibility: hidden; transform: translateY(3px); transition: opacity 80ms ease, transform 80ms ease, visibility 0s 80ms; }
 .dsc-row-tooltip[data-open=true] { opacity: 1; visibility: visible; transform: translateY(0); transition: opacity 120ms ease 350ms, transform 120ms ease 350ms, visibility 0s 350ms; }
-.dsc-state { color: var(--cx-text-3); flex: none; display: flex; align-items: center; }
+.dsc-state { color: var(--cx-sidebar-muted); flex: none; display: flex; align-items: center; }
 .dsc-state[data-state=pending] { color: var(--cx-warning); }
-.dsc-row-action { display: flex; opacity: 0; pointer-events: none; transition: opacity 150ms ease; width: 25px; height: 25px; align-items: center; justify-content: center; border-radius: 5px; padding: 0; margin-right: 3px; color: var(--cx-text-3); }
+.dsc-row-action { display: flex; opacity: 0; pointer-events: none; transition: opacity 150ms ease; width: 25px; height: 25px; align-items: center; justify-content: center; border-radius: 5px; padding: 0; margin-right: 3px; color: var(--cx-sidebar-muted); }
+.dsc-ui .dsc-row-action { color: var(--cx-sidebar-muted); }
 .dsc-thread:hover .dsc-row-action, .dsc-project:hover .dsc-row-action, .dsc-thread:has(:focus-visible) .dsc-row-action, .dsc-project:has(:focus-visible) .dsc-row-action { opacity: 1; pointer-events: auto; }
-.dsc-row-action:hover { color: #fff; background: var(--cx-active); }
+.dsc-row-action:hover { color: var(--cx-sidebar-text); background: var(--cx-active); }
 /* 本轮按用户录像为项目内容局部开放布局动画；外壳与其他面板的尺寸规则保持原约定。 */
 .dsc-project-fold { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 180ms cubic-bezier(.2,.8,.2,1), opacity 150ms ease; }
 .dsc-project-fold[data-open=true] { grid-template-rows: 1fr; opacity: 1; }
@@ -314,11 +328,11 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-project-fold[data-open=true] > .dsc-project-clip > :is(.dsc-project-children, .dsc-project-list) { transform: translateY(0); }
 .dsc-project-children .dsc-state { display: none; }
 /* 项目内“显示更多/收起”：真实按钮，缩进随项目子列表，颜色与行文字一致；不引入额外布局动画。 */
-.dsc-ui .dsc-project-more { display: flex; align-items: center; width: 100%; height: 26px; padding: 0 8px; border-radius: 7px; text-align: left; font-size: 12px; color: var(--cx-text-3); }
-.dsc-ui .dsc-project-more:hover, .dsc-ui .dsc-project-more:focus-visible { color: #c2c2c2; background: #ffffff0d; }
+.dsc-ui .dsc-project-more { display: flex; align-items: center; width: 100%; height: 26px; padding: 0 8px; border-radius: 7px; text-align: left; font-size: 12px; color: var(--cx-sidebar-muted); }
+.dsc-ui .dsc-project-more:hover, .dsc-ui .dsc-project-more:focus-visible { color: var(--cx-sidebar-text); background: #ffffff0d; }
 .dsc-ui .dsc-project-more:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: -2px; }
-.dsc-empty { display: block; color: var(--cx-text-3); padding: 10px 12px; font-size: 12px; }
-.dsc-archive-toggle { padding: 8px 12px; display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--cx-text-3); }
+.dsc-empty { display: block; color: var(--cx-sidebar-muted); padding: 10px 12px; font-size: 12px; }
+.dsc-archive-toggle { padding: 8px 12px; display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--cx-sidebar-muted); }
 .dsc-archive-toggle input { accent-color: var(--cx-accent); }
 .dsc-thread.is-archived { opacity: .55; }
 .dsc-error { padding: 4px 8px; color: var(--cx-danger); font: 12px/17px var(--cx-font-sans); white-space: normal; max-width: 310px; }
@@ -514,6 +528,107 @@ body[data-dsh-codex-style] [data-plugin-detail="@xinxing1708/dsh-codex-style"] [
 .dsc-plugin-support a { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; color: #9bc8f8; text-decoration: none; overflow-wrap: anywhere; border-radius: 4px; }
 .dsc-plugin-support a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .dsc-plugin-support a:focus-visible { outline: 2px solid #9bc8f8; outline-offset: 4px; }
-html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-sidebar-column] { border-top-left-radius: var(--dsh-windows-content-radius, 16px); }
-html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-center-column] { border-radius: 0; }
-html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] [data-dsc-center-column] { border-top-left-radius: var(--dsh-windows-content-radius, 16px); }
+/* BOUNDARY-20261106：导航右侧的单一外框。
+   1) 常驻 frame 上一个不占位、不可拦截指针的伪元素描边；顶部从 40px 标题栏下沿开始，
+      经侧栏左上真圆弧连续走到右侧与下沿，外侧底色仍是 frame 的 #0f0f0f。
+   2) 各列只做内容裁剪：侧栏列左上/左下、正文列右上/右下（右栏收起时）；
+      侧栏收起时正文列接管左上/左下。接缝处不重复圆角。
+   3) 宿主全局 corner-shape:superellipse(1.5) 会削弱圆弧，这里显式恢复 round。
+   4) 0.667px × 150% = 1 设备像素；不改变列宽、顶部高度或控件坐标。 */
+html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-frame]::after {
+  content: '';
+  position: absolute;
+  inset: var(--dsh-windows-titlebar-height, 40px) 0 0;
+  z-index: 24;
+  border-radius: var(--cx-frame-radius);
+  box-shadow: inset 0 0 0 var(--cx-frame-line-width) var(--cx-frame-line);
+  corner-shape: round;
+  pointer-events: none;
+}
+html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-sidebar-column] {
+  border-top-left-radius: var(--cx-frame-radius);
+  border-bottom-left-radius: var(--cx-frame-radius);
+  corner-shape: round;
+}
+html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-center-column] {
+  border-radius: 0;
+  corner-shape: round;
+}
+html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-frame][data-rightbar-collapsed] [data-dsc-center-column] {
+  border-top-right-radius: var(--cx-frame-radius);
+  border-bottom-right-radius: var(--cx-frame-radius);
+}
+html[data-windows-titlebar] body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] [data-dsc-center-column] {
+  border-top-left-radius: var(--cx-frame-radius);
+  border-bottom-left-radius: var(--cx-frame-radius);
+}
+
+/* 浅色呈现只覆盖颜色；深色规则、几何与动作保持不变。 */
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] {
+  color-scheme: light;
+  --shiki-token-constant: #155da9;
+  --shiki-token-string: #197342;
+  --shiki-token-comment: #757575;
+  --shiki-token-keyword: #a33669;
+  --shiki-token-function: #7651b4;
+}
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] [data-conversation-content] { --dsw-alias-label-primary: var(--cx-text); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] [data-slot="conversation.composer.bar"] [data-composer-card] button[aria-haspopup="listbox"]:hover:not(:disabled) { background: #eee; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"], [aria-label="停止生成"], [aria-label="Stop generating"], [data-sending]) { --dsw-alias-button-info-fill: #0d0d0d; --dsw-alias-button-info-hover: #252525; color: #fff; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] [data-slot="conversation.composer.bar"] [data-composer-card] button:is([aria-label="发送消息"], [aria-label="排队发送"], [aria-label="插话发送"], [aria-label="Send message"], [aria-label="Queue message"], [aria-label="Steer message"]):disabled { --dsw-alias-button-info-fill: #b6b6b6; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] [data-slot="conversation.composer.bar"] [data-composer-card] button[data-sending] { background: #0d0d0d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] [data-slot="conversation.composer.bar"] [data-composer-card] button[data-sending]::before { background: conic-gradient(from 0deg, #fff 0deg, #777 270deg 360deg); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-sidebar-shell[data-mode=floating] > .dsc-sidebar { --cx-sidebar: #fff; box-shadow: 0 0 0 3px #f3f3f380, 0 8px 28px #0002; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is([data-dsc-extension-nav], .dsc-sidebar .dsc-tree-scroll, [data-dsc-app-footer-host]) { scrollbar-color: #00000026 transparent; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-sidebar .dsc-new-chat:hover, .dsc-thread:hover, .dsc-project:hover, .dsc-ui .dsc-project-more:hover, .dsc-ui .dsc-project-more:focus-visible) { background: #0000000d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-thread.is-active { background: var(--cx-sidebar-selected); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-sidebar .dsc-brand__badge { background: #303030; color: #fff; }
+/* 只调整单色品牌字形，不影响附件和正文图片。 */
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-brand__mark { filter: brightness(0); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-more-page { background: #fff; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-workspace-mark { color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-workspace-mark:focus-visible { outline-color: #2b68cb; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-empty-hero svg { color: #bababa; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-search { background: #00000005; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-brand small { color: #fff; background: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-menu { box-shadow: 0 8px 24px #0000001a; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-option:hover, .dsc-option:focus-visible) { background: #00000009; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-pill:hover, .dsc-pill[aria-expanded=true]) { background: #0000000a; color: #0d0d0d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-pill[data-warning=true] { color: var(--cx-warning); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-model-trigger .dsc-model-name { color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-model-trigger .dsc-effort-name, .dsc-model-trigger svg) { color: #898989; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-back:hover, .dsc-slider-labels button:hover) { color: #0d0d0d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-reasoning-model { color: #777 !important; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-reasoning-model:hover { background: #eee; color: #303030 !important; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-tick::after { background: #adadad; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-tick.is-on::after { background: #ffffff4d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-slider:not([aria-disabled=true]) .dsc-tick:hover::after { background: #7f7f7f; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-slider:not([aria-disabled=true]) .dsc-tick.is-on:hover::after { background: #ffffff73; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-thumb { box-shadow: 0 0 0 2px var(--cx-reasoning-blue), 0 1px 4px #0002; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-thumb:hover { box-shadow: 0 0 0 2px var(--cx-reasoning-blue), 0 1px 6px #0003; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-modal__save, .dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__save) { background: #0d0d0d; color: #fff; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-modal__save:hover:not(:disabled), .dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__save:hover:not(:disabled)) { background: #303030; color: #fff; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-modal__remove, .dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__remove) { background: #c9363412; color: #c93634; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-modal__remove:hover:not(:disabled), .dsc-modal__panel[aria-labelledby="dsc-edit-workspace-title"] .dsc-modal__remove:hover:not(:disabled)) { background: #c9363422; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui.dsc-permission-dialog { background: #fff; color: #0d0d0d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-permission-dialog__badge { color: #777; border-color: #00000014; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-permission-dialog__description, .dsc-permission-dialog__capabilities span, .dsc-permission-dialog__warning) { color: #777; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-permission-dialog__capabilities { background: #f5f5f5; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-permission-dialog__capabilities li + li { border-color: #00000008; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui .dsc-permission-dialog__more { color: var(--cx-link); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-permission-dialog__help { background: #f5f5f5; color: #777; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui .dsc-permission-dialog__cancel { background: #eee; color: #303030; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui .dsc-permission-dialog__cancel:hover:not(:disabled) { background: #e5e5e5; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui .dsc-permission-dialog__confirm { background: #c9363412; color: #c93634; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-ui .dsc-permission-dialog__confirm:hover:not(:disabled) { background: #c9363422; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-plugin-support { color: #898989; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-plugin-support a { color: var(--cx-link); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-plugin-support a:focus-visible { outline-color: var(--cx-focus); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-update-progress { background: #0000001f; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-update-progress-fill, .dsc-thread-completion) { background: var(--cx-accent); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-update-message[data-state=update] { color: var(--cx-accent); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-update-message[data-state=error] { color: var(--cx-danger); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is([role="tooltip"], .dsc-row-tooltip, .dsc-ui.dsc-workspace-tooltip, .dsc-desktop-update-tip),
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-gear-button::after { background: #0d0d0d; color: #fff; border-color: #ffffff14; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-desktop-update-tip strong { color: #fff; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"]:has([data-slot="conversation.composer.bar"] [data-composer-card] button[aria-haspopup="listbox"]:is(:hover,:focus-visible):not(:disabled)) [role="tooltip"] { background: #0d0d0d; color: #fff; }

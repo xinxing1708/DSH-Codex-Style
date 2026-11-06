@@ -1,16 +1,29 @@
 /* 本文件只在正文子组件实际启用时挂载；不覆盖宿主 Markdown 与工具内容。 */
+/* 第 134 轮：颜色默认值放在正文开关自身作用域，不依赖主外壳开关。 */
+body[data-dsc-codex-body] {
+  --dsc-body-muted: #9e9e9e;
+  --dsc-body-running: #6b6b6b;
+  --dsc-body-shimmer: #fcfcfc;
+  --dsc-body-turn: #7f7f7f;
+}
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-body] {
+  --dsc-body-muted: #898989;
+  --dsc-body-running: #ababab;
+  --dsc-body-shimmer: #505050;
+  --dsc-body-turn: #898989;
+}
+body[data-dsh-codex-style][data-dsc-color-scheme="light"][data-dsc-codex-body] .dsc-body-turn__divider { background: #ededed; }
 body[data-dsc-codex-body] [data-chat-flow] {
-  --dsc-body-muted: #969696;
   --dsc-body-images: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2016%2016'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'1.1'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'm6.2%204.6.4-2A1.5%201.5%200%200%201%208.4%201.5l4.9%201a1.5%201.5%200%200%201%201.2%201.8l-1%204.9a1.5%201.5%200%200%201-1.8%201.2l-.7-.1'%2F%3E%3Cg%20transform%3D'rotate(-12%206.1%209.7)'%3E%3Crect%20x%3D'1.7'%20y%3D'5.3'%20width%3D'8.9'%20height%3D'8.7'%20rx%3D'1.7'%2F%3E%3Cpath%20d%3D'm2%2011.9%202.6-2.4%202.2%201.7%201.5-1.4%202.1%202.1'%2F%3E%3Ccircle%20cx%3D'4.3'%20cy%3D'7.8'%20r%3D'.65'%20fill%3D'black'%20stroke%3D'none'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   --dsc-body-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m2 14 1.5-5.1L10.9 1.5a1.6 1.6 0 0 1 2.3 0l1.1 1.1a1.6 1.6 0 0 1 0 2.3L6.9 12.3 2 14Zm7.8-11.4 3.4 3.4M3.5 8.9l3.4 3.4' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --dsc-body-terminal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='2.2' fill='none' stroke='black' stroke-width='1.15'/%3E%3Cpath d='m4.4 5.2 2.2 2.3-2.2 2.3m4.1.2h2.8' fill='none' stroke='black' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 /* 下方正文已由宿主保留 16px 间隔，回合头不再额外叠加下边距。 */
-body[data-dsc-codex-body] .dsc-body-turn { margin: 12px 0 0; color: #969696; font-size: 13px; line-height: 22px; }
+body[data-dsc-codex-body] .dsc-body-turn { margin: 12px 0 0; color: var(--dsc-body-turn); font-size: 13px; line-height: 22px; }
 body[data-dsc-codex-body] .dsc-body-turn__status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; overflow: hidden; white-space: nowrap; clip-path: inset(50%); }
 body[data-dsc-codex-body] .dsc-body-turn__label { display: inline-flex; align-items: center; gap: 7px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
 body[data-dsc-codex-body] .dsc-body-turn__label:disabled { opacity: 1; cursor: default; }
-body[data-dsc-codex-body] .dsc-body-turn__label:enabled:hover { color: #c8c8c8; }
+body[data-dsc-codex-body] .dsc-body-turn__label:enabled:hover { color: var(--dsc-body-shimmer); }
 body[data-dsc-codex-body] .dsc-body-turn__label:focus-visible { outline: 1px solid #aaa; outline-offset: 4px; border-radius: 3px; }
 body[data-dsc-codex-body] .dsc-body-turn__label svg { opacity: 0; transition: transform 160ms ease, opacity 120ms ease; }
 body[data-dsc-codex-body] .dsc-body-turn__label:is(:hover, :focus-visible) svg { opacity: 1; }
@@ -24,10 +37,19 @@ body[data-dsc-codex-body] [data-process-activity="thinking"] [data-step-process-
 body[data-dsc-codex-body] [data-chat-flow] [data-variant="think"] [data-disclosure-row] > :first-child { display: none; }
 body[data-dsc-codex-body] [data-chat-flow] [data-variant="think"] [data-disclosure-row] > span:last-child > span:first-child > span:not(:first-child) { display: none; }
 body[data-dsc-codex-body] [data-process-activity="thinking"]:has(> [data-shimmer]) > [data-shimmer] { display: none; }
-body[data-dsc-codex-body] [data-process-activity="thinking"]:has(> [data-shimmer])::after { content: '正在思考'; color: transparent; background: linear-gradient(105deg, #969696 42%, #e1e1e1 50%, #969696 58%); background-clip: text; background-size: 250% 100%; animation: dsc-body-thinking 2s linear infinite; }
+body[data-dsc-codex-body] [data-process-activity="thinking"]:has(> [data-shimmer])::after { content: '正在思考'; color: transparent; background: linear-gradient(105deg, var(--dsc-body-running) 42%, var(--dsc-body-shimmer) 50%, var(--dsc-body-running) 58%); background-clip: text; background-size: 250% 100%; animation: dsc-body-thinking 2s linear infinite; }
 /* 灰色正文操作行；失败/停止颜色及详情内容沿用宿主。 */
 body[data-dsc-codex-body] [data-process-activity],
 body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="bash"], [data-tool]) { color: var(--dsc-body-muted); }
+/* 已完成“已使用…”等 others 行：宿主 GenericCommandCard 完成态为 data-state="ok"。 */
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="bash"], [data-variant="edit"], [data-variant="write"], [data-variant="others"])[data-state="ok"] { color: var(--dsc-body-muted); }
+/* 运行中：宿主工具用已有 data-state="running"；活动行退回检测内部 data-shimmer，均为宿主既有属性。 */
+body[data-dsc-codex-body] [data-process-activity]:has([data-shimmer]),
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant], [data-tool])[data-state="running"],
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant], [data-tool]):has([data-shimmer]) { color: var(--dsc-body-running); }
+/* 已完成行悬停/键盘焦点文字转亮；运行行不参与，保持运行灰。 */
+body[data-dsc-codex-body] [data-process-activity]:not([data-state="running"]):not(:has([data-shimmer])):is(:hover, :focus-visible),
+body[data-dsc-codex-body] [data-chat-flow] :is([data-variant], [data-tool]):not([data-state="running"]):not(:has([data-shimmer])):is(:hover, :focus-visible) { color: var(--dsc-body-shimmer); }
 body[data-dsc-codex-body] [data-process-activity] { width: fit-content; max-width: 100%; gap: 7px; text-align: left; }
 body[data-dsc-codex-body] [data-process-activity] > span:first-child { display: contents; }
 body[data-dsc-codex-body] [data-step-process-icon],
@@ -55,7 +77,7 @@ body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-vari
 body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child > * { visibility: hidden; }
 body[data-dsc-codex-body] :is([data-process-activity="commands"], [data-process-activity="edit"], [data-process-activity="write"], [data-process-activity="tools"], [data-process-activity="readImage"]) [data-step-process-icon]::before,
 body[data-dsc-codex-body] [data-chat-flow] :is([data-variant="edit"], [data-variant="write"], [data-variant="bash"], [data-variant="others"], [data-tool="read_image"], [data-tool="ops_read_image"])[data-tool] [data-disclosure-row] > :first-child::before,
-body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child::before { content: ''; position: absolute; inset: 0; background: #969696; mask: var(--dsc-body-icon) center / 16px 16px no-repeat; }
+body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] > span:first-child::before { content: ''; position: absolute; inset: 0; background: currentColor; mask: var(--dsc-body-icon) center / 16px 16px no-repeat; }
 /* 原生前导箭头移至右侧；只在悬停或键盘焦点时显示，点击展开后移出也隐藏。 */
 body[data-dsc-codex-body] [data-chat-flow] [data-tool] [data-disclosure-row] > :first-child > svg { display: none; }
 body[data-dsc-codex-body] [data-chat-flow] [data-tool] [data-disclosure-row] > :first-child > span:first-child { opacity: 1 !important; transform: none !important; }
@@ -69,7 +91,7 @@ body[data-dsc-codex-body] [data-chat-flow] :is([data-tool], [data-variant="think
 body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"][data-expandable][aria-expanded="true"]::after { transform: rotate(225deg); }
 /* 沿用原生 TextShimmer 的无障碍隐藏副本，只重设灰色高光的扫过方式。 */
 body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] { position: absolute; inset: 0; overflow: hidden; pointer-events: none; mask: none; }
-body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] > span { position: absolute; inset: 0; width: auto; color: #e1e1e1; transform: none; mask-image: linear-gradient(105deg, transparent 42%, #000 50%, transparent 58%); mask-size: 250% 100%; animation: dsc-body-light 2s linear infinite; }
+body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] > span { position: absolute; inset: 0; width: auto; color: var(--dsc-body-shimmer); transform: none; mask-image: linear-gradient(105deg, transparent 42%, #000 50%, transparent 58%); mask-size: 250% 100%; animation: dsc-body-light 2s linear infinite; }
 body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] > span > span { transform: none; animation: none; }
 body[data-dsc-codex-body] [data-process-activity][aria-expanded="true"] > [data-shimmer] > [aria-hidden="true"] { display: none; }
 @keyframes dsc-body-light { from { mask-position: 130% 0; } to { mask-position: -30% 0; } }
@@ -103,7 +125,7 @@ body[data-dsc-codex-body] .dsc-body-edge {
 }
 @media (prefers-reduced-motion: reduce) {
   body[data-dsc-codex-body] [data-chat-flow] [data-shimmer] > [aria-hidden="true"] { display: none; }
-  body[data-dsc-codex-body] [data-process-activity="thinking"]::after { animation: none !important; color: #969696 !important; background: none !important; }
+  body[data-dsc-codex-body] [data-process-activity="thinking"]::after { animation: none !important; color: var(--dsc-body-running) !important; background: none !important; }
   body[data-dsc-codex-body] [data-step-process-content],
   body[data-dsc-codex-body] [data-chat-flow] [data-disclosure-header] + *,
   body[data-dsc-codex-body] [data-chat-flow] [data-sample="bash"] + * { animation: none !important; }

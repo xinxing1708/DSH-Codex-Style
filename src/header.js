@@ -1,4 +1,4 @@
-// 顶部重绘只随独立子组件启停；原生会话、视图与按钮动作继续由宿主持有。
+// 顶部重绘随主界面启停；原生会话、视图与按钮动作继续由宿主持有。
 function mountCodexHeader(ctx) {
   ctx.effect(() => {
     const style = document.createElement('style');
@@ -12,5 +12,5 @@ function mountCodexHeader(ctx) {
       style.remove();
       document.body.removeAttribute('data-dsc-codex-header');
     };
-  }, 'codex-style: optional header stylesheet');
+  }, 'codex-style: header stylesheet');
 }

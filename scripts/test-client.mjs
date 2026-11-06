@@ -78,7 +78,7 @@ test('model picker releases a removed service and binds the replacement', async 
   assert.equal([...f.entries][0].options.inject('chat').directory.service, 'second');
 });
 
-// 运行实际 bundle 和 Cordis 生命周期，检查两个呈现组件是否互相干扰。
+// 运行实际 bundle 和 Cordis 生命周期，检查固定效果与可选组件的生命周期。
 async function presentationFixture(t) {
   let plugin;
   const attributes = new Map(), styles = new Set(), events = new Map(), entries = new Set();
@@ -97,7 +97,7 @@ async function presentationFixture(t) {
       return {};
     });
   } }, localStorage: { getItem: () => null }, addEventListener() {}, removeEventListener() {} };
-  const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')).replace('    return module.exports;', 'module.exports.fixture = { watchCodexPresentation, headerPresentation }; return module.exports;');
+  const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')).replace('    return module.exports;', 'module.exports.fixture = { mountCodexPresentation, watchCodexPresentation, headerPresentation }; return module.exports;');
   new Script(bundle).runInNewContext({ window, document, console: { warn() {}, error() {} }, queueMicrotask, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, getComputedStyle: () => ({ position: 'static' }) });
   const ctx = new Context();
   class Slots extends Service {
@@ -110,6 +110,10 @@ async function presentationFixture(t) {
   let inventory = [], nextReply;
   const fibers = [];
   ctx.on('internal/plugin', fiber => { fibers.push(fiber); });
+  plugin.fixture.mountCodexPresentation(ctx);
+  await new Promise(setImmediate);
+  for (const fiber of fibers) await fiber.await();
+  const beforeInventory = { header: attributes.has('data-dsc-codex-header'), body: attributes.has('data-dsc-codex-body'), styles: styles.size, slots: entries.size };
   ctx.provide('remote', {
     pluginInventory: { list: () => nextReply ? nextReply() : Promise.resolve({ ok: true, value: { entries: inventory } }) },
     $on: (name, callback) => { events.set(name, callback); return () => events.delete(name); }
@@ -119,7 +123,7 @@ async function presentationFixture(t) {
   ctx.provide('sessions', { list: observable({ ids: ['a'], byId: { a: { retainedBy: { mainView: 1 } } } }) });
   ctx.provide('uiWorkspace', { openSession() {} });
   ctx.provide('shortcuts', { catalog: observable([]), register: () => () => {} });
-  const stop = ctx.effect(() => plugin.fixture.watchCodexPresentation(ctx));
+  ctx.effect(() => plugin.fixture.watchCodexPresentation(ctx));
   t.after(() => ctx.fiber.dispose());
   const flush = () => new Promise(setImmediate);
   const set = async (header, body, navigation, phase = 'active') => {
@@ -129,39 +133,40 @@ async function presentationFixture(t) {
   };
   const state = () => ({ header: attributes.has('data-dsc-codex-header'), body: attributes.has('data-dsc-codex-body'), navigation: attributes.has('data-dsc-codex-navigation'), headerStore: plugin.fixture.headerPresentation.getSnapshot(), styles: styles.size, slots: entries.size });
   await flush();
-  return { ctx, set, stop, state, events, reply: fn => { nextReply = fn; }, flush };
+  return { ctx, set, stop: () => ctx.fiber.dispose(), state, beforeInventory, events, reply: fn => { nextReply = fn; }, flush };
 }
 
-test('header, body and navigation effects switch independently and release on plugin disposal', async t => {
+test('header and body mount before inventory and ignore legacy switches; navigation stays optional', async t => {
   const f = await presentationFixture(t);
+  assert.deepEqual(f.beforeInventory, { header: true, body: true, styles: 2, slots: 1 });
   for (const [header, body, navigation] of [[true, true, true], [false, true, true], [true, false, true], [true, true, false], [false, false, false], [true, true, true]]) {
     await f.set(header, body, navigation);
     assert.deepEqual(f.state(), {
-      header, body, navigation, headerStore: header,
-      styles: Number(header) + Number(body) + Number(navigation),
-      slots: Number(body) + Number(navigation)
+      header: true, body: true, navigation, headerStore: true,
+      styles: 2 + Number(navigation),
+      slots: 1 + Number(navigation)
     }, `header=${header}, body=${body}, navigation=${navigation}`);
   }
-  f.stop(); await f.flush();
+  await f.stop(); await f.flush();
   assert.deepEqual(f.state(), { header: false, body: false, navigation: false, headerStore: false, styles: 0, slots: 0 });
   assert.equal(f.events.size, 0);
 });
 
-test('inactive inventory, errors and stale replies cannot enable presentation effects', async t => {
+test('inventory errors and stale replies leave core effects mounted and optional effects disabled', async t => {
   const f = await presentationFixture(t);
   await f.set(true, true, true, 'loading');
-  assert.equal(f.state().styles, 0);
+  assert.equal(f.state().styles, 2);
   await f.set(true, true, true);
   f.reply(() => Promise.resolve({ ok: false, error: { message: 'fixture disconnected' } }));
   await f.events.get('plugin-manager/changed')(); await f.flush();
-  assert.equal(f.state().styles, 0);
+  assert.equal(f.state().styles, 2);
   const replies = [];
   f.reply(() => new Promise(resolve => replies.push(resolve)));
   const refresh = f.events.get('plugin-manager/changed');
   const old = refresh(), latest = refresh();
   replies[1]({ ok: true, value: { entries: [] } }); await latest;
   replies[0]({ ok: true, value: { entries: ['header', 'body', 'navigation'].map(name => ({ moduleName: '@xinxing1708/dsh-codex-style/' + name, enabled: true, fiberPhase: 'active' })) } }); await old; await f.flush();
-  assert.equal(f.state().styles, 0);
+  assert.deepEqual(f.state(), { header: true, body: true, navigation: false, headerStore: true, styles: 2, slots: 1 });
 });
 
 // 「更多」不再由侧栏局部状态旁路；点击必须切换真实 main 面板。

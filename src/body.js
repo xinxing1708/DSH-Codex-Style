@@ -1,5 +1,13 @@
 // 可选正文呈现：只使用公开组件清单、Slot 与 data-* 锚点。
 // 子路径宿主组件没有独立客户端包，主界面按它的实际 Cordis 启停装卸本效果。
+// DSH 0.2.2 默认保留所有助手回复；收起过程时补齐过程自述的可见性。
+// 回复行由公开 turn/kind/group-part 锚点定位，最终回答沿用宿主的最后回复边界。
+function bodyCollapsedReplyCss(turn, hasAnswer) {
+  const reply = `[data-chat-turn="${turn}"][data-chat-flow-kind="assistant-step"]:not([data-chat-group-part="reasoning"])`;
+  const earlier = hasAnswer ? `:has(~ ${reply})` : '';
+  return `body[data-dsc-codex-body] [data-chat-turn="${turn}"][data-chat-flow-kind="turn-process"]:has(.dsc-body-turn__label[aria-expanded="false"]) ~ ${reply}${earlier} { display: none; }`;
+}
+
 function bodyDuration(milliseconds) {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
   const hours = Math.floor(seconds / 3600);
@@ -40,7 +48,8 @@ function CodexTurnProcess({ node, turnProcess, useSession }) {
       'aria-expanded': canCollapse ? open : undefined,
       onClick: canCollapse ? () => turnProcess.setOpen(!open) : undefined
     }, h('span', null, label), canCollapse && h('svg', { viewBox: '0 0 16 16', width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, 'aria-hidden': true }, h('path', { d: 'm5 6 3 3 3-3' }))),
-    h('div', { className: 'dsc-body-turn__divider', 'aria-hidden': true }));
+    h('div', { className: 'dsc-body-turn__divider', 'aria-hidden': true }),
+    canCollapse && !open && h('style', null, bodyCollapsedReplyCss(node.data.turn, turnProcess.spec.answerStep != null)));
 }
 
 // 正文流式平滑：宿主每次到达都会把末尾段落整体重写，插件无法包裹字符，
@@ -684,7 +693,7 @@ function mountCodexBody(ctx) {
     style.textContent = BODY_CSS_TEXT;
     document.head.appendChild(style);
     return () => { style.remove(); document.body.removeAttribute('data-dsc-codex-body'); };
-  }, 'codex-style: optional body stylesheet');
+  }, 'codex-style: body stylesheet');
   ctx.effect(() => mountBodySmoothing(), 'codex-style: streaming text smoothing');
   ctx.slots.inject('conversation.chat.node', () => {
     const priorities = ctx.slots.entries('conversation.chat.node').filter(entry => entry.options.key === 'turn-process').map(entry => entry.options.priority ?? 0);
@@ -692,13 +701,17 @@ function mountCodexBody(ctx) {
   });
 }
 
-// 三个独立子组件共用一次组件清单查询，各自装卸，互不改变对方状态。
+// 正文与顶部是主界面固定效果；随主客户端及所需槽位的生命周期装卸。
+function mountCodexPresentation(ctx) {
+  mountCodexHeader(ctx);
+  ctx.inject(['slots'], mountCodexBody);
+}
+
+// 只有前进后退、图片批注仍按独立子组件清单启停。
 function watchCodexPresentation(ctx) {
   let disposed = false;
   let revision = 0;
   const effects = [
-    { path: '/body', name: 'codex-style-body-presentation', apply: mountCodexBody, inject: ['slots'] },
-    { path: '/header', name: 'codex-style-header-presentation', apply: mountCodexHeader },
     { path: '/navigation', name: 'codex-style-navigation-presentation', apply: mountCodexNavigation, inject: ['slots', 'layout', 'sessions', 'uiWorkspace', 'shortcuts'] },
     { path: '/image-annotations', name: 'codex-style-image-annotations-presentation', apply: mountCodexImageAnnotations, inject: ['slots', 'sessions', 'uiSession', 'conversation', 'remote'] }
   ];

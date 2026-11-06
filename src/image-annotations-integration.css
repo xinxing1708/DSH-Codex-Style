@@ -366,3 +366,50 @@
   line-height: 18px;
   cursor: pointer;
 }
+
+/* 浅色只调整附件周边 UI，图片像素和上传/批注状态保持原样。 */
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-iai-thumb, .dsc-iai-history-frame) {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: #f3f3f3;
+}
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-remove {
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+}
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-file {
+  border-color: #dedede;
+  background: #fff;
+}
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-iai-file.is-error, .dsc-iai-recall-error) { border-color: #c43935; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-file-icon { color: #666; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-file-name { color: #0d0d0d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-iai-file-meta, .dsc-iai-history-loading) { color: #898989; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is(.dsc-iai-file-meta.is-error, .dsc-iai-recall-error, .dsc-iai-inline-error) { color: #c43935; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-recall-error:hover { background: rgba(196, 57, 53, 0.08); }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-progress { background: #e5e5e5; }
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-spinner {
+  border-color: #898989;
+  border-top-color: transparent;
+}
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-drop { background: rgba(242, 243, 245, 0.8); }
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-drop-card {
+  border-color: #ababab;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
+}
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-drop.is-blocked .dsc-iai-drop-card { border-color: #c43935; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-drop-title { color: #0d0d0d; }
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-drop-desc { color: #898989; }
+
+body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-iai-history-error {
+  border-color: #c43935;
+  background: #fff1f0;
+  color: #a82c28;
+}

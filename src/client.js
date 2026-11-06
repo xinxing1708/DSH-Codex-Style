@@ -1066,8 +1066,27 @@ function makeModelPicker(ctx) {
   };
 }
 
+// 明暗由宿主 ThemeSnapshot.active.colorScheme 决定；不接管用户的主题偏好。
+function mountCodexTheme(ctx, darkTokens, lightTokens) {
+  ctx.effect(() => ctx.theme.overrideTokens(PLUGIN_ID, Object.fromEntries(Object.entries(darkTokens).map(([key, dark]) => [key, { light: lightTokens[key] ?? dark, dark }]))), 'codex-style: theme');
+  ctx.effect(() => {
+    const previous = document.body.getAttribute('data-dsc-color-scheme');
+    // 旧版本曾把这个自定义 id 写为当前偏好；升级时仅迁回等价的内置深色。
+    if (ctx.theme.getTheme()?.preference === 'dsh-codex-dark') ctx.theme.setTheme('dark');
+    const sync = snapshot => document.body.setAttribute('data-dsc-color-scheme', snapshot.active.colorScheme);
+    sync(ctx.theme.getTheme());
+    const off = ctx.on('theme/change', sync);
+    return () => {
+      off();
+      if (previous === null) document.body.removeAttribute('data-dsc-color-scheme');
+      else document.body.setAttribute('data-dsc-color-scheme', previous);
+    };
+  }, 'codex-style: theme mode');
+}
+
 function apply(ctx) {
   console.warn('[codex-style] apply 开始 v' + PLUGIN_VERSION);
+  mountCodexPresentation(ctx);
   ctx.inject(['remote', 'remote.pluginInventory'], scope => scope.effect(() => watchCodexPresentation(scope), 'codex-style: presentation component states'));
   // 社区版提醒：每次主客户端激活最多一次；官方环境、读取失败、提前卸载均不显示。
   const communityNotice = createCommunityNotice();
@@ -1083,15 +1102,15 @@ function apply(ctx) {
     return () => { active = false; communityNotice.clear(); };
   }, 'codex-style: community notice'));
   const tokenValues = {
-    '--dsw-alias-bg-base': '#181818', '--dsw-alias-bg-layer-1': '#212121', '--dsw-alias-bg-layer-2': '#282828', '--dsw-alias-bg-layer-3': '#2d2d2d', '--dsw-alias-bg-overlay': '#282828',
-    '--dsw-alias-bg-module-platform': '#212121', '--dsw-alias-label-primary': '#fff', '--dsw-alias-label-secondary': 'rgba(255,255,255,.7)', '--dsw-alias-label-tertiary': 'rgba(255,255,255,.5)',
+    '--dsw-alias-bg-base': '#111111', '--dsw-alias-bg-layer-1': '#212121', '--dsw-alias-bg-layer-2': '#282828', '--dsw-alias-bg-layer-3': '#2d2d2d', '--dsw-alias-bg-overlay': '#282828',
+    '--dsw-alias-bg-module-platform': '#0f0f0f', '--dsw-alias-label-primary': '#fcfcfc', '--dsw-alias-label-secondary': 'rgba(255,255,255,.7)', '--dsw-alias-label-tertiary': 'rgba(255,255,255,.5)',
     '--dsw-alias-label-caption': 'rgba(255,255,255,.5)', '--dsw-alias-label-dimmed': 'rgba(255,255,255,.32)', '--dsw-alias-label-primary-dimmed': 'rgba(255,255,255,.6)', '--dsw-alias-label-primary-bluish': '#eef3ff', '--dsw-alias-label-primary-inverted': '#131313',
-    // 本版始终呈现深色；宿主 preference=system/light 时也要成对覆盖按钮背景与文字。
+    // 保留成熟深色值；浅色在下方提供独立语义值。
     '--dsw-alias-button-elevated-fill': 'var(--cx-active)', '--dsw-alias-button-floating-hover': 'rgba(255,255,255,.12)',
     '--dsw-alias-border-l1': 'rgba(255,255,255,.08)', '--dsw-alias-border-l2': 'rgba(255,255,255,.08)', '--dsw-alias-border-l3': 'rgba(255,255,255,.12)', '--dsw-alias-border-l4': 'rgba(255,255,255,.16)',
     '--dsw-alias-brand-primary': '#0285ff', '--dsw-alias-link': '#339cff', '--dsw-alias-interactive-bg-hover': 'rgba(255,255,255,.08)', '--dsw-alias-interactive-bg-hover-solid': '#282828',
     // 2026-10-23 按用户 Codex 截图采样：顶栏/窗口 chrome #202020、用户气泡 #222222（对话区保持 #181818）。
-    '--dsw-specific-sidebar-fill': '#202020', '--dsw-specific-bubble': '#222222', '--dsw-specific-input-major': 'rgba(55,55,55,.94)', '--dsw-specific-menu': '#2d2d2d', '--dsw-specific-selector': 'transparent',
+    '--dsw-specific-sidebar-fill': '#0f0f0f', '--dsw-specific-bubble': '#1d1d1d', '--dsw-specific-input-major': '#2b2b2b', '--dsw-specific-menu': '#2d2d2d', '--dsw-specific-selector': 'transparent',
     // 设置页左栏与侧栏导航项：light 主题下宿主给浅色底，插件把文字固定为白色，会成白底白字；这里按宿主暗色主题成对补齐。
     '--dsw-specific-sidebar-nav-item-active': '#43454a', '--dsw-specific-sidebar-nav-item-hover': '#2c2c2e', '--dsw-specific-sidebar-nav-item-active-accent': '#353638',
     // markdown 代码外观：light 主题下 inline code / 代码块顶栏也是浅底，需一并转成与对话背景有区分的深色。
@@ -1101,32 +1120,22 @@ function apply(ctx) {
     '--dsw-alias-scrollbar-bg-l1': '#ffffff26', '--dsw-alias-scrollbar-bg-l2': '#ffffff32', '--dsw-alias-scrollbar-hover-l2': '#ffffff59',
     '--dsw-radius-panel': '25px', '--dsw-menu-surface-fill': '#2d2d2d', '--dsw-elevation-soft': '0 0 0 .5px rgba(255,255,255,.16),0 3px 8px #0000000a'
   };
-  ctx.effect(() => ctx.theme.overrideTokens(PLUGIN_ID, Object.fromEntries(Object.entries(tokenValues).map(([k, v]) => [k, { light: v, dark: v }]))), 'codex-style: theme');
-  // 宿主偏好是 system 且系统为浅色时只会启用 light 色板；组件私有的 light/dark 分支（如变更卡的 --changes-fill）
-  // 不在 token 覆盖范围内。注册并保持一个暗色主题，让 data-ds-dark-theme 生效，再用上面的 token 层覆盖 Codex 配色。
-  const DARK_THEME_ID = 'dsh-codex-dark';
-  ctx.effect(() => {
-    let disposeTheme;
-    try {
-      disposeTheme = ctx.theme.register({ id: DARK_THEME_ID, colorScheme: 'dark', tokens: {} });
-    } catch (error) {
-      // 注册失败时退回纯 token 覆盖，不影响插件其余部分。
-      console.warn('codex-style: 暗色主题注册失败', error);
-      return () => {};
-    }
-    const previous = ctx.theme.getTheme()?.preference;
-    const keep = snapshot => {
-      if (snapshot?.preference === DARK_THEME_ID) return;
-      try { ctx.theme.setTheme(DARK_THEME_ID); } catch (error) { console.warn('codex-style: 无法启用内置暗色主题', error); }
-    };
-    keep(ctx.theme.getTheme());
-    const off = ctx.on('theme/change', keep);
-    return () => {
-      off();
-      try { if (previous !== undefined && previous !== DARK_THEME_ID) ctx.theme.setTheme(previous); } catch (error) { console.warn('codex-style: 恢复原主题失败', error); }
-      disposeTheme();
-    };
-  }, 'codex-style: dark theme');
+  const lightTokenValues = {
+    '--dsw-alias-bg-base': '#ffffff', '--dsw-alias-bg-layer-1': '#f3f3f3', '--dsw-alias-bg-layer-2': '#ffffff', '--dsw-alias-bg-layer-3': '#ffffff', '--dsw-alias-bg-overlay': '#ffffff',
+    '--dsw-alias-bg-module-platform': '#f3f3f3', '--dsw-alias-label-primary': '#0d0d0d', '--dsw-alias-label-secondary': 'rgba(0,0,0,.7)', '--dsw-alias-label-tertiary': 'rgba(0,0,0,.5)',
+    '--dsw-alias-label-caption': 'rgba(0,0,0,.5)', '--dsw-alias-label-dimmed': 'rgba(0,0,0,.32)', '--dsw-alias-label-primary-dimmed': 'rgba(0,0,0,.6)', '--dsw-alias-label-primary-bluish': '#19355a', '--dsw-alias-label-primary-inverted': '#ffffff',
+    '--dsw-alias-button-floating-hover': 'rgba(0,0,0,.08)',
+    '--dsw-alias-border-l1': 'rgba(0,0,0,.08)', '--dsw-alias-border-l2': 'rgba(0,0,0,.08)', '--dsw-alias-border-l3': 'rgba(0,0,0,.12)', '--dsw-alias-border-l4': 'rgba(0,0,0,.16)',
+    '--dsw-alias-brand-primary': '#2b68cb', '--dsw-alias-link': '#2b68cb', '--dsw-alias-interactive-bg-hover': 'rgba(0,0,0,.045)', '--dsw-alias-interactive-bg-hover-solid': '#eeeeee',
+    '--dsw-specific-sidebar-fill': '#f3f3f3', '--dsw-specific-bubble': '#f3f3f3', '--dsw-specific-input-major': '#ffffff', '--dsw-specific-menu': '#ffffff',
+    '--dsw-specific-sidebar-nav-item-active': '#eeeeee', '--dsw-specific-sidebar-nav-item-hover': '#f3f3f3', '--dsw-specific-sidebar-nav-item-active-accent': '#e5e5e5',
+    '--dsw-alias-markdown-code-block': '#f6f6f6', '--dsw-alias-markdown-inline-code': '#f1f1f1', '--dsw-alias-markdown-code-block-banner': '#eeeeee',
+    '--dsw-alias-markdown-code-segment-selected': '#e5e5e5', '--dsw-alias-markdown-code-segment-unselected': '#fafafa',
+    '--dsw-alias-state-business-primary': '#2b68cb', '--dsw-alias-state-business-tertiary': '#2b68cb18', '--dsw-alias-state-error-primary': '#c93632', '--dsw-alias-state-warn-primary': '#dd5512', '--dsw-alias-state-warn-secondary': '#dd5512bb', '--dsw-alias-state-warn-tertiary': '#dd551218',
+    '--dsw-alias-scrollbar-bg-l1': '#00000018', '--dsw-alias-scrollbar-bg-l2': '#00000024', '--dsw-alias-scrollbar-hover-l2': '#00000040',
+    '--dsw-menu-surface-fill': '#ffffff', '--dsw-elevation-soft': '0 0 0 .5px rgba(0,0,0,.08),0 3px 8px #0000000a'
+  };
+  mountCodexTheme(ctx, tokenValues, lightTokenValues);
   ctx.effect(() => {
     const previous = document.body.getAttribute('data-dsh-codex-style');
     document.body.setAttribute('data-dsh-codex-style', PLUGIN_VERSION);

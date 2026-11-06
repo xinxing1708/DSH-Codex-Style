@@ -4,12 +4,6 @@
     - id: codex-style-work-guidelines
       name: '@xinxing1708/dsh-codex-style/behavior'
       disabled: true
-    - id: codex-style-body
-      name: '@xinxing1708/dsh-codex-style/body'
-      disabled: false
-    - id: codex-style-header
-      name: '@xinxing1708/dsh-codex-style/header'
-      disabled: false
     - id: codex-style-navigation
       name: '@xinxing1708/dsh-codex-style/navigation'
       disabled: false

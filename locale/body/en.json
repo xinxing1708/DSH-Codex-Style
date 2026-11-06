@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Codex body effects (optional)",
-    "description": "Replace the bottom Deep diving indicator with a top Worked elapsed-time header and divider. Add a gray moving highlight to active operations, disclosure motion, and Codex-like pencil and terminal icons. Reveal streaming body text smoothly in paragraph order instead of dumping whole blocks, draining at a fixed rate when the stream ends; blockquotes, complex lists and paragraphs that gain inline markup fade in as a whole. Hide live reasoning content while retaining DSH's completed reasoning disclosure and icon. Keep real messages, tool details, approvals, and file actions. On by default; requires the Codex UI component. Switching off restores DSH's original body presentation."
+    "title": "Codex body effects (legacy compatibility entry)",
+    "description": "Body effects are built into the Codex UI and follow its lifecycle, with no separate switch. This empty entry preserves legacy references; toggling it no longer changes body effects."
   }
 }
