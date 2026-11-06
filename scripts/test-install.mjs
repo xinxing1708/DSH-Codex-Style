@@ -1,9 +1,10 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, realpath, lstat, rm } from 'node:fs/promises';
+import { closeSync, existsSync, openSync, readSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { load as parseYaml } from 'js-yaml';
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -45,7 +46,8 @@ async function fixture(t, { layout = 'legacy', withLock = true, version = '0.2.1
   };
   return { root, home, profile, installDir, runtimeFile, markerPath, environment, run, success, restored };
 }
-for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5', '0.2.2-rc.1']) for (const withLock of [true, false]) {
+// engines.dsh 改为范围声明后，0.2.x 全系列（含预发布）都应通过安装门禁。
+for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.3']) for (const withLock of [true, false]) {
   test(`install, same-version upgrade and two rollbacks; runtime=${version}, lock=${withLock}`, async t => {
     const f = await fixture(t, { version, withLock, dependencies: withLock });
     const a = JSON.parse(f.success()); const link = join(f.profile, 'node_modules', manifest.name);
@@ -129,10 +131,10 @@ test('community DSH Desktop without a readable runtime is refused, never guessed
 });
 
 test('unsupported community runtime is refused without touching the profile or environment marker', async t => {
-  const f = await fixture(t, { layout: 'custom', version: '0.2.1-rc.6' });
+  const f = await fixture(t, { layout: 'custom', version: '0.3.0-rc.1' });
   const hosts = JSON.stringify([{ ...desktop, location: f.installDir }]);
   const r = f.run(undefined, { ...registryMode, DSH_CODEX_STYLE_TEST_HOSTS: hosts });
-  assert.notEqual(r.status, 0); assert.match(r.stderr, /版本不匹配：检测到 0\.2\.1-rc\.6/); assert.match(r.stderr, /未作任何修改/);
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /版本不匹配：检测到 0\.3\.0-rc\.1/); assert.match(r.stderr, /未作任何修改/);
   await f.restored(); await assert.rejects(lstat(f.markerPath), { code: 'ENOENT' });
 });
 
@@ -189,7 +191,8 @@ test('explicit DSH_INSTALL_DIR stays official even when a community host is pres
   const a = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
   f.success(a.rollback); await f.restored();
 });
-for (const version of ['0.2.1-rc.1', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.2', '0.2.2', '2.0.19-next']) test(`unsupported runtime ${version} refuses to modify profile`, async t => {
+// 范围外才拒绝：低于下界、0.3 线（含 0.3.0-rc.*，由 `<0.3.0-0` 上界挡住）以及更高的主版本。
+for (const version of ['0.2.1-rc.1', '0.3.0-rc.1', '0.3.0', '2.0.19-next']) test(`unsupported runtime ${version} refuses to modify profile`, async t => {
   const f = await fixture(t, { version }); const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, new RegExp(`版本不匹配：检测到 ${version.replaceAll('.', '\\.')}`)); assert.match(r.stderr, /未作任何修改/); await f.restored();
 });
 test('invalid explicit runtime does not silently use another installation', async t => {
@@ -235,4 +238,148 @@ test('bundle defaults enable visual effects and keep prompt injection disabled',
   assert.equal(defaults.get('codex-style-image-annotations').name, manifest.name + '/image-annotations');
   assert.equal(manifest.exports['./image-annotations'], './lib/image-annotations.js');
   assert.equal(manifest.exports['./image-annotations/locale/*.json'], './locale/image-annotations/*.json');
+});
+
+/* ------------------- engines.dsh 范围门禁（与宿主语义对齐） ------------------- */
+
+// 只复制安装脚本与 package.json 的门禁夹具：安装器按自身 package.json 的 engines.dsh 判定，
+// 这样不必改动正式包就能覆盖各种声明写法。门禁通过后安装器会继续读 profile 并复制插件文件，
+// 停在缺失的 lib/client.js 上；据此区分“被版本门禁拒绝”和“通过门禁后继续安装”。
+async function gateFixture(t, { engines, version }) {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-codex-install-gate-'));
+  t.after(async () => { assert.ok(root.startsWith(join(tmpdir(), 'dsh-codex-install-gate-'))); await rm(root, { recursive: true, force: true }); });
+  await mkdir(join(root, 'scripts'), { recursive: true });
+  await writeFile(join(root, 'scripts/install.mjs'), await readFile(installer));
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, engines: { dsh: engines ?? manifest.engines.dsh } }, null, 2));
+  await mkdir(join(root, 'home/profiles/desktop'), { recursive: true });
+  await writeFile(join(root, 'home/profiles/desktop/package.json'), JSON.stringify({ name: 'fixture', private: true, dsh: { profile: { bundles: [] } } }, null, 2));
+  await writeFile(join(root, 'home/profiles/desktop/cordis.patch.yml'), '[]\n');
+  const runtimeFile = join(root, 'runtime.json');
+  await writeFile(runtimeFile, JSON.stringify({ desktopVersion: version }));
+  const env = { ...process.env, DSH_HOME: join(root, 'home'), DSH_RUNTIME_FILE: runtimeFile, DSH_INSTALL_DIR: join(root, 'no-registered-install'), DSH_CODEX_STYLE_TEST_HOSTS: '', DSH_CODEX_STYLE_ALLOW_THIRD_PARTY: '', LOCALAPPDATA: join(root, 'local'), ProgramFiles: join(root, 'programs') };
+  const result = spawnSync(process.execPath, [join(root, 'scripts/install.mjs')], { env, encoding: 'utf8' });
+  return {
+    status: result.status,
+    stderr: result.stderr,
+    // 版本门禁拒绝时的固定文案：「版本不匹配：检测到 …」。
+    refused: result.status !== 0 && /版本不匹配：检测到/.test(result.stderr),
+    // 通过门禁：安装器继续执行，停在缺失的 lib/client.js。
+    passedGate: result.status !== 0 && /lib[\\/]client\.js/.test(result.stderr)
+  };
+}
+
+test('shipped manifest declares the P0 compatibility range and keeps version 0.2.4', () => {
+  assert.equal(manifest.version, '0.2.4');
+  assert.equal(manifest.engines.dsh, '>=0.2.1-rc.2 <0.3.0-0');
+});
+
+// 派单要求的六版本矩阵，外加新范围下由拒绝转为通过的旧断言项与仍需拒绝的边界项。
+const compatibilityWindow = [
+  ['0.2.1-rc.2', false], ['0.2.1-rc.5', false], ['0.2.2-rc.1', false], ['0.2.3', false],
+  ['0.2.1-rc.6', false], ['0.2.1', false], ['0.2.2-rc.2', false], ['0.2.2', false],
+  ['0.3.0-rc.1', true], ['0.3.0', true], ['0.2.1-rc.1', true], ['2.0.19-next', true]
+];
+test('installer gate accepts the whole 0.2.x window and refuses the 0.3 line', async t => {
+  const wrong = [];
+  for (const [version, refused] of compatibilityWindow) {
+    const gate = await gateFixture(t, { version });
+    assert.ok(gate.refused || gate.passedGate, `unexpected gate outcome for ${version}: ${gate.stderr}`);
+    if (gate.refused !== refused) wrong.push(`${version}: expected refused=${refused}, got refused=${gate.refused}`);
+  }
+  assert.deepEqual(wrong, []);
+});
+
+test('installer gate still enforces the legacy exact version list', async t => {
+  const engines = '0.2.1-rc.2 || 0.2.1-rc.5';
+  assert.equal((await gateFixture(t, { engines, version: '0.2.1-rc.2' })).refused, false);
+  assert.equal((await gateFixture(t, { engines, version: '0.2.1-rc.5' })).refused, false);
+  assert.equal((await gateFixture(t, { engines, version: '0.2.3' })).refused, true);
+});
+
+test('installer gate fails loudly on engines.dsh syntax it does not implement', async t => {
+  for (const engines of ['^0.2.0', '~0.2.1', '<=0.2.3', '>0.2.1', '*', '>=0.2.1-rc.2 || ^0.2.2']) {
+    const gate = await gateFixture(t, { engines, version: '0.2.3' });
+    assert.equal(gate.refused, false, engines);
+    assert.equal(gate.passedGate, false, engines);
+    assert.match(gate.stderr, /无法解析 engines\.dsh/, engines);
+  }
+});
+
+/* ------------------- 与真实宿主 semver 的判定一致性 ------------------- */
+
+// 只读 ASAR 读取器与 scripts/test-image-annotations-host.mjs 的 openAsarReader 相同。
+function openAsarReader(asarPath) {
+  const fd = openSync(asarPath, 'r');
+  const sizeBuffer = Buffer.alloc(16);
+  readSync(fd, sizeBuffer, 0, 16, 0);
+  closeSync(fd);
+  const headerSize = sizeBuffer.readUInt32LE(4);
+  const jsonLength = sizeBuffer.readUInt32LE(12);
+  const readFd = openSync(asarPath, 'r');
+  const headerBuffer = Buffer.alloc(jsonLength);
+  readSync(readFd, headerBuffer, 0, jsonLength, 16);
+  closeSync(readFd);
+  const header = JSON.parse(headerBuffer.toString('utf8').replace(/\0+$/u, ''));
+  const baseOffset = 8 + headerSize;
+  const entries = [];
+  const walk = (node, prefix) => {
+    for (const [name, entry] of Object.entries(node.files ?? {})) {
+      const path = prefix === '' ? name : `${prefix}/${name}`;
+      if (entry.files !== undefined) walk(entry, path);
+      else if (entry.unpacked !== true) entries.push({ path, size: entry.size, offset: entry.offset });
+    }
+  };
+  walk(header, '');
+  const byPath = new Map(entries.map(entry => [entry.path, entry]));
+  return {
+    list: prefix => entries.filter(entry => entry.path.startsWith(prefix)).map(entry => entry.path),
+    read(member) {
+      const entry = byPath.get(member);
+      if (entry === undefined) throw new Error(`ASAR member not found: ${member}`);
+      const data = Buffer.alloc(entry.size);
+      const handle = openSync(asarPath, 'r');
+      readSync(handle, data, 0, entry.size, baseOffset + Number(entry.offset));
+      closeSync(handle);
+      return data;
+    }
+  };
+}
+
+// 判定基准直接取宿主自带的 semver（dsh-app-boot 的 satisfies() 就是 semver.satisfies(..., { includePrerelease: true })），
+// 不复用也不重写比较逻辑；ASAR 不存在时该组用例 skip 并写明原因。
+const ASAR_PATH = process.env.DSH_ASAR || '';
+let hostSemverRoot;
+let hostSemverPromise;
+function loadHostSemver() {
+  hostSemverPromise ??= (async () => {
+    hostSemverRoot = await mkdtemp(join(tmpdir(), 'dsh-codex-host-semver-'));
+    const prefix = 'dsh/node_modules/semver/';
+    const asar = openAsarReader(ASAR_PATH);
+    const hostManifest = JSON.parse(asar.read(prefix + 'package.json').toString('utf8'));
+    for (const member of asar.list(prefix)) {
+      const target = join(hostSemverRoot, 'node_modules', 'semver', member.slice(prefix.length));
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, asar.read(member));
+    }
+    await writeFile(join(hostSemverRoot, 'package.json'), JSON.stringify({ name: 'dsh-codex-host-semver-fixture', private: true, type: 'module' }, null, 2));
+    const imported = await import(pathToFileURL(join(hostSemverRoot, 'node_modules', 'semver', hostManifest.main ?? 'index.js')).href);
+    const semver = imported.default ?? imported;
+    if (typeof semver.satisfies !== 'function') throw new Error('宿主 semver 未导出 satisfies');
+    return semver;
+  })();
+  return hostSemverPromise;
+}
+after(async () => { if (hostSemverRoot) await rm(hostSemverRoot, { recursive: true, force: true }); });
+
+const hostCoverage = ['0.2.0', '0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.5', '0.2.1', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.3', '0.2.3-rc.1', '0.2.9', '0.3.0-rc.0', '0.3.0-rc.1', '0.3.0', '0.3.1', '2.0.19-next'];
+test('installer version gate matches the real host semver', { skip: !ASAR_PATH || !existsSync(ASAR_PATH) ? 'set DSH_ASAR to a DSH app.asar to compare against the host semver' : false }, async t => {
+  const semver = await loadHostSemver();
+  const mismatches = [];
+  for (const version of hostCoverage) {
+    const expected = semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true });
+    const gate = await gateFixture(t, { version });
+    assert.ok(gate.refused || gate.passedGate, `unexpected gate outcome for ${version}: ${gate.stderr}`);
+    if (gate.refused === expected) mismatches.push(`${version}: installer refused=${gate.refused}, host semver satisfies=${expected}`);
+  }
+  assert.deepEqual(mismatches, []);
 });

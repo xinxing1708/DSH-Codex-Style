@@ -21,7 +21,7 @@ async function loadBundle() {
   };
   const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8'))
     .replace('function createSkillsController(ctx) {', 'let __lastSkillsController; function createSkillsController(ctx) { return __lastSkillsController = __createSkillsController(ctx); } function __createSkillsController(ctx) {')
-    .replace('    return module.exports;', 'module.exports.fixture = { lastSkillsController: () => __lastSkillsController, createSkillsController, skillScopeOf, groupSkills, registerSkillsPage, startFreshDraft, SKILLS_PANEL_ID, mountSkillsRemote, skillFileAddress, SkillsDetail, SkillMarkdown, SKILL_MARKDOWN_LABELS, mountPluginUpdateRemote, mountImageAnnotationIntegrationRemote }; return module.exports;');
+    .replace('    return module.exports;', 'module.exports.fixture = { lastSkillsController: () => __lastSkillsController, createSkillsController, skillScopeOf, groupSkills, registerSkillsPage, startFreshDraft, SKILLS_PANEL_ID, mountSkillsRemote, skillFileAddress, SkillsDetail, SkillMarkdown, SKILL_MARKDOWN_LABELS, mountImageAnnotationIntegrationRemote }; return module.exports;');
   new Script(bundle).runInNewContext({ window, document: { body: { setAttribute() {}, removeAttribute() {}, getAttribute: () => null }, head: { appendChild() {} }, createElement: () => ({ dataset: {}, remove() {} }), activeElement: null }, console: { warn() {}, error() {} }, setInterval: () => ({}), clearInterval() {}, requestAnimationFrame: () => 0, cancelAnimationFrame() {}, setTimeout: () => ({}), clearTimeout() {}, navigator: {} });
   return plugin.fixture;
 }
@@ -282,8 +282,9 @@ test('SkillMarkdown passes the complete native labels contract', async () => {
   assert.deepEqual(plain(markdown.props.labels), plain(labels));
 });
 
-// 宿主 typert.remotes.register 拒绝重复的 package 名；同一插件的三处 $mount 必须各用独立 package，
+// 宿主 typert.remotes.register 拒绝重复的 package 名；同一插件的其余 $mount 必须各用独立 package，
 // 否则后挂载者抛错，命名空间永不发布，技能页一直显示“尚未就绪”。
+// 自研插件更新退役后，更新命名空间的 $mount 已移除，这里只校验仍保留的技能与图片批注两处。
 test('every client $mount contribution uses a distinct typert package name', async () => {
   const f = await loadBundle();
   const packages = new Set();
@@ -298,8 +299,7 @@ test('every client $mount contribution uses a distinct typert package name', asy
     }
     return async () => {};
   } };
-  f.mountPluginUpdateRemote({ remote });
   f.mountImageAnnotationIntegrationRemote({ remote });
   f.mountSkillsRemote({ remote });
-  assert.equal(packages.size, 3);
+  assert.equal(packages.size, 2);
 });

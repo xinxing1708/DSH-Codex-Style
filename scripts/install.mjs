@@ -75,14 +75,76 @@ for (const candidate of runtimeCandidates) {
   try { runtime = JSON.parse(await readFile(candidate.path, 'utf8')); runtimePath = candidate.path; selectedHost = candidate.host; break; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
-const supportedVersions = manifest.engines.dsh.split(/\s*\|\|\s*/);
-const supportedNote = `本插件 ${manifest.version} 只适配 DeepSeek 官方桌面版 DeepSeek Harness ${supportedVersions.join(' / ')}。`;
+// 宿主判定兼容性用 semver.satisfies(version, engines.dsh, { includePrerelease: true })
+// （dsh-app-boot 的 satisfies()）。本安装器运行在用户自己的机器上，发布包不带 node_modules，
+// 也读不到宿主 app.asar 里的 semver，所以这里实现一个只覆盖本插件声明所需写法的严格范围解析：
+//   1) `||` 分隔的多个分支，每个分支的条件全部满足才算兼容；仍兼容旧式精确版本列表
+//      （如 `0.2.1-rc.2 || 0.2.1-rc.3`），精确项按版本相等判定。
+//   2) 单个分支内以空白分隔的比较器，只支持 `>=` 下界与 `<` 上界（如 `>=0.2.1-rc.2 <0.3.0-0`）。
+// 其他写法（`^`、`~`、`<=`、`>`、`*`，以及运算符与版本间留空格）一律报错而不是放行：
+// 这里的漏判会让不兼容版本照常安装，宁可让安装器停下也不静默通过。
+// 比较规则与 semver 一致：预发布低于同号正式版；预发布标识符中数字段低于字母段，
+// 数字段按数值比较；因此 `-0` 上界同时挡住 `0.3.0` 与 `0.3.0-rc.*`。
+const semverPattern = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+function parseVersion(text) {
+  const match = semverPattern.exec(text);
+  if (match === null) throw new Error('无法解析 engines.dsh 中的版本：' + JSON.stringify(text));
+  const prerelease = match[4] === undefined ? [] : match[4].split('.');
+  if (prerelease.some(part => part === '' || (/^\d+$/.test(part) && part.length > 1 && part.startsWith('0')))) throw new Error('无法解析 engines.dsh 中的版本：' + JSON.stringify(text));
+  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]), prerelease };
+}
+function compareVersions(a, b) {
+  for (const key of ['major', 'minor', 'patch']) if (a[key] !== b[key]) return a[key] < b[key] ? -1 : 1;
+  if (a.prerelease.length === 0 && b.prerelease.length === 0) return 0;
+  if (a.prerelease.length === 0) return 1;
+  if (b.prerelease.length === 0) return -1;
+  const shared = Math.min(a.prerelease.length, b.prerelease.length);
+  for (let index = 0; index < shared; index++) {
+    const left = a.prerelease[index];
+    const right = b.prerelease[index];
+    if (left === right) continue;
+    const leftNumeric = /^\d+$/.test(left);
+    const rightNumeric = /^\d+$/.test(right);
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    const ordered = leftNumeric ? Number(left) < Number(right) : left < right;
+    return ordered ? -1 : 1;
+  }
+  return a.prerelease.length === b.prerelease.length ? 0 : (a.prerelease.length < b.prerelease.length ? -1 : 1);
+}
+function parseCondition(text) {
+  const bound = /^(>=|<)(\S+)$/.exec(text);
+  if (bound !== null) return { operator: bound[1], version: parseVersion(bound[2]) };
+  return { operator: '=', version: parseVersion(text) };
+}
+// 先解析全部 `||` 分支再比较：任一分支出现不支持的写法都立即报错，不允许短路放过。
+function parseCompatibilityRange(text) {
+  if (typeof text !== 'string' || text.trim() === '') throw new Error('package.json 缺少 engines.dsh 版本声明。');
+  return text.split('||').map(branch => {
+    const conditions = branch.trim().split(/\s+/).filter(Boolean).map(parseCondition);
+    if (conditions.length === 0) throw new Error('无法解析 engines.dsh 中的版本条件：' + JSON.stringify(text));
+    return conditions;
+  });
+}
+// 与宿主同一判定：任一 `||` 分支的全部比较器成立即兼容。
+function isSupportedRuntime(versionText) {
+  if (typeof versionText !== 'string') throw new Error('DSH 版本号不是字符串：' + JSON.stringify(versionText));
+  const runtimeVersion = parseVersion(versionText.trim());
+  const range = parseCompatibilityRange(manifest.engines?.dsh);
+  return range.some(conditions => conditions.every(condition => {
+    const order = compareVersions(runtimeVersion, condition.version);
+    if (condition.operator === '>=') return order >= 0;
+    if (condition.operator === '<') return order < 0;
+    return order === 0;
+  }));
+}
+if (typeof manifest.engines?.dsh !== 'string' || manifest.engines.dsh.trim() === '') throw new Error('package.json 缺少 engines.dsh 版本声明。');
+const supportedNote = `本插件 ${manifest.version} 只适配 DeepSeek 官方桌面版 DeepSeek Harness ${manifest.engines.dsh}。`;
 if (!runtime) {
   const communityNote = thirdParty.length ? `\n注册表检测到 ${thirdPartyNote}，但其安装目录中没有可读的 DSH runtime.json。` : '';
   throw new Error('未找到 DSH runtime.json。已查找：\n  ' + runtimeCandidates.map(candidate => candidate.path).join('\n  ') + communityNote + '\nDSH 装在其他目录时，请先执行 set DSH_INSTALL_DIR=<DSH 安装目录>（含 "DeepSeek Harness.exe" 的文件夹），再运行 install.cmd。');
 }
-// 与宿主读取同一根级字段；当前范围只列已核对的精确版本，不实现通用 SemVer 解析。
-if (!supportedVersions.includes(runtime.desktopVersion)) throw new Error(`DSH 版本不匹配：检测到 ${runtime.desktopVersion}（${runtimePath}）。\n${supportedNote}\n版本不同时界面结构可能已改变，强行安装会导致界面错乱，所以未作任何修改。请换用支持的 DSH 版本，或等待本插件发布适配新版本的更新。`);
+// 与宿主读取同一根级字段；范围判定见上方 isSupportedRuntime。
+if (!isSupportedRuntime(runtime.desktopVersion)) throw new Error(`DSH 版本不匹配：检测到 ${runtime.desktopVersion}（${runtimePath}）。\n${supportedNote}\n版本不同时界面结构可能已改变，强行安装会导致界面错乱，所以未作任何修改。请换用支持的 DSH 版本，或等待本插件发布适配新版本的更新。`);
 // 安装目标身份：注册表/默认目录/旧目录可知官方性；显式 runtime 文件没有可核实宿主身份，不臆测。
 const selectedOfficial = selectedHost ? selectedHost.official === true : null;
 const installRoot = selectedHost?.location ? resolve(selectedHost.location) : installRootOf(runtimePath);
@@ -157,14 +219,11 @@ await access(resolve(source, 'lib/header.js'));
 await access(resolve(source, 'lib/navigation.js'));
 await access(resolve(source, 'lib/image-annotations.js'));
 await access(resolve(source, 'lib/image-annotations-host.js'));
-await access(resolve(source, 'lib/updater.js'));
-await access(resolve(source, 'lib/update-common.js'));
-await access(resolve(source, 'lib/update-install.js'));
 await mkdir(backup, { recursive: true });
 for (const entry of originals) await writeFile(resolve(backup, entry.path.split(/[\\/]/).pop()), entry.bytes);
 await mkdir(resolve(target, 'lib'), { recursive: true });
 await mkdir(resolve(target, 'licenses'), { recursive: true });
-for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js', 'lib/skills-host.js', 'lib/community-environment.js', 'lib/behavior.js', 'lib/body.js', 'lib/header.js', 'lib/navigation.js', 'lib/image-annotations.js', 'lib/image-annotations-host.js', 'lib/updater.js', 'lib/update-common.js', 'lib/update-install.js', 'scripts/rollback.mjs', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'locale/body/en.json', 'locale/body/zh.json', 'locale/header/en.json', 'locale/header/zh.json', 'locale/navigation/en.json', 'locale/navigation/zh.json', 'locale/image-annotations/en.json', 'locale/image-annotations/zh.json']) {
+for (const file of ['package.json', 'cordis.patch.yml', 'skin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', 'licenses/DeepSeek-Harness-LICENSE', 'lib/client.js', 'lib/host.js', 'lib/skills-host.js', 'lib/community-environment.js', 'lib/behavior.js', 'lib/body.js', 'lib/header.js', 'lib/navigation.js', 'lib/image-annotations.js', 'lib/image-annotations-host.js', 'scripts/rollback.mjs', 'prompts/work-guidelines.md', 'locale/behavior/en.json', 'locale/behavior/zh.json', 'locale/body/en.json', 'locale/body/zh.json', 'locale/header/en.json', 'locale/header/zh.json', 'locale/navigation/en.json', 'locale/navigation/zh.json', 'locale/image-annotations/en.json', 'locale/image-annotations/zh.json']) {
   await mkdir(dirname(resolve(target, file)), { recursive: true });
   await copyFile(resolve(source, file), resolve(target, file));
 }

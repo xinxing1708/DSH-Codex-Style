@@ -213,6 +213,42 @@ body[data-dsh-codex-chrome]:has(.dsc-desktop-update) .dsc-independent-rail { pad
 .dsc-account-row > span:last-child { display: flex; flex-direction: column; min-width: 0; }
 .dsc-account-row strong { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsc-account-row small { font-size: 11px; color: var(--cx-text-3); }
+/* 齿轮菜单上方的第三方入口分组：宿主 footer.action 原生节点原样呈现；关闭后标记/变量全部移除。 */
+body[data-dsh-codex-chrome] [data-dsc-app-footer-base] { display: flex !important; flex-direction: column; }
+body[data-dsh-codex-chrome] [data-dsc-app-footer-host] {
+  visibility: visible !important;
+  position: fixed !important;
+  left: var(--dsc-app-footer-left);
+  bottom: var(--dsc-app-footer-bottom);
+  width: var(--dsc-app-footer-width);
+  max-height: max(48px, var(--dsc-app-footer-max-height, calc(100vh - var(--dsc-app-footer-bottom) - 8px)));
+  box-sizing: border-box;
+  display: flex !important;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 !important;
+  padding: 5px !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--cx-popover-fill);
+  border: 1px solid var(--cx-border-l1);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px #0007;
+  z-index: 9999;
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff26 transparent;
+  -webkit-app-region: no-drag;
+}
+body[data-dsh-codex-chrome] [data-dsc-app-footer-host] [data-dsc-app-footer-entry] { flex: none; width: 100% !important; min-width: 0; }
+body[data-dsh-codex-chrome] [data-dsc-app-footer-host] [data-dsc-app-footer-entry] button { width: 100% !important; min-width: 0; justify-content: flex-start !important; }
+/* 分组位于宿主侧栏列层叠上下文（z-index:21）内，低于自有 rail（25）。
+   菜单打开期间只让 rail 中与分组重叠的竖向区段放行，其余区域仍由透明命中层挡住，
+   避免点击穿透到下面的侧栏内容；按钮本身保持可点，重叠的图标临时隐藏。 */
+.dsc-rail-hitblock { display: none; position: absolute; inset: 0; z-index: 0; pointer-events: auto; }
+body[data-dsh-codex-chrome] .dsc-independent-rail[data-dsc-app-footer-clear] { pointer-events: none; }
+body[data-dsh-codex-chrome] .dsc-independent-rail[data-dsc-app-footer-clear] .dsc-rail-hitblock { display: block; clip-path: inset(0 0 calc(100% - var(--dsc-app-footer-clear-top, 100%)) 0); }
+body[data-dsh-codex-chrome] .dsc-independent-rail[data-dsc-app-footer-clear] .dsc-rail__item { position: relative; z-index: 1; pointer-events: auto; }
+body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-item] { opacity: 0 !important; pointer-events: none !important; }
 .dsc-empty-hero { visibility: visible; position: fixed; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 24px; transform: translate(-50%,-50%); pointer-events: none; }
 .dsc-empty-hero svg { color: #525252; }
 .dsc-empty-hero h1 { font-size: 26px; line-height: 34px; font-weight: 400; color: var(--cx-text-2); margin: 0; white-space: nowrap; }

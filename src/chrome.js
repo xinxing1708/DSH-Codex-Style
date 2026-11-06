@@ -257,7 +257,8 @@ function makeNavigationRail(ctx, sidebar) {
         taskRows.length > 0 && item('tasks', '定时任务', 'tasks', () => pick(taskRows[0].id)),
         pluginRows.length > 0 && item('plugins', '自定义', 'plugins', () => pick(pluginRows.some(row => row.id === 'plugins') ? 'plugins' : SKILLS_PANEL_ID), category === 'skills'),
         hasMore && item('more', '更多', 'more', openMore),
-        h('div', { ref: extensions, className: 'dsc-extension-navigation-anchor', 'aria-hidden': true })),
+        h('div', { ref: extensions, className: 'dsc-extension-navigation-anchor', 'aria-hidden': true }),
+        h('span', { className: 'dsc-rail-hitblock', 'aria-hidden': true })),
       error && h('div', { className: 'dsc-ui dsc-navigation-error' }, h(ErrorLine, { text: error }))), document.body);
   };
 }
@@ -408,73 +409,262 @@ function makeSidebarToggle(ctx) {
   };
 }
 
+// 视图胶囊只按宿主公开锚点工作：行宽和滑块几何都来自真实 DOM 测量，
+// 不绑定具体视图 id，也不改宿主的注册、排序、固定/取消固定或选中状态。
+const VIEW_TAB_BUDGET = 120; // 宿主 visibleTabs 的每项宽度预算
+const VIEW_TAB_MAX = 104; // 标签最大 88px + 左右各 8px 内边距
+const VIEW_MORE_RESERVE = 40; // 更多按钮 24px + 间距 + 胶囊边框/内边距余量
+const VIEW_ROW_GAP = 8; // 与左侧 actions 的间距
+const VIEW_ROW_MIN_INLINE = 260; // 低于此宽度改为独立一行
+const VIEW_ROW_NARROW = 640; // 与 header.css 的容器查询阈值一致
+
+function viewRowSlots(width) {
+  if (!(width > 0)) return 0;
+  return Math.max(1, Math.floor((width - VIEW_MORE_RESERVE) / VIEW_TAB_MAX));
+}
+
+// 宿主用 (行宽 - 48) / 120 估算可见视图。这里反推一个测量行宽，
+// 让宿主显示“实际能放进 actions 右侧”的项数；胶囊自身仍右对齐，
+// 不会因为测量行更宽而覆盖左侧按钮。空间不足时交给独立一行。
+function viewRowPlan({ contentWidth, actionsWidth, narrow }) {
+  if (!(contentWidth > 0)) return null;
+  if (narrow) return { mode: 'stacked', width: contentWidth, fit: viewRowSlots(contentWidth) };
+  const used = Number.isFinite(actionsWidth) ? Math.max(0, actionsWidth) : 0;
+  const available = Math.max(0, contentWidth - used - VIEW_ROW_GAP);
+  if (available < VIEW_ROW_MIN_INLINE) return { mode: 'stacked', width: contentWidth, fit: viewRowSlots(contentWidth) };
+  const fit = viewRowSlots(available);
+  // +49 让 clientWidth 取整后仍满足 floor((width - 48) / 120) = fit。
+  return { mode: 'inline', width: Math.min(contentWidth, Math.max(available, fit * VIEW_TAB_BUDGET + 49)), fit };
+}
+
+// 白色滑块相对 tablist 的 padding box 定位；边框宽度由计算样式提供。
+function viewSliderBox({ tabsLeft, tabsBorderLeft, tabLeft, tabWidth }) {
+  return { left: Math.max(0, tabLeft - tabsLeft - tabsBorderLeft), width: Math.max(0, tabWidth) };
+}
+
+// 可脱离 React 测试的 DOM 呈现器：加可释放标记/变量、写测量行宽与滑块几何。
+function createConversationHeaderPresenter({ header, window: win, document: doc, MutationObserver: Mutation, ResizeObserver: Resize }) {
+  const view = win || header.ownerDocument?.defaultView || globalThis;
+  const documentRef = doc || header.ownerDocument || globalThis.document;
+  const MutationClass = Mutation || view.MutationObserver || globalThis.MutationObserver;
+  const ResizeClass = Resize || view.ResizeObserver || globalThis.ResizeObserver;
+  const attributes = new Map();
+  const properties = new Map();
+  const observed = new Set();
+  let frame = null;
+  let disposed = false;
+  let activeAttributes = new Set();
+  let activeProperties = new Set();
+  const getStyle = node => {
+    try {
+      const owner = node?.ownerDocument?.defaultView;
+      const reader = owner?.getComputedStyle || view.getComputedStyle || globalThis.getComputedStyle;
+      return reader ? reader(node) : {};
+    } catch (_error) {
+      return {};
+    }
+  };
+  const requestFrame = typeof view.requestAnimationFrame === 'function' ? fn => view.requestAnimationFrame(fn) : fn => { fn(); return null; };
+  const cancelFrame = typeof view.cancelAnimationFrame === 'function' ? id => view.cancelAnimationFrame(id) : () => {};
+  const restoreAttributes = (node, saved) => {
+    if (!node || typeof node.setAttribute !== 'function') return;
+    for (const [name, value] of saved) {
+      if (value === null) node.removeAttribute(name); else node.setAttribute(name, value);
+    }
+  };
+  const rememberAttribute = (node, name) => {
+    let saved = attributes.get(node);
+    if (!saved) attributes.set(node, saved = new Map());
+    if (!saved.has(name)) saved.set(name, node.getAttribute(name));
+  };
+  const mark = (node, name) => {
+    if (!node) return;
+    activeAttributes.add(node);
+    rememberAttribute(node, name);
+    if (!node.hasAttribute(name)) node.setAttribute(name, '');
+  };
+  const unmark = (node, name) => {
+    const saved = attributes.get(node);
+    if (!saved || !saved.has(name)) return;
+    const value = saved.get(name);
+    if (node.isConnected !== false) {
+      if (value === null) node.removeAttribute(name); else node.setAttribute(name, value);
+    }
+    saved.delete(name);
+    if (saved.size === 0) attributes.delete(node);
+  };
+  const restoreProperties = (node, saved) => {
+    if (!node?.style || typeof node.style.setProperty !== 'function') return;
+    for (const [name, [value, priority]] of saved) {
+      if (value) node.style.setProperty(name, value, priority); else node.style.removeProperty(name);
+    }
+  };
+  const rememberProperty = (node, name) => {
+    let saved = properties.get(node);
+    if (!saved) properties.set(node, saved = new Map());
+    if (!saved.has(name)) {
+      saved.set(name, [node.style.getPropertyValue(name), typeof node.style.getPropertyPriority === 'function' ? node.style.getPropertyPriority(name) : '']);
+    }
+  };
+  // value 为 null 时恢复插件接管前的值；CSS 里用默认值兜底。
+  const applyProperty = (node, name, value) => {
+    if (!node?.style || typeof node.style.setProperty !== 'function') return;
+    activeProperties.add(node);
+    rememberProperty(node, name);
+    if (value === null || value === undefined) {
+      const saved = properties.get(node)?.get(name);
+      if (saved && saved[0]) node.style.setProperty(name, saved[0], saved[1]); else node.style.removeProperty(name);
+    } else {
+      const text = String(value);
+      if (node.style.getPropertyValue(name) !== text) node.style.setProperty(name, text);
+    }
+  };
+  // actions 是拉伸的 grid/flex 容器，容器自身宽度不能代表内容占用；
+  // 取直接 flex 项（穿透 display:contents 包装层）的最右边缘。
+  const usedRight = element => {
+    let right = 0;
+    const walk = node => {
+      for (const child of node?.children || []) {
+        if (getStyle(child).display === 'contents') { walk(child); continue; }
+        const rect = typeof child.getBoundingClientRect === 'function' ? child.getBoundingClientRect() : null;
+        if (rect && rect.width > 0) right = Math.max(right, Number.isFinite(rect.right) ? rect.right : rect.left + rect.width);
+      }
+    };
+    walk(element);
+    return right;
+  };
+  const observe = node => {
+    if (!ResizeClass || !node || observed.has(node)) return;
+    observed.add(node);
+    resizeObserver.observe(node);
+  };
+  const resizeObserver = ResizeClass ? new ResizeClass(() => schedule()) : null;
+  const mutationObserver = MutationClass ? new MutationClass(records => { if (records.length) schedule(); }) : null;
+  const prune = () => {
+    for (const node of [...observed]) {
+      if (node.isConnected === false) {
+        resizeObserver?.unobserve?.(node);
+        observed.delete(node);
+      }
+    }
+  };
+  const schedule = () => {
+    if (disposed || frame !== null) return;
+    frame = requestFrame(sync);
+  };
+  const sync = () => {
+    frame = null;
+    if (disposed) return;
+    activeAttributes = new Set();
+    activeProperties = new Set();
+    const headerRect = typeof header.getBoundingClientRect === 'function' ? header.getBoundingClientRect() : { left: 0, width: 0 };
+    const headerStyle = getStyle(header);
+    const borderLeft = parseFloat(headerStyle.borderLeftWidth) || 0;
+    const paddingLeft = parseFloat(headerStyle.paddingLeft) || 0;
+    const paddingRight = parseFloat(headerStyle.paddingRight) || 0;
+    const contentLeft = (headerRect.left || 0) + borderLeft + paddingLeft;
+    const contentWidth = Math.max(0, (header.clientWidth || headerRect.width || 0) - paddingLeft - paddingRight);
+    const corner = header.querySelector('[data-conversation-header-corner]');
+    const row = corner?.parentElement;
+    const tabs = header.querySelector('[data-conversation-tabs]');
+    let actions = null;
+    if (row && corner) {
+      mark(header, 'data-dsc-conversation-header');
+      mark(row, 'data-dsc-header-title-row');
+      const navigation = row.querySelector('nav[aria-label]');
+      mark(navigation?.parentElement, 'data-dsc-header-title-cluster');
+      mark(navigation, 'data-dsc-header-navigation');
+      // 末项是当前标题容器；只标记它，祖先面包屑按钮与操作保持原样。
+      mark(navigation?.lastElementChild, 'data-dsc-header-title');
+      actions = row.querySelector('[data-slot="conversation.session.header.actions"]')?.parentElement;
+      mark(actions, 'data-dsc-header-actions');
+      mark(row.querySelector('[data-slot="conversation.session.header.utilities"]')?.parentElement, 'data-dsc-header-utilities');
+      mark(row.querySelector('[data-slot="conversation.session.header.utilities"] [data-open-target="directory"]')?.parentElement, 'data-dsc-header-open-in-app');
+      mark(corner, 'data-dsc-header-corner');
+    }
+    if (tabs) {
+      mark(tabs, 'data-dsc-view-switch');
+      // rc.2 的 tablist 本身是行；rc.3 的父行还拥有原生更多视图菜单。
+      const tabsRow = tabs.parentElement !== header && tabs.parentElement?.getAttribute('data-slot') !== 'conversation.session.header' ? tabs.parentElement : null;
+      mark(tabsRow, 'data-dsc-header-view-row');
+      const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+      const active = buttons.findIndex(button => button.getAttribute('aria-selected') === 'true');
+      for (const [name, value] of [['--dsc-view-count', Math.max(1, buttons.length)], ['--dsc-view-index', Math.max(0, active)], ['--dsc-view-active', active >= 0 ? 1 : 0]]) {
+        applyProperty(tabs, name, value);
+      }
+      // 宿主按测量行宽裁剪 visibleTabs；行宽由 actions 实际占用反推。
+      if (tabsRow) {
+        const plan = viewRowPlan({
+          contentWidth,
+          actionsWidth: actions ? Math.max(0, usedRight(actions) - contentLeft) : 0,
+          narrow: contentWidth <= VIEW_ROW_NARROW
+        });
+        if (plan?.mode === 'inline') {
+          unmark(header, 'data-dsc-header-views-own-row');
+          applyProperty(tabsRow, '--dsc-view-row-width', Math.round(plan.width) + 'px');
+        } else {
+          mark(header, 'data-dsc-header-views-own-row');
+          applyProperty(tabsRow, '--dsc-view-row-width', null);
+        }
+      }
+      // 白滑块跟随实际选中项；选中项被固定在“更多”菜单时不显示。
+      const tabsRect = typeof tabs.getBoundingClientRect === 'function' ? tabs.getBoundingClientRect() : null;
+      const tabRect = active >= 0 && typeof buttons[active].getBoundingClientRect === 'function' ? buttons[active].getBoundingClientRect() : null;
+      if (tabsRect && tabRect && tabRect.width > 0) {
+        const box = viewSliderBox({
+          tabsLeft: tabsRect.left,
+          tabsBorderLeft: parseFloat(getStyle(tabs).borderLeftWidth) || 0,
+          tabLeft: tabRect.left,
+          tabWidth: tabRect.width
+        });
+        applyProperty(tabs, '--dsc-view-left', box.left.toFixed(2) + 'px');
+        applyProperty(tabs, '--dsc-view-width', box.width.toFixed(2) + 'px');
+      } else {
+        applyProperty(tabs, '--dsc-view-left', '0px');
+        applyProperty(tabs, '--dsc-view-width', '0px');
+      }
+      observe(tabs);
+    }
+    observe(actions);
+    prune();
+    for (const [element, saved] of [...attributes]) if (!activeAttributes.has(element)) { restoreAttributes(element, saved); attributes.delete(element); }
+    for (const [element, saved] of [...properties]) if (!activeProperties.has(element)) { restoreProperties(element, saved); properties.delete(element); }
+  };
+  sync();
+  if (mutationObserver) mutationObserver.observe(header, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-selected'] });
+  observe(header);
+  view.addEventListener?.('resize', schedule);
+  try {
+    const ready = documentRef?.fonts?.ready;
+    if (ready && typeof ready.then === 'function') ready.then(() => { if (!disposed) schedule(); }).catch(() => {});
+  } catch (_error) {}
+  return {
+    sync,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      if (frame !== null) { cancelFrame(frame); frame = null; }
+      mutationObserver?.disconnect();
+      resizeObserver?.disconnect();
+      view.removeEventListener?.('resize', schedule);
+      for (const [element, saved] of attributes) restoreAttributes(element, saved);
+      attributes.clear();
+      for (const [element, saved] of properties) restoreProperties(element, saved);
+      properties.clear();
+      observed.clear();
+    }
+  };
+}
+
 // 公开的会话头 leading 座负责留位；仅收起二级侧栏时显示，不覆盖标题。
 // 保留原生头部、视图按钮和子槽所有权，仅从公开锚点添加可释放的布局标记。
 function useConversationHeaderChrome(marker, enabled) {
   useLayoutEffect(() => {
-    if (!enabled) return;
+    if (!enabled) return undefined;
     const header = marker.current?.closest('header');
-    if (!header) return;
-    const attributes = new Map();
-    const properties = new Map();
-    const restore = (element, saved) => {
-      for (const [name, value] of saved) {
-        if (value === null) element.removeAttribute(name); else element.setAttribute(name, value);
-      }
-    };
-    const sync = () => {
-      const touched = new Set();
-      const mark = (element, name) => {
-        if (!element) return;
-        touched.add(element);
-        let saved = attributes.get(element);
-        if (!saved) attributes.set(element, saved = new Map());
-        if (!saved.has(name)) saved.set(name, element.getAttribute(name));
-        if (!element.hasAttribute(name)) element.setAttribute(name, '');
-      };
-      const corner = header.querySelector('[data-conversation-header-corner]');
-      const row = corner?.parentElement;
-      const tabs = header.querySelector('[data-conversation-tabs]');
-      if (row && corner) {
-        mark(header, 'data-dsc-conversation-header');
-        mark(row, 'data-dsc-header-title-row');
-        const navigation = row.querySelector('nav[aria-label]');
-        mark(navigation?.parentElement, 'data-dsc-header-title-cluster');
-        mark(navigation, 'data-dsc-header-navigation');
-        // 末项是当前标题容器；只标记它，祖先面包屑按钮与操作保持原样。
-        mark(navigation?.lastElementChild, 'data-dsc-header-title');
-        mark(row.querySelector('[data-slot="conversation.session.header.actions"]')?.parentElement, 'data-dsc-header-actions');
-        mark(row.querySelector('[data-slot="conversation.session.header.utilities"]')?.parentElement, 'data-dsc-header-utilities');
-        mark(row.querySelector('[data-slot="conversation.session.header.utilities"] [data-open-target="directory"]')?.parentElement, 'data-dsc-header-open-in-app');
-        mark(corner, 'data-dsc-header-corner');
-      }
-      if (tabs) {
-        mark(tabs, 'data-dsc-view-switch');
-        // rc.2 的 tablist 本身是行；rc.3 的父行还拥有原生更多视图菜单。
-        if (tabs.parentElement !== header && tabs.parentElement?.getAttribute('data-slot') !== 'conversation.session.header') mark(tabs.parentElement, 'data-dsc-header-view-row');
-        const buttons = [...tabs.querySelectorAll('[role="tab"]')];
-        const active = buttons.findIndex(button => button.getAttribute('aria-selected') === 'true');
-        if (!properties.has(tabs)) properties.set(tabs, new Map(['--dsc-view-count', '--dsc-view-index', '--dsc-view-active'].map(name => [name, [tabs.style.getPropertyValue(name), tabs.style.getPropertyPriority(name)]])));
-        for (const [name, value] of [['--dsc-view-count', Math.max(1, buttons.length)], ['--dsc-view-index', Math.max(0, active)], ['--dsc-view-active', active >= 0 ? 1 : 0]]) {
-          if (tabs.style.getPropertyValue(name) !== String(value)) tabs.style.setProperty(name, value);
-        }
-      }
-      for (const [element, saved] of attributes) if (!touched.has(element)) { restore(element, saved); attributes.delete(element); }
-      for (const [element, saved] of properties) if (element !== tabs) {
-        for (const [name, [value, priority]] of saved) { if (value) element.style.setProperty(name, value, priority); else element.style.removeProperty(name); }
-        properties.delete(element);
-      }
-    };
-    sync();
-    const observer = new MutationObserver(sync);
-    observer.observe(header, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-selected'] });
-    return () => {
-      observer.disconnect();
-      for (const [element, saved] of attributes) restore(element, saved);
-      for (const [element, saved] of properties) for (const [name, [value, priority]] of saved) {
-        if (value) element.style.setProperty(name, value, priority); else element.style.removeProperty(name);
-      }
-    };
+    if (!header) return undefined;
+    const presenter = createConversationHeaderPresenter({ header });
+    return () => presenter.dispose();
   }, [marker, enabled]);
 }
 
@@ -539,6 +729,229 @@ function makeCollapsedNewChat(ctx) {
   };
 }
 
+// 公开 sidebar.footer.action 的第三方入口：只在齿轮菜单打开时把宿主原生节点呈现为菜单上方独立分组。
+// 只读公开 data-slot 锚点与 entries 计数；不重渲染、不复制、不搬移、不代发点击。
+function footerActionRoot(documentRef) {
+  const slot = documentRef && typeof documentRef.querySelector === 'function' ? documentRef.querySelector('[data-slot="sidebar.footer.action"]') : null;
+  if (!slot || typeof slot.closest !== 'function') return null;
+  if (!slot.closest('[data-slot="sidebar"]')) return null;
+  // 抽屉布局里宿主列自带 transform 与裁剪，固定定位不可靠；按约定跳过。
+  if (slot.closest('[data-sidebar-drawer]')) return null;
+  const host = slot.parentElement;
+  if (!host) return null;
+  return { slot, host, base: host.parentElement };
+}
+// 分组紧贴菜单上方：0 个入口、抽屉布局或菜单尚未定位时不占空间。
+function footerActionPlan({ entries, drawer, menuRect, viewportHeight }) {
+  if (!(Number(entries) > 0) || drawer) return null;
+  if (!menuRect || !(menuRect.width > 0)) return null;
+  const height = Number(viewportHeight) > 0 ? Number(viewportHeight) : 0;
+  const bottom = Math.max(8, Math.round(Math.max(0, height - menuRect.top) + 4));
+  return {
+    left: Math.max(8, Math.round(menuRect.left)),
+    width: Math.max(0, Math.round(menuRect.width)),
+    bottom,
+    // 面板底边距视口底部 bottom，上方可用高度 = 视口高 - bottom - 顶部 8px 安全距。
+    maxHeight: Math.max(48, height - bottom - 8)
+  };
+}
+// 可脱离 React 测试的 DOM 呈现器：加可释放标记/变量并把原生按钮移出 Tab 序列（方向键仍可达）。
+function createFooterActionPresenter({ document: doc, window: win, readEntries, readPanelRect, onRoot = () => {} }) {
+  const attributes = new Map();
+  const properties = new Map();
+  const tabIndexes = new Map();
+  const clearMarked = new Map();
+  let rootElement = null;
+  let disposed = false;
+  const rememberAttribute = (node, name) => {
+    let saved = attributes.get(node);
+    if (!saved) attributes.set(node, saved = new Map());
+    if (!saved.has(name)) saved.set(name, node.getAttribute(name));
+  };
+  const mark = (node, name) => {
+    if (!node) return;
+    rememberAttribute(node, name);
+    if (node.getAttribute(name) !== '') node.setAttribute(name, '');
+  };
+  const rememberProperty = (node, name) => {
+    let saved = properties.get(node);
+    if (!saved) properties.set(node, saved = new Map());
+    if (saved.has(name) || !node.style) return;
+    saved.set(name, [node.style.getPropertyValue(name), typeof node.style.getPropertyPriority === 'function' ? node.style.getPropertyPriority(name) : '']);
+  };
+  const applyProperty = (node, name, value) => {
+    if (!node || !node.style) return;
+    rememberProperty(node, name);
+    if (node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value);
+  };
+  const restoreProperty = (node, name) => {
+    const saved = properties.get(node);
+    if (!saved || !saved.has(name)) return;
+    const [value, priority] = saved.get(name);
+    if (node.isConnected && node.style) {
+      if (value) node.style.setProperty(name, value, priority); else node.style.removeProperty(name);
+    }
+    saved.delete(name);
+    if (saved.size === 0) properties.delete(node);
+  };
+  const unmark = (node, name) => {
+    const saved = attributes.get(node);
+    if (saved && saved.has(name)) {
+      const value = saved.get(name);
+      if (node.isConnected) {
+        if (value === null) node.removeAttribute(name); else node.setAttribute(name, value);
+      }
+      saved.delete(name);
+      if (saved.size === 0) attributes.delete(node);
+    }
+    clearMarked.delete(node);
+  };
+  // 分组落在宿主侧栏列层叠上下文内、低于自有 rail；菜单打开期间只让 rail 与分组
+  // 竖向重叠的区段放行点击，其余 rail 面积由透明命中层继续阻挡，重叠的 rail 图标临时隐藏。
+  const syncClear = (plan, host) => {
+    const rail = doc && typeof doc.querySelector === 'function' ? doc.querySelector('.dsc-independent-rail') : null;
+    const next = new Map();
+    let clearTop = null;
+    if (rail && typeof rail.getBoundingClientRect === 'function' && typeof host.getBoundingClientRect === 'function') {
+      const railRect = rail.getBoundingClientRect();
+      const hostRect = host.getBoundingClientRect();
+      const horizontal = plan.left < railRect.right && plan.left + plan.width > railRect.left;
+      const vertical = hostRect.bottom > railRect.top && hostRect.top < railRect.bottom;
+      if (horizontal && vertical) {
+        clearTop = Math.max(0, Math.min(railRect.height, Math.round(hostRect.top - railRect.top)));
+        next.set(rail, 'data-dsc-app-footer-clear');
+        if (typeof rail.querySelectorAll === 'function') {
+          for (const item of rail.querySelectorAll('.dsc-rail__item')) {
+            const box = typeof item.getBoundingClientRect === 'function' ? item.getBoundingClientRect() : null;
+            if (box && box.bottom > hostRect.top && box.top < hostRect.bottom) next.set(item, 'data-dsc-app-footer-clear-item');
+          }
+        }
+      }
+    }
+    for (const [node, marker] of [...clearMarked]) {
+      if (next.get(node) === marker) continue;
+      unmark(node, marker);
+      if (marker === 'data-dsc-app-footer-clear') restoreProperty(node, '--dsc-app-footer-clear-top');
+    }
+    for (const [node, marker] of next) {
+      if (clearMarked.get(node) !== marker) { mark(node, marker); clearMarked.set(node, marker); }
+    }
+    if (clearTop !== null) {
+      for (const [node, marker] of next) {
+        if (marker === 'data-dsc-app-footer-clear') applyProperty(node, '--dsc-app-footer-clear-top', clearTop + 'px');
+      }
+    }
+  };
+  const publishRoot = node => {
+    if (rootElement === node) return;
+    rootElement = node;
+    onRoot(node);
+  };
+  const restore = () => {
+    if (disposed && attributes.size === 0 && properties.size === 0 && tabIndexes.size === 0) return;
+    for (const [node, saved] of attributes) {
+      if (!node.isConnected) continue;
+      for (const [name, value] of saved) {
+        if (value === null) node.removeAttribute(name); else node.setAttribute(name, value);
+      }
+    }
+    attributes.clear();
+    for (const [node, saved] of properties) {
+      if (!node.isConnected) continue;
+      for (const [name, [value, priority]] of saved) {
+        if (value) node.style.setProperty(name, value, priority); else node.style.removeProperty(name);
+      }
+    }
+    properties.clear();
+    for (const [node, value] of tabIndexes) if (node.isConnected) node.tabIndex = value;
+    tabIndexes.clear();
+    clearMarked.clear();
+    publishRoot(null);
+  };
+  const sync = () => {
+    if (disposed) return;
+    let entries = 0;
+    try { entries = Number(readEntries && readEntries()) || 0; } catch (_error) { entries = 0; }
+    const target = footerActionRoot(doc);
+    const menuRect = target ? readPanelRect && readPanelRect() : null;
+    const plan = target ? footerActionPlan({ entries, drawer: false, menuRect, viewportHeight: win && win.innerHeight }) : null;
+    if (!target || !plan) { restore(); return; }
+    const { slot, host, base } = target;
+    mark(host, 'data-dsc-app-footer-host');
+    mark(base, 'data-dsc-app-footer-base');
+    applyProperty(host, '--dsc-app-footer-left', plan.left + 'px');
+    applyProperty(host, '--dsc-app-footer-width', plan.width + 'px');
+    applyProperty(host, '--dsc-app-footer-bottom', plan.bottom + 'px');
+    applyProperty(host, '--dsc-app-footer-max-height', plan.maxHeight + 'px');
+    for (const child of slot.children ? [...slot.children] : []) {
+      if (child && typeof child.tagName === 'string') mark(child, 'data-dsc-app-footer-entry');
+    }
+    if (typeof host.querySelectorAll === 'function') {
+      for (const node of host.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')) {
+        if (!tabIndexes.has(node)) tabIndexes.set(node, node.tabIndex);
+        if (node.tabIndex !== -1) node.tabIndex = -1;
+      }
+    }
+    syncClear(plan, host);
+    publishRoot(host);
+  };
+  return {
+    sync,
+    root: () => rootElement,
+    dispose() {
+      disposed = true;
+      restore();
+    }
+  };
+}
+// 菜单打开期间跟踪公开 footer 入口；关闭时恢复属性并把焦点送回齿轮。
+function useHostFooterActions(ctx, open, menuRef, anchorRef) {
+  const [groupRoot, setGroupRoot] = useState(null);
+  useLayoutEffect(() => {
+    if (!open || typeof document === 'undefined') { setGroupRoot(null); return undefined; }
+    let frame = 0;
+    const presenter = createFooterActionPresenter({
+      document,
+      window,
+      readEntries: () => {
+        try { return ctx.slots.entriesOfSlot('sidebar.footer.action').length; } catch (_error) { return 0; }
+      },
+      readPanelRect: () => (menuRef.current && typeof menuRef.current.getBoundingClientRect === 'function' ? menuRef.current.getBoundingClientRect() : null),
+      onRoot: element => { setGroupRoot(previous => (previous === element ? previous : element)); }
+    });
+    const schedule = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; presenter.sync(); });
+    };
+    presenter.sync();
+    const sidebar = document.querySelector('[data-slot="sidebar"]');
+    const observer = sidebar && typeof MutationObserver === 'function' ? new MutationObserver(schedule) : null;
+    if (observer && sidebar) observer.observe(sidebar, { childList: true, subtree: true });
+    let unsubscribe = () => {};
+    try {
+      if (ctx.slots && typeof ctx.slots.subscribe === 'function') unsubscribe = ctx.slots.subscribe('sidebar.footer.action', schedule);
+    } catch (_error) { unsubscribe = () => {}; }
+    const size = menuRef.current && typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
+    if (size && menuRef.current) size.observe(menuRef.current);
+    const panel = menuRef.current;
+    if (panel && typeof panel.addEventListener === 'function') panel.addEventListener('animationend', schedule);
+    window.addEventListener('resize', schedule);
+    return () => {
+      if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      if (observer) observer.disconnect();
+      if (size) size.disconnect();
+      if (panel && typeof panel.removeEventListener === 'function') panel.removeEventListener('animationend', schedule);
+      unsubscribe();
+      window.removeEventListener('resize', schedule);
+      const host = presenter.root();
+      if (host && typeof host.contains === 'function' && host.contains(document.activeElement)) anchorRef.current?.focus();
+      presenter.dispose();
+      setGroupRoot(null);
+    };
+  }, [ctx, open, menuRef, anchorRef]);
+  return groupRoot;
+}
+
 function makeGearLauncher(ctx) {
   return function GearLauncher({ openSettings, settingsOpen }) {
     const [open, setOpen] = useState(false);
@@ -546,6 +959,8 @@ function makeGearLauncher(ctx) {
     const [failed, setFailed] = useState(false);
     const [avatarFailed, setAvatarFailed] = useState(false);
     const anchor = useRef(null);
+    const menuRef = useRef(null);
+    const footerRoot = useHostFooterActions(ctx, open, menuRef, anchor);
     useEffect(() => { if (settingsOpen) setOpen(false); }, [settingsOpen]);
     useEffect(() => {
       if (!open) return;
@@ -563,7 +978,7 @@ function makeGearLauncher(ctx) {
     const showSettings = () => { setOpen(false); openSettings(); };
     return createPortal(h('div', { className: 'dsc-ui dsc-gear-launcher' },
       h('button', { ref: anchor, type: 'button', className: 'dsc-gear-button', 'aria-label': '设置', 'aria-haspopup': 'menu', 'aria-expanded': open, onClick: () => setOpen(!open) }, h(PrototypeIcon, { name: 'settings' })),
-      open && h(Popover, { anchor, onClose: () => setOpen(false), label: '设置与账号', width: 228, className: 'dsc-app-menu' },
+      open && h(Popover, { anchor, onClose: () => setOpen(false), label: '设置与账号', width: 228, className: 'dsc-app-menu', panelRef: menuRef, extraRoots: footerRoot ? [footerRoot] : [] },
         h('button', { type: 'button', className: 'dsc-account-row', role: 'menuitem', onClick: showSettings, title: '在账号子页面中管理' }, profile?.avatarUrl && !avatarFailed ? h('img', { src: profile.avatarUrl, alt: '', onError: () => setAvatarFailed(true) }) : h('span', { className: 'dsc-account-avatar' }, h(Icon, { name: 'chat' })), h('span', null, h('strong', null, profile?.name || profile?.contact || '账号'), h('small', null, profile ? '账号与设置' : failed ? '打开账号设置' : '正在读取账号…'))),
         h('div', { className: 'dsc-menu-separator', role: 'separator' }),
         h(Option, { title: '设置', icon: 'settings', onClick: showSettings }))), document.body);

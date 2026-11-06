@@ -152,10 +152,30 @@ function Option({ title, detail, icon, selected, onClick, disabled, warning }) {
     selected && h(Icon, { name: 'check' }));
 }
 
+// 齿轮菜单会把公开 sidebar.footer.action 的原生节点作为“菜单上方分组”一并显示；
+// 这些节点不在 Popover 的 DOM 子树内，因此把“点内/键盘范围”判定独立出来，供菜单与测试复用。
+function isInsideMenuTarget(target, primary, extras) {
+  if (!target) return false;
+  const inside = node => Boolean(node && typeof node.contains === 'function' && node.contains(target));
+  return inside(primary) || (extras || []).some(inside);
+}
+// 视觉顺序：外部分组在菜单上方，先参与方向键循环；菜单自身按钮随后。
+function menuFocusItems(primary, extras) {
+  const items = [];
+  for (const root of [...(extras || []), primary]) {
+    if (!root || typeof root.querySelectorAll !== 'function') continue;
+    for (const node of root.querySelectorAll('button:not(:disabled)')) items.push(node);
+  }
+  return items;
+}
+
 // 所有浮层位于自己的 portal 根；只读取 anchor 与自己的 DOM，不查宿主私有选择器。
 // placement: 'top' 为默认（锚点上方优先），'right' 用于行尾菜单（锚点右下方展开）。
-function Popover({ anchor, point, onClose, label, width = 300, children, className = '', autoFocus = true, role = 'menu', placement = 'top' }) {
-  const ref = useRef(null);
+function Popover({ anchor, point, onClose, label, width = 300, children, className = '', autoFocus = true, role = 'menu', placement = 'top', extraRoots = [], panelRef }) {
+  const localRef = useRef(null);
+  const ref = panelRef || localRef;
+  const extras = useRef(extraRoots);
+  extras.current = extraRoots;
   const [position, setPosition] = useState({ visibility: 'hidden' });
   useLayoutEffect(() => {
     const place = () => {
@@ -193,11 +213,27 @@ function Popover({ anchor, point, onClose, label, width = 300, children, classNa
   }, [anchor, point, width, placement]);
   useEffect(() => {
     if (autoFocus) (ref.current?.querySelector('input, [aria-checked="true"], button, [role="slider"]'))?.focus({ preventScroll: true });
-    const pointer = e => { if (!ref.current?.contains(e.target) && !anchor.current?.contains(e.target)) onClose(); };
+    const pointer = e => { if (!isInsideMenuTarget(e.target, ref.current, extras.current) && !anchor.current?.contains(e.target)) onClose(); };
     const key = e => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); anchor.current?.focus(); return; }
-      if (!ref.current?.contains(e.target) || e.target.matches('input, [role="slider"]') || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
-      const items = [...ref.current.querySelectorAll('button:not(:disabled)')];
+      if (e.key === 'Escape') {
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        // 焦点已进入第三方自己的弹窗时，不抢它的 Escape；菜单/分组内或焦点丢失时才关闭。
+        const within = isInsideMenuTarget(active, ref.current, extras.current) || isInsideMenuTarget(e.target, ref.current, extras.current) || anchor.current?.contains(active) || active === null || (typeof document !== 'undefined' && active === document.body);
+        if (!within) return;
+        e.preventDefault(); e.stopPropagation(); onClose(); anchor.current?.focus(); return;
+      }
+      if (e.key === 'Tab') {
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        const inExtras = (extras.current || []).some(root => root && typeof root.contains === 'function' && root.contains(active));
+        if (!inExtras) return;
+        const items = menuFocusItems(ref.current, []);
+        if (!items.length) return;
+        e.preventDefault();
+        items[e.shiftKey ? items.length - 1 : 0].focus();
+        return;
+      }
+      if (!isInsideMenuTarget(e.target, ref.current, extras.current) || e.target.matches('input, [role="slider"]') || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+      const items = menuFocusItems(ref.current, extras.current);
       if (!items.length) return;
       e.preventDefault();
       const index = items.indexOf(document.activeElement);
@@ -1109,13 +1145,9 @@ function apply(ctx) {
     'settings.trigger': () => h('span', { className: 'dsc-ui dsc-settings-trigger' }, h(Icon, { name: 'settings', size: 18 }), '设置')
   };
   for (const [name, component] of Object.entries(components)) register(ctx, name, component);
-  const updates = createPluginUpdateService(PLUGIN_VERSION);
-  ctx.inject(['remote'], scope => scope.effect(() => mountPluginUpdateRemote(scope), 'codex-style: update remote methods'));
-  ctx.inject(['remote', 'remote.codexStyleUpdates'], scope => scope.effect(() => updates.connect(scope.remote.codexStyleUpdates), 'codex-style: update download and install'));
-  ctx.effect(() => { updates.start(); return () => updates.dispose(); }, 'codex-style: automatic update check');
-  ctx.slots.inject('plugins.detail.actions', () => ctx.slots.register({ name: 'plugins.detail.actions', id: 'codex-style:check-update' }, props => h(PluginUpdateAction, { ...props, updates })));
+  // 自研插件更新已退役：不再注册详情页更新按钮、更新提醒、Host 更新服务或定时网络查询。
+  // 插件版本更新统一由 DSH 原生插件页/市场负责；本插件只保留 DSH 本体更新入口（见下方 desktopUpdates）。
   ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({ name: 'plugins.detail.section', id: 'codex-style:support' }, PluginSupportSection));
-  ctx.inject(['pluginNavigation'], scope => scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:update-notice' }, () => h(PluginUpdateNotice, { updates, onOpen: () => scope.reflect.get('pluginNavigation').openBundle(PLUGIN_PACKAGE) }))));
   // 等各区域自己的服务就绪；权限 RPC 的命名空间不能由 remote 根服务存在来推断。
   ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale', 'pluginNavigation'], scope => {
     const sidebar = createSidebarPresentation();

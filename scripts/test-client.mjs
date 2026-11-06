@@ -439,6 +439,50 @@ test('desktop update clicks reach the host only outside busy phases', async () =
   assert.equal(fake.carrier.updates.opens, 2);
 });
 
+// 自研插件更新退役：真实发行 bundle 不再注册更新 UI、Remote 命名空间或定时网络查询；
+// DSH 本体更新入口保留。此断言直接运行构建产物，不依赖源码字符串位置。
+test('retired self-update registers no update UI, namespace or network polling', async () => {
+  let plugin;
+  const network = [];
+  const window = { __ModuleLoader__: { load: definition => { plugin = definition.factory(name => {
+    if (name === 'react') return { Component: class {} };
+    if (name === '@deepseek-ai/dsh-client-store') return { createSnapshotStore: value => ({ getSnapshot: () => value, set: next => { value = next; } }) };
+    return {};
+  }); } }, localStorage: { getItem: () => null }, addEventListener() {}, removeEventListener() {} };
+  const document = {
+    body: { getAttribute: () => null, setAttribute() {}, removeAttribute() {} },
+    head: { appendChild() {} },
+    createElement: () => ({ dataset: {}, remove() {} }),
+    documentElement: { hasAttribute: () => false },
+    querySelector: () => null, querySelectorAll: () => [],
+    addEventListener() {}, removeEventListener() {}, visibilityState: 'visible'
+  };
+  new Script(await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')).runInNewContext({
+    window, document, console: { warn() {}, error() {} },
+    fetch: (...args) => { network.push(args); return Promise.reject(new Error('no network expected')); },
+    setTimeout: () => ({}), clearTimeout() {}, setInterval: () => ({}), clearInterval() {},
+    queueMicrotask, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, getComputedStyle: () => ({ position: 'static' })
+  });
+  const injections = [], slotNames = [], registered = [];
+  const slots = {
+    entries: () => [],
+    inject: (name, factory) => { slotNames.push(name); try { factory(); } catch { /* 组件渲染由原生前端夹具负责 */ } return () => {}; },
+    register: options => { registered.push(options?.id); return () => {}; }
+  };
+  const ctx = {
+    inject: (dependencies, callback) => { injections.push(dependencies); return () => {}; },
+    effect: () => () => {}, slots, plugin: () => {}, provide() {}, on: () => () => {}, get: () => undefined
+  };
+  plugin.apply(ctx);
+  await new Promise(setImmediate);
+  assert.equal(injections.some(dependencies => dependencies.includes('remote.codexStyleUpdates')), false);
+  assert.equal(slotNames.includes('plugins.detail.actions'), false);
+  assert.equal(registered.includes('codex-style:check-update'), false);
+  assert.equal(registered.includes('codex-style:update-notice'), false);
+  assert.equal(registered.includes('codex-style:desktop-update'), true);
+  assert.deepEqual(network, []);
+});
+
 test('desktop update view maps every phase to the rail glyph and hover copy', async () => {
   const { desktopUpdateView } = await desktopUpdateFixture();
   assert.equal(desktopUpdateView({ presentation: { phase: 'idle' } }), null);
@@ -451,4 +495,223 @@ test('desktop update view maps every phase to the rail glyph and hover copy', as
   assert.equal(desktopUpdateView({ presentation: { phase: 'error', failure: 'tasks-changed' } }).detail, '有新任务开始运行，请重新确认是否停止任务并更新。');
   assert.equal(desktopUpdateView({ failed: true }).kind, 'error');
   assert.equal(desktopUpdateView({ presentation: { phase: 'available' }, opening: true }).kind, 'busy');
+});
+
+// 齿轮菜单的第三方分组：只消费公开 sidebar.footer.action，绝不写死 Remote，也不读取内部 entry.component。
+async function footerActionsFixture() {
+  let plugin;
+  const window = { __ModuleLoader__: { load: definition => { plugin = definition.factory(name => {
+    if (name === 'react') return { Component: class {} };
+    if (name === 'react-dom') return { createPortal: node => node };
+    if (name === '@deepseek-ai/dsh-client-store') return { createSnapshotStore: value => ({ getSnapshot: () => value, set: next => { value = next; } }) };
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') return {};
+    return {};
+  }); } }, localStorage: { getItem: () => null }, addEventListener() {}, removeEventListener() {}, innerHeight: 900 };
+  const document = {
+    body: { getAttribute: () => null, setAttribute() {}, removeAttribute() {} },
+    head: { appendChild() {} },
+    createElement: () => ({ dataset: {}, remove() {} }),
+    documentElement: { hasAttribute: () => false },
+    querySelector: () => null, querySelectorAll: () => [],
+    activeElement: null, addEventListener() {}, removeEventListener() {}
+  };
+  const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')).replace('    return module.exports;', 'module.exports.fixture = { footerActionRoot, footerActionPlan, createFooterActionPresenter, isInsideMenuTarget, menuFocusItems }; return module.exports;');
+  new Script(bundle).runInNewContext({ window, document, console: { warn() {}, error() {} }, queueMicrotask, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, getComputedStyle: () => ({ position: 'static' }) });
+  return plugin.fixture;
+}
+
+function fakeNode(tagName, attributes = {}, rect = null) {
+  const node = {
+    tagName: String(tagName).toUpperCase(),
+    attributes: new Map(Object.entries(attributes)),
+    children: [], parentElement: null, isConnected: true, tabIndex: 0, rect,
+    listeners: new Map(),
+    style: {
+      values: new Map(), priorities: new Map(),
+      setProperty(name, value, priority = '') { this.values.set(name, String(value)); this.priorities.set(name, priority); },
+      getPropertyValue(name) { return this.values.has(name) ? this.values.get(name) : ''; },
+      getPropertyPriority(name) { return this.priorities.get(name) || ''; },
+      removeProperty(name) { this.values.delete(name); this.priorities.delete(name); }
+    }
+  };
+  node.getAttribute = name => (node.attributes.has(name) ? node.attributes.get(name) : null);
+  node.setAttribute = (name, value) => { node.attributes.set(name, String(value)); };
+  node.removeAttribute = name => { node.attributes.delete(name); };
+  node.hasAttribute = name => node.attributes.has(name);
+  node.appendChild = child => { child.parentElement = node; child.isConnected = true; node.children.push(child); return child; };
+  node.removeChild = child => { const index = node.children.indexOf(child); if (index >= 0) node.children.splice(index, 1); child.parentElement = null; child.isConnected = false; return child; };
+  node.contains = target => { let current = target; while (current) { if (current === node) return true; current = current.parentElement; } return false; };
+  node.closest = selector => { let current = node; while (current) { if (fakeMatches(current, selector)) return current; current = current.parentElement; } return null; };
+  node.matches = selector => fakeMatches(node, selector);
+  node.querySelectorAll = selector => {
+    const found = [];
+    const walk = current => { for (const child of current.children) { if (fakeMatches(child, selector)) found.push(child); walk(child); } };
+    walk(node);
+    return found;
+  };
+  node.getBoundingClientRect = () => (node.rect ? { ...node.rect } : { left: 12, top: 400, width: 240, height: 120, right: 252, bottom: 520 });
+  node.addEventListener = (type, handler) => { if (!node.listeners.has(type)) node.listeners.set(type, new Set()); node.listeners.get(type).add(handler); };
+  node.removeEventListener = (type, handler) => { node.listeners.get(type)?.delete(handler); };
+  node.dispatch = type => { for (const handler of [...(node.listeners.get(type) || [])]) handler({ type, target: node }); };
+  return node;
+}
+function fakeMatches(node, selector) {
+  return String(selector).split(',').some(part => {
+    const rule = part.trim();
+    if (!rule) return false;
+    if (rule.startsWith('.') && !rule.includes('[')) {
+      const classes = String(node.getAttribute('class') || '').split(/\s+/);
+      return classes.includes(rule.slice(1));
+    }
+    if (rule.startsWith('[') && rule.endsWith(']')) {
+      const inner = rule.slice(1, -1);
+      const equal = inner.indexOf('=');
+      if (equal < 0) return node.hasAttribute(inner);
+      return node.getAttribute(inner.slice(0, equal)) === inner.slice(equal + 1).replace(/^"|"$/g, '');
+    }
+    if (rule === 'button') return node.tagName === 'BUTTON';
+    if (rule === 'a[href]') return node.tagName === 'A' && node.hasAttribute('href');
+    if (rule === 'input') return node.tagName === 'INPUT';
+    if (rule === 'select') return node.tagName === 'SELECT';
+    if (rule === 'textarea') return node.tagName === 'TEXTAREA';
+    return false;
+  });
+}
+
+test('gear third-party group uses only the public footer slot and no Remote specifics', async () => {
+  const bundle = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
+  assert.equal(bundle.includes('sidebar.footer.action'), true);
+  assert.equal(bundle.includes('data-dsc-app-footer'), true);
+  assert.equal(bundle.includes('data-dsc-app-footer-clear'), true);
+  assert.equal(bundle.includes('dsc-rail-hitblock'), true);
+  assert.equal(bundle.includes('var(--dsc-app-footer-max-height'), true);
+  assert.equal(bundle.includes('100vh - var(--dsc-app-footer-bottom) - 8px'), true);
+  assert.equal(bundle.includes('calc(var(--dsc-app-footer-bottom) - 16px)'), false);
+  for (const marker of ['ds-harness-remote', 'dshRemote', 'entry.component']) assert.equal(bundle.includes(marker), false, marker);
+});
+
+test('footer group plan stays out of the way with zero entries or drawer layout', async () => {
+  const { footerActionPlan } = await footerActionsFixture();
+  assert.equal(footerActionPlan({ entries: 0, menuRect: { left: 12, top: 400, width: 240 }, viewportHeight: 900 }), null);
+  assert.equal(footerActionPlan({ entries: 2, drawer: true, menuRect: { left: 12, top: 400, width: 240 }, viewportHeight: 900 }), null);
+  assert.equal(footerActionPlan({ entries: 2, menuRect: null, viewportHeight: 900 }), null);
+  const plan = footerActionPlan({ entries: 2, menuRect: { left: 12, top: 400, width: 240 }, viewportHeight: 900 });
+  // maxHeight 必须按“视口高 - 底边距 - 顶部 8px”计算，不能用底边距本身。
+  assert.deepEqual([plan.left, plan.width, plan.bottom, plan.maxHeight], [12, 240, 504, 388]);
+  const short = footerActionPlan({ entries: 1, menuRect: { left: 12, top: 200, width: 240 }, viewportHeight: 240 });
+  assert.deepEqual([short.bottom, short.maxHeight], [44, 188]);
+  assert.equal(footerActionPlan({ entries: 2, menuRect: { left: 4, top: 100, width: 0 }, viewportHeight: 900 }), null);
+});
+
+test('footer group presenter marks the native footer, restores it and follows dynamic entries', async () => {
+  const { footerActionRoot, createFooterActionPresenter } = await footerActionsFixture();
+  const sidebar = fakeNode('div', { 'data-slot': 'sidebar' });
+  const base = fakeNode('div', { class: 'footArea' });
+  sidebar.appendChild(base);
+  const host = fakeNode('div', { 'data-keep': 'host' }, { left: 12, right: 252, top: 500, bottom: 620, width: 240, height: 120 });
+  base.appendChild(host);
+  const slot = fakeNode('div', { 'data-slot': 'sidebar.footer.action' });
+  host.appendChild(slot);
+  const first = fakeNode('div', { class: 'first' });
+  const firstButton = fakeNode('button');
+  first.appendChild(firstButton); slot.appendChild(first);
+  const rail = fakeNode('nav', { class: 'dsc-independent-rail' }, { left: 0, right: 52, top: 0, bottom: 900, width: 52, height: 900 });
+  const topItem = fakeNode('button', { class: 'dsc-rail__item' }, { left: 0, right: 52, top: 20, bottom: 56, width: 52, height: 36 });
+  const bottomItem = fakeNode('button', { class: 'dsc-rail__item' }, { left: 0, right: 52, top: 520, bottom: 556, width: 52, height: 36 });
+  rail.appendChild(topItem); rail.appendChild(bottomItem);
+  let menuRect = { left: 12, top: 400, width: 240, height: 120 };
+  let clicks = 0;
+  firstButton.addEventListener('click', () => { clicks += 1; });
+  const documentRef = { querySelector: selector => (selector.includes('sidebar.footer.action') ? slot : selector === '.dsc-independent-rail' ? rail : null) };
+  const root = footerActionRoot(documentRef);
+  assert.equal(root.host, host);
+  assert.equal(root.base, base);
+  host.style.setProperty('--dsc-app-footer-left', '7px');
+  let entries = 1, published = [];
+  const presenter = createFooterActionPresenter({
+    document: documentRef,
+    window: { innerHeight: 900 },
+    readEntries: () => entries,
+    readPanelRect: () => menuRect,
+    onRoot: element => published.push(element)
+  });
+  presenter.sync();
+  assert.equal(host.getAttribute('data-dsc-app-footer-host'), '');
+  assert.equal(first.getAttribute('data-dsc-app-footer-entry'), '');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-left'), '12px');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-width'), '240px');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-bottom'), '504px');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-max-height'), '388px');
+  assert.equal(firstButton.tabIndex, -1);
+  // 与分组竖向重叠的 rail 区段放行；上方按钮保持原样。
+  assert.equal(rail.getAttribute('data-dsc-app-footer-clear'), '');
+  assert.equal(rail.style.getPropertyValue('--dsc-app-footer-clear-top'), '500px');
+  assert.equal(bottomItem.getAttribute('data-dsc-app-footer-clear-item'), '');
+  assert.equal(topItem.hasAttribute('data-dsc-app-footer-clear-item'), false);
+  // 原生 click handler 仍由第三方节点自持：呈现器不注册、也不代发 click。
+  assert.equal(host.listeners.size, 0);
+  firstButton.dispatch('click');
+  assert.equal(clicks, 1);
+  assert.equal(host.getAttribute('data-dsc-app-footer-host'), '');
+  // 面板不再与 rail 横向重叠时，rail 放行标记和变量恢复。
+  menuRect = { left: 60, top: 400, width: 240, height: 120 };
+  presenter.sync();
+  assert.equal(rail.hasAttribute('data-dsc-app-footer-clear'), false);
+  assert.equal(rail.style.getPropertyValue('--dsc-app-footer-clear-top'), '');
+  assert.equal(bottomItem.hasAttribute('data-dsc-app-footer-clear-item'), false);
+  menuRect = { left: 12, top: 400, width: 240, height: 120 };
+  presenter.sync();
+  // 动态新增入口：下一次 sync 标记新节点，旧节点保持。
+  const second = fakeNode('div', { class: 'second' });
+  second.appendChild(fakeNode('button')); slot.appendChild(second);
+  entries = 2;
+  presenter.sync();
+  assert.equal(second.getAttribute('data-dsc-app-footer-entry'), '');
+  assert.equal(first.getAttribute('data-dsc-app-footer-entry'), '');
+  // 0 个入口：全部标记和变量恢复，Tab 序列恢复。
+  entries = 0;
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false);
+  assert.equal(first.hasAttribute('data-dsc-app-footer-entry'), false);
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-left'), '7px');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-max-height'), '');
+  assert.equal(firstButton.tabIndex, 0);
+  assert.equal(rail.hasAttribute('data-dsc-app-footer-clear'), false);
+  assert.equal(published.at(-1), null);
+  assert.equal(host.getAttribute('data-keep'), 'host');
+  presenter.dispose();
+});
+
+test('footer group presenter skips drawer layout instead of clipping the panel', async () => {
+  const { createFooterActionPresenter } = await footerActionsFixture();
+  const frame = fakeNode('div', { 'data-sidebar-drawer': '' });
+  const sidebar = fakeNode('div', { 'data-slot': 'sidebar' });
+  frame.appendChild(sidebar);
+  const host = fakeNode('div');
+  sidebar.appendChild(host);
+  const slot = fakeNode('div', { 'data-slot': 'sidebar.footer.action' });
+  host.appendChild(slot);
+  const documentRef = { querySelector: selector => (selector.includes('sidebar.footer.action') ? slot : null) };
+  const presenter = createFooterActionPresenter({
+    document: documentRef,
+    window: { innerHeight: 900 },
+    readEntries: () => 1,
+    readPanelRect: () => ({ left: 12, top: 400, width: 240, height: 120 }),
+    onRoot: () => {}
+  });
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false);
+  presenter.dispose();
+});
+
+test('menu range helpers treat the hosted group as inside and order it before menu items', async () => {
+  const { isInsideMenuTarget, menuFocusItems } = await footerActionsFixture();
+  const child = { id: 'third-party' };
+  const group = { contains: target => target === child, querySelectorAll: () => [{ id: 'third' }] };
+  const menu = { contains: target => target === menuChild, querySelectorAll: () => [{ id: 'menu-a' }, { id: 'menu-b' }] };
+  const menuChild = { id: 'menu' };
+  assert.equal(isInsideMenuTarget(child, menu, [group]), true);
+  assert.equal(isInsideMenuTarget({ id: 'outside' }, menu, [group]), false);
+  assert.equal(isInsideMenuTarget(child, menu, []), false);
+  assert.deepEqual(Array.from(menuFocusItems(menu, [group]), item => item.id), ['third', 'menu-a', 'menu-b']);
 });
