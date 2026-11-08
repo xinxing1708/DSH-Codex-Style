@@ -142,20 +142,23 @@ function presenterFixture() {
   return { presenter, header, row, tabs, viewRow, actions, utilities, corner, navigation, title, buttons, frames, observers };
 }
 
-test('viewRowPlan gives host enough measured width without exceeding actions space', async () => {
+test('viewRowPlan lets the host render views while the capsule fits the real free space', async () => {
   const { viewRowPlan } = await fixture();
   const wide = viewRowPlan({ contentWidth: 1052, actionsWidth: 554, narrow: false });
   assert.equal(wide.mode, 'inline');
-  assert.equal(wide.fit, 4);
-  assert.equal(wide.width, 529);
-  assert.equal(Math.floor((wide.width - 48) / 120), 4);
+  assert.equal(wide.width, 1052); // 行宽取内容宽，宿主按自身预算尽量多渲染
+  assert.equal(wide.capsule, 450); // 1052 - 554 - 8 - 40
+  assert.equal(Math.floor((wide.width - 48) / 120), 8);
   const capped = viewRowPlan({ contentWidth: 500, actionsWidth: 20, narrow: false });
   assert.equal(capped.mode, 'inline');
   assert.equal(capped.width, 500);
-  assert(Math.floor((capped.width - 48) / 120) <= capped.fit);
+  assert.equal(capped.capsule, 432);
   const tight = viewRowPlan({ contentWidth: 392, actionsWidth: 554, narrow: false });
   assert.equal(tight.mode, 'stacked');
   assert.equal(tight.width, 392);
+  assert.equal(tight.capsule, null);
+  assert.equal(viewRowPlan({ contentWidth: 190, actionsWidth: 60, narrow: false }).mode, 'inline');
+  assert.equal(viewRowPlan({ contentWidth: 180, actionsWidth: 60, narrow: false }).mode, 'stacked');
   assert.equal(viewRowPlan({ contentWidth: 640, actionsWidth: 0, narrow: true }).mode, 'stacked');
   assert.equal(viewRowPlan({ contentWidth: 0, actionsWidth: 0, narrow: false }), null);
   assert.equal(viewRowPlan({ contentWidth: 800, actionsWidth: Number.NaN, narrow: false }).mode, 'inline');
@@ -187,7 +190,8 @@ test('header presenter marks public anchors and measures row/slider geometry', a
   assert.equal(f.tabs.style.getPropertyValue('--dsc-view-active'), '1');
   assert.equal(f.tabs.style.getPropertyValue('--dsc-view-left'), '3.00px');
   assert.equal(f.tabs.style.getPropertyValue('--dsc-view-width'), '40.00px');
-  assert.equal(f.viewRow.style.getPropertyValue('--dsc-view-row-width'), '529px');
+  assert.equal(f.viewRow.style.getPropertyValue('--dsc-view-row-width'), '820px');
+  assert.equal(f.tabs.style.getPropertyValue('--dsc-view-max-width'), '426px');
   assert.equal(f.header.hasAttribute('data-dsc-header-views-own-row'), false);
 });
 
@@ -214,4 +218,5 @@ test('header presenter follows selection, hides when none, and releases on dispo
   assert.equal(f.tabs.style.getPropertyValue('--dsc-view-count'), '9');
   assert.equal(f.tabs.style.getPropertyValue('--dsc-view-left'), '');
   assert.equal(f.viewRow.style.getPropertyValue('--dsc-view-row-width'), '');
+  assert.equal(f.tabs.style.getPropertyValue('--dsc-view-max-width'), '');
 });

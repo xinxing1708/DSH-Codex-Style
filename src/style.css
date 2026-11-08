@@ -253,6 +253,19 @@ body[data-dsh-codex-chrome] [data-dsc-app-footer-host] {
 }
 body[data-dsh-codex-chrome] [data-dsc-app-footer-host] [data-dsc-app-footer-entry] { flex: none; width: 100% !important; min-width: 0; }
 body[data-dsh-codex-chrome] [data-dsc-app-footer-host] [data-dsc-app-footer-entry] button { width: 100% !important; min-width: 0; justify-content: flex-start !important; }
+/* 宿主收起态对 footer 入口只渲染图标（第三方按 wide=false 省略文字节点）；
+   分组里用按钮的无障碍名称补一个可见标签，展开态有原生文字时不会命中。 */
+body[data-dsh-codex-chrome] [data-dsc-app-footer-host] [data-dsc-app-footer-entry] button[data-dsc-app-footer-label]::after {
+  content: attr(data-dsc-app-footer-label);
+  min-width: 0;
+  margin-left: 8px;
+  overflow: hidden;
+  color: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* 分组位于宿主侧栏列层叠上下文（z-index:21）内，低于自有 rail（25）。
    菜单打开期间只让 rail 中与分组重叠的竖向区段放行，其余区域仍由透明命中层挡住，
    避免点击穿透到下面的侧栏内容；按钮本身保持可点，重叠的图标临时隐藏。 */

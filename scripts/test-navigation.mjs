@@ -46,7 +46,7 @@ async function loadFixture() {
   };
   sandbox.window = window;
   const source = (await readFile(bundleUrl, 'utf8')).replace('    return module.exports;',
-    'module.exports.fixture = { createNavigationController, navigationRouteOf, sameNavigationRoute, restoreNavigationRoute, mountCodexNavigation, createNavigationTitlebarMarker, navigationCatalogKeys }; return module.exports;');
+    'module.exports.fixture = { createNavigationController, navigationRouteOf, sameNavigationRoute, restoreNavigationRoute, mountCodexNavigation, createNavigationTitlebarMarker, navigationCatalogKeys, navigationCss: NAVIGATION_CSS_TEXT }; return module.exports;');
   new Script(source).runInNewContext(sandbox);
   return { fixture: plugin.fixture, sandbox };
 }
@@ -345,9 +345,18 @@ test('catalog keys stay empty when a command is unbound', async () => {
   assert.deepEqual([...api.navigationCatalogKeys([{ id: 'other.command', keys: ['X'] }], back)], []);
 });
 
-test('titlebar marker measures before marking and restores on dispose', async () => {
+test('windows caption menu keeps one start position in both sidebar states', async () => {
+  const { fixture: api } = await fixture();
+  // 收起态宿主会把 --dsh-windows-menu-start 抬到 84px；插件固定回“展开默认 48 + 位移”，
+  // 否则菜单会离开折叠键 44px，中间留下空缺。
+  assert.ok(api.navigationCss.includes('--dsh-windows-menu-start: calc(48px + var(--dsc-navigation-native-shift))'));
+  assert.equal(api.navigationCss.includes('margin-left: var(--dsc-navigation-native-shift)'), false);
+});
+
+test('titlebar marker hides the native toggle, shifts caption buttons and restores on dispose', async () => {
   const { fixture: api, sandbox } = await fixture();
   const events = [];
+  const selectors = [];
   const makeNode = (name, { position = 'static', rect = { top: 0, left: 0 } } = {}) => {
     const attributes = new Map();
     const node = {
@@ -355,24 +364,24 @@ test('titlebar marker measures before marking and restores on dispose', async ()
       attributes,
       __position: position,
       __rect: rect,
-      __children: new Set(),
       hasAttribute(key) { return attributes.has(key); },
       getAttribute(key) { return attributes.has(key) ? attributes.get(key) : null; },
       setAttribute(key, value) { events.push('mark:' + name + ':' + key); attributes.set(key, value); },
       removeAttribute(key) { events.push('unmark:' + name + ':' + key); attributes.delete(key); },
-      getBoundingClientRect() { events.push('measure:' + name); return rect; },
-      contains(other) { return node.__children.has(other); }
+      getBoundingClientRect() { events.push('measure:' + name); return rect; }
     };
     return node;
   };
   const toggle = makeNode('toggle', { position: 'fixed', rect: { top: 6, left: 12 } });
   const newSession = makeNode('newSession', { position: 'fixed', rect: { top: 6, left: 48 } });
-  const row = makeNode('row');
-  row.__children.add(newSession);
+  const menuHost = makeNode('windowsMenu');
   const sidebar = { querySelectorAll: () => [toggle, newSession] };
   sandbox.document = {
     documentElement: { hasAttribute: name => name === 'data-windows-titlebar' },
-    querySelector: selector => selector === '[data-slot="sidebar"]' ? sidebar : selector === '[data-slot="sidebar"] [data-window-drag]' ? row : null,
+    querySelector: selector => {
+      selectors.push(selector);
+      return selector === '[data-slot="sidebar"]' ? sidebar : selector === '[data-windows-menu]' ? menuHost : null;
+    },
     querySelectorAll: () => []
   };
   sandbox.getComputedStyle = element => ({ position: element.__position });
@@ -382,19 +391,12 @@ test('titlebar marker measures before marking and restores on dispose', async ()
   const measures = events.map((event, index) => event.startsWith('measure:') ? index : -1).filter(index => index >= 0);
   assert.ok(measures.length >= 2);
   assert.ok(firstMark > measures[measures.length - 1], 'measurements must finish before any mark');
-  assert.ok(row.hasAttribute('data-dsc-navigation-titlebar-row'));
   assert.ok(toggle.hasAttribute('data-dsc-navigation-native-toggle'));
-  assert.equal(newSession.hasAttribute('data-dsc-navigation-native-shift'), false);
-  marker.dispose();
-  for (const node of [row, toggle, newSession]) for (const key of ['data-dsc-navigation-titlebar-row', 'data-dsc-navigation-native-toggle', 'data-dsc-navigation-native-shift']) assert.equal(node.hasAttribute(key), false);
-  // 本机 preload 菜单的 role=menubar 在 Shadow DOM 内，只能从 host 锚点定位。
-  const menuHost = makeNode('windowsMenu');
-  sandbox.document.querySelector = selector => selector === '[data-windows-menu]' ? menuHost : selector === '[data-slot="sidebar"]' ? sidebar : null;
-  const nativeMarker = api.createNavigationTitlebarMarker();
-  nativeMarker.start();
-  assert.ok(menuHost.hasAttribute('data-dsc-navigation-menubar'));
   assert.ok(newSession.hasAttribute('data-dsc-navigation-native-shift'));
-  nativeMarker.dispose();
+  // 宿主菜单由 CSS 按 [data-windows-menu] 锚点加外边距，标记不再触碰它，也不依赖它何时插入。
+  assert.equal(selectors.includes('[data-windows-menu]'), false);
   assert.equal(menuHost.hasAttribute('data-dsc-navigation-menubar'), false);
-  assert.equal(newSession.hasAttribute('data-dsc-navigation-native-shift'), false);
+  assert.equal(menuHost.hasAttribute('data-dsc-navigation-titlebar-row'), false);
+  marker.dispose();
+  for (const node of [toggle, newSession, menuHost]) for (const key of ['data-dsc-navigation-titlebar-row', 'data-dsc-navigation-native-toggle', 'data-dsc-navigation-native-shift', 'data-dsc-navigation-menubar']) assert.equal(node.hasAttribute(key), false);
 });

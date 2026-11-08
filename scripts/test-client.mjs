@@ -520,7 +520,7 @@ async function footerActionsFixture() {
     querySelector: () => null, querySelectorAll: () => [],
     activeElement: null, addEventListener() {}, removeEventListener() {}
   };
-  const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')).replace('    return module.exports;', 'module.exports.fixture = { footerActionRoot, footerActionPlan, createFooterActionPresenter, isInsideMenuTarget, menuFocusItems }; return module.exports;');
+  const bundle = (await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')).replace('    return module.exports;', 'module.exports.fixture = { footerActionRoot, footerActionPlan, footerActionHasContent, watchFooterActionSlot, createFooterActionPresenter, isInsideMenuTarget, menuFocusItems }; return module.exports;');
   new Script(bundle).runInNewContext({ window, document, console: { warn() {}, error() {} }, queueMicrotask, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, getComputedStyle: () => ({ position: 'static' }) });
   return plugin.fixture;
 }
@@ -574,6 +574,7 @@ function fakeMatches(node, selector) {
       if (equal < 0) return node.hasAttribute(inner);
       return node.getAttribute(inner.slice(0, equal)) === inner.slice(equal + 1).replace(/^"|"$/g, '');
     }
+    if (rule === '*') return true;
     if (rule === 'button') return node.tagName === 'BUTTON';
     if (rule === 'a[href]') return node.tagName === 'A' && node.hasAttribute('href');
     if (rule === 'input') return node.tagName === 'INPUT';
@@ -648,6 +649,16 @@ test('footer group presenter marks the native footer, restores it and follows dy
   assert.equal(host.style.getPropertyValue('--dsc-app-footer-bottom'), '504px');
   assert.equal(host.style.getPropertyValue('--dsc-app-footer-max-height'), '388px');
   assert.equal(firstButton.tabIndex, -1);
+  // 宿主收起态只渲染图标：用按钮的无障碍名称补可见标签；出现原生文字后自动撤掉。
+  firstButton.setAttribute('aria-label', '远程连接');
+  presenter.sync();
+  assert.equal(firstButton.getAttribute('data-dsc-app-footer-label'), '远程连接');
+  first.textContent = '远程连接';
+  presenter.sync();
+  assert.equal(firstButton.hasAttribute('data-dsc-app-footer-label'), false);
+  first.textContent = '';
+  presenter.sync();
+  assert.equal(firstButton.getAttribute('data-dsc-app-footer-label'), '远程连接');
   // 与分组竖向重叠的 rail 区段放行；上方按钮保持原样。
   assert.equal(rail.getAttribute('data-dsc-app-footer-clear'), '');
   assert.equal(rail.style.getPropertyValue('--dsc-app-footer-clear-top'), '500px');
@@ -685,6 +696,157 @@ test('footer group presenter marks the native footer, restores it and follows dy
   assert.equal(published.at(-1), null);
   assert.equal(host.getAttribute('data-keep'), 'host');
   presenter.dispose();
+});
+
+test('footer group stays dormant until a registration renders visible content', async () => {
+  const { createFooterActionPresenter } = await footerActionsFixture();
+  const sidebar = fakeNode('div', { 'data-slot': 'sidebar' });
+  const base = fakeNode('div', { class: 'footArea' });
+  sidebar.appendChild(base);
+  const host = fakeNode('div', { class: 'footerActions' }, { left: 12, right: 252, top: 500, bottom: 620, width: 240, height: 120 });
+  base.appendChild(host);
+  const slot = fakeNode('div', { 'data-slot': 'sidebar.footer.action' });
+  host.appendChild(slot);
+  const rail = fakeNode('nav', { class: 'dsc-independent-rail' }, { left: 0, right: 52, top: 0, bottom: 900, width: 52, height: 900 });
+  const zero = { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 };
+  const buttonRect = { left: 12, right: 252, top: 500, width: 240, height: 36, bottom: 536 };
+  const documentRef = {
+    querySelector: selector => (selector.includes('sidebar.footer.action') ? slot : selector === '.dsc-independent-rail' ? rail : null)
+  };
+  let entries = 2;
+  const presenter = createFooterActionPresenter({
+    document: documentRef,
+    window: { innerHeight: 900 },
+    readEntries: () => entries,
+    readPanelRect: () => ({ left: 12, top: 400, width: 240, height: 120 }),
+    onRoot: () => {}
+  });
+
+  // Cordis 在无 inventory 时返回 null：注册数仍是 2，但 DOM 没有入口。
+  presenter.sync();
+  assert.equal(slot.children.length, 0);
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false, '空 slot 不应出现分组');
+  assert.equal(base.hasAttribute('data-dsc-app-footer-base'), false, '空 slot 不应改写宿主 foot 布局');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-left'), '');
+
+  // 空包装：React/宿主只留下一层没有按钮、文字和高度的 div。
+  const emptyWrap = fakeNode('div', { class: 'empty' }, zero);
+  emptyWrap.appendChild(fakeNode('span', {}, zero));
+  slot.appendChild(emptyWrap);
+  presenter.sync();
+  assert.equal(emptyWrap.hasAttribute('data-dsc-app-footer-entry'), false, '空包装不应被标记为入口');
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false);
+
+  // 宿主 slot 错误边界：入口渲染崩溃时留下空的 data-slot-error 占位。
+  slot.appendChild(fakeNode('div', { 'data-slot-error': 'sidebar.footer.action' }, zero));
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false, '错误占位不应产生空白分组');
+
+  // display:none/hidden 的入口：包装有 36px 高，但按钮自身没有矩形。
+  const hiddenWrap = fakeNode('div', { class: 'hidden' }, buttonRect);
+  const hiddenButton = fakeNode('button', { 'aria-label': '远程连接', hidden: '' }, zero);
+  hiddenWrap.appendChild(hiddenButton);
+  slot.appendChild(hiddenWrap);
+  presenter.sync();
+  assert.equal(hiddenButton.hasAttribute('data-dsc-app-footer-entry'), false, '隐藏按钮不应被标记');
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false, '隐藏入口不应保留分组');
+  hiddenButton.removeAttribute('hidden');
+  hiddenButton.ownerDocument = { defaultView: { getComputedStyle: () => ({ display: 'none' }) } };
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false, 'CSS display:none 也不应产生分组');
+
+  // 真实按钮出现：分组生效，标签/Tab/原生尺寸约定不变。
+  const realWrap = fakeNode('div', { class: 'real' }, buttonRect);
+  const realButton = fakeNode('button', { 'aria-label': '远程连接' }, buttonRect);
+  realWrap.appendChild(realButton);
+  slot.appendChild(realWrap);
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), true);
+  assert.equal(realWrap.getAttribute('data-dsc-app-footer-entry'), '');
+  assert.equal(realButton.getAttribute('data-dsc-app-footer-label'), '远程连接');
+  assert.equal(realButton.tabIndex, -1);
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-width'), '240px');
+
+  // 宿主祖先在过渡中本来是 visibility:hidden：不能把所有入口误判为空。
+  sidebar.style.setProperty('visibility', 'hidden');
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), true, '祖先 visibility 不应否定已渲染入口');
+
+  // 动态卸载全部入口：注册数不变，分组必须撤销并恢复旧样式值。
+  for (const child of [...slot.children]) slot.removeChild(child);
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false, '动态卸载后分组应撤销');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-left'), '');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-width'), '');
+  assert.equal(host.style.getPropertyValue('--dsc-app-footer-max-height'), '');
+  presenter.dispose();
+});
+
+test('footer group ignores a hidden or zero-size wrapper but accepts a text-only entry', async () => {
+  const { createFooterActionPresenter } = await footerActionsFixture();
+  const sidebar = fakeNode('div', { 'data-slot': 'sidebar' });
+  const base = fakeNode('div', { class: 'footArea' });
+  sidebar.appendChild(base);
+  const host = fakeNode('div', { class: 'footerActions' }, { left: 12, right: 252, top: 500, bottom: 620, width: 240, height: 120 });
+  base.appendChild(host);
+  const slot = fakeNode('div', { 'data-slot': 'sidebar.footer.action' });
+  host.appendChild(slot);
+  const documentRef = { querySelector: selector => (selector.includes('sidebar.footer.action') ? slot : null) };
+  const presenter = createFooterActionPresenter({
+    document: documentRef,
+    window: { innerHeight: 900 },
+    readEntries: () => 1,
+    readPanelRect: () => ({ left: 12, top: 400, width: 240, height: 120 }),
+    onRoot: () => {}
+  });
+  // 纯文字入口（没有 button）只要自身有矩形仍算可用内容。
+  const textEntry = fakeNode('div', { class: 'text' }, { left: 12, right: 252, top: 500, width: 240, height: 36, bottom: 536 });
+  textEntry.textContent = '远程连接';
+  slot.appendChild(textEntry);
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), true, '纯文字入口应生效');
+  // 但只有尺寸、没有文字和控件的外壳不算内容。
+  textEntry.textContent = '';
+  presenter.sync();
+  assert.equal(host.hasAttribute('data-dsc-app-footer-host'), false, '只有尺寸的空壳不算内容');
+  presenter.dispose();
+});
+
+test('footer group watches only the slot subtree and release disconnects it', async () => {
+  const { watchFooterActionSlot } = await footerActionsFixture();
+  const slot = fakeNode('div', { 'data-slot': 'sidebar.footer.action' });
+  let current = slot;
+  const documentRef = { querySelector: selector => (selector.includes('sidebar.footer.action') ? current : null) };
+  const created = [];
+  class FakeObserver {
+    constructor(callback) { this.callback = callback; this.disconnected = false; created.push(this); }
+    observe(target, options) { this.target = target; this.options = options; }
+    disconnect() { this.disconnected = true; }
+  }
+  let scheduled = 0;
+  const release = watchFooterActionSlot(() => { scheduled += 1; }, documentRef, FakeObserver);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].target, slot);
+  // 观察选项来自 bundle 的 vm realm，用 JSON 归一化后比较。
+  assert.deepEqual(JSON.parse(JSON.stringify(created[0].options)), {
+    childList: true, subtree: true, attributes: true,
+    attributeFilter: ['style', 'hidden', 'class', 'aria-hidden']
+  });
+  // 同一 slot 的变化只调度一次同步。
+  created[0].callback();
+  assert.equal(scheduled, 1);
+  assert.equal(created.length, 1);
+  // slot 被替换时重新绑定，旧观察器断开。
+  current = fakeNode('div', { 'data-slot': 'sidebar.footer.action' });
+  // 替换 slot 的 mutation 发生在它的父节点，旧 slot 观察器不会收到通知；
+  // 宿主 sidebar 的调度必须主动重新绑定。
+  release.refresh();
+  assert.equal(scheduled, 1);
+  assert.equal(created.length, 2);
+  assert.equal(created[0].disconnected, true);
+  assert.equal(created[1].target, current);
+  release();
+  assert.equal(created[1].disconnected, true);
 });
 
 test('footer group presenter skips drawer layout instead of clipping the panel', async () => {

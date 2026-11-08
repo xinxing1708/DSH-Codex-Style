@@ -1,6 +1,10 @@
 /* 页面前进后退：只在导航组件启用时生效；关闭后侧栏按钮回到原位置与尺寸。 */
 body[data-dsc-codex-navigation] {
   --dsc-navigation-native-shift: 68px;
+  /* 宿主 Windows 捕获菜单由 preload 按 left: var(--dsh-windows-menu-start, 48px) 定位。
+     收起态宿主会把它抬到 84px 给原生新建会话键让位，但本插件收起态用自有 rail，那个键不可见。
+     两态统一按“展开默认 48px + 位移”定位，菜单始终紧接折叠键右缘 8px。 */
+  --dsh-windows-menu-start: calc(48px + var(--dsc-navigation-native-shift));
 }
 
 /* 后退 / 前进：两个 32px 按钮，left 8，gap 2；中心约 24 / 58。 */
@@ -110,9 +114,7 @@ body[data-dsc-codex-navigation] .dsc-window-sidebar-toggle .dsc-icon-button {
   line-height: 18px;
 }
 
-/* 原顶部快捷栏右移：只标记最小宿主节点；右上窗口按钮与标题栏拖拽区不移动。 */
-body[data-dsc-codex-navigation] [data-dsc-navigation-menubar],
-body[data-dsc-codex-navigation] [data-dsc-navigation-titlebar-row],
+/* 原生固定按钮右移：只标记最小宿主按钮；右上窗口按钮与标题栏拖拽区不移动。 */
 body[data-dsc-codex-navigation] [data-dsc-navigation-native-shift] {
   transform: translateX(var(--dsc-navigation-native-shift));
 }

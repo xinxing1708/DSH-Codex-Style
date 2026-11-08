@@ -1,6 +1,6 @@
 {
   "name": "@xinxing1708/dsh-codex-style",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "随 DSH 深浅色配置切换的 Codex 风格界面插件",
   "type": "module",
   "main": "lib/host.js",

@@ -417,30 +417,26 @@ function makeSidebarToggle(ctx) {
 
 // 视图胶囊只按宿主公开锚点工作：行宽和滑块几何都来自真实 DOM 测量，
 // 不绑定具体视图 id，也不改宿主的注册、排序、固定/取消固定或选中状态。
-const VIEW_TAB_BUDGET = 120; // 宿主 visibleTabs 的每项宽度预算
-const VIEW_TAB_MAX = 104; // 标签最大 88px + 左右各 8px 内边距
+// 宿主按 (行宽 - 48) / 120 估算可见视图；这是偏保守的固定预算（真实中文标签约 40-56px）。
+// 这里不再用预算反推可见数：行宽放到内容宽，让宿主尽量多渲染；
+// 胶囊用 --dsc-view-max-width 收缩到 actions 右侧的真实剩余空间，长标签在胶囊内省略。
 const VIEW_MORE_RESERVE = 40; // 更多按钮 24px + 间距 + 胶囊边框/内边距余量
 const VIEW_ROW_GAP = 8; // 与左侧 actions 的间距
-const VIEW_ROW_MIN_INLINE = 260; // 低于此宽度改为独立一行
+const VIEW_ROW_MIN_INLINE = 120; // 低于此宽度改为独立一行，避免胶囊被压到不可读
 const VIEW_ROW_NARROW = 640; // 与 header.css 的容器查询阈值一致
 
-function viewRowSlots(width) {
-  if (!(width > 0)) return 0;
-  return Math.max(1, Math.floor((width - VIEW_MORE_RESERVE) / VIEW_TAB_MAX));
-}
-
-// 宿主用 (行宽 - 48) / 120 估算可见视图。这里反推一个测量行宽，
-// 让宿主显示“实际能放进 actions 右侧”的项数；胶囊自身仍右对齐，
-// 不会因为测量行更宽而覆盖左侧按钮。空间不足时交给独立一行。
+// 行宽决定宿主渲染几个视图；胶囊最大宽度决定它实际能占多少。
+// 两者分开后，宿主不会因为固定 120px 预算把本可放下的视图提前收进四格菜单。
 function viewRowPlan({ contentWidth, actionsWidth, narrow }) {
   if (!(contentWidth > 0)) return null;
-  if (narrow) return { mode: 'stacked', width: contentWidth, fit: viewRowSlots(contentWidth) };
   const used = Number.isFinite(actionsWidth) ? Math.max(0, actionsWidth) : 0;
   const available = Math.max(0, contentWidth - used - VIEW_ROW_GAP);
-  if (available < VIEW_ROW_MIN_INLINE) return { mode: 'stacked', width: contentWidth, fit: viewRowSlots(contentWidth) };
-  const fit = viewRowSlots(available);
-  // +49 让 clientWidth 取整后仍满足 floor((width - 48) / 120) = fit。
-  return { mode: 'inline', width: Math.min(contentWidth, Math.max(available, fit * VIEW_TAB_BUDGET + 49)), fit };
+  if (narrow || available < VIEW_ROW_MIN_INLINE) return { mode: 'stacked', width: contentWidth, capsule: null };
+  return {
+    mode: 'inline',
+    width: contentWidth,
+    capsule: Math.max(0, available - VIEW_MORE_RESERVE)
+  };
 }
 
 // 白色滑块相对 tablist 的 padding box 定位；边框宽度由计算样式提供。
@@ -598,7 +594,7 @@ function createConversationHeaderPresenter({ header, window: win, document: doc,
       for (const [name, value] of [['--dsc-view-count', Math.max(1, buttons.length)], ['--dsc-view-index', Math.max(0, active)], ['--dsc-view-active', active >= 0 ? 1 : 0]]) {
         applyProperty(tabs, name, value);
       }
-      // 宿主按测量行宽裁剪 visibleTabs；行宽由 actions 实际占用反推。
+      // 行宽放到内容宽让宿主尽量多渲染；胶囊用实际剩余空间收缩，避免提前收进四格。
       if (tabsRow) {
         const plan = viewRowPlan({
           contentWidth,
@@ -608,9 +604,11 @@ function createConversationHeaderPresenter({ header, window: win, document: doc,
         if (plan?.mode === 'inline') {
           unmark(header, 'data-dsc-header-views-own-row');
           applyProperty(tabsRow, '--dsc-view-row-width', Math.round(plan.width) + 'px');
+          applyProperty(tabs, '--dsc-view-max-width', Math.round(plan.capsule) + 'px');
         } else {
           mark(header, 'data-dsc-header-views-own-row');
           applyProperty(tabsRow, '--dsc-view-row-width', null);
+          applyProperty(tabs, '--dsc-view-max-width', null);
         }
       }
       // 白滑块跟随实际选中项；选中项被固定在“更多”菜单时不显示。
@@ -761,6 +759,49 @@ function footerActionPlan({ entries, drawer, menuRect, viewportHeight }) {
     maxHeight: Math.max(48, height - bottom - 8)
   };
 }
+// 注册数大于 0 不代表已有可渲染入口：Cordis 无 inventory、插件返回 null、
+// 渲染失败留下的 data-slot-error 空占位、display:none 的入口都可能是空的。
+// 检查入口内的控件/文字及隐藏状态；不依赖侧栏祖先的布局矩形或 visibility，
+// 因为收起态宿主会隐藏整个 footArea，而呈现器需要重新显示真实入口。
+function footerActionHasContent(slot) {
+  if (!slot || typeof slot.querySelectorAll !== 'function') return false;
+  const available = node => {
+    let current = node;
+    while (current && current !== slot) {
+      if (typeof current.hasAttribute === 'function' && (current.hasAttribute('hidden') || current.getAttribute('aria-hidden') === 'true')) return false;
+      const view = current.ownerDocument && current.ownerDocument.defaultView;
+      if (view && typeof view.getComputedStyle === 'function' && view.getComputedStyle(current).display === 'none') return false;
+      current = current.parentElement;
+    }
+    return current === slot;
+  };
+  const isControl = node => {
+    const tag = String((node && node.tagName) || '').toUpperCase();
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return true;
+    if (tag === 'A') return !!(typeof node.hasAttribute === 'function' && node.hasAttribute('href'));
+    if (tag === 'SVG' || tag === 'IMG' || tag === 'CANVAS' || tag === 'VIDEO') return true;
+    return !!(node && typeof node.getAttribute === 'function' && node.getAttribute('role') === 'button');
+  };
+  const ownText = node => {
+    if (!node || typeof node.textContent !== 'string') return false;
+    if (node.childNodes && node.childNodes.length > 0) {
+      for (const child of node.childNodes) if (child && child.nodeType === 3 && String(child.textContent || '').trim() !== '') return true;
+      return false;
+    }
+    return node.textContent.trim() !== '';
+  };
+  for (const entry of slot.children ? [...slot.children] : []) {
+    if (!entry) continue;
+    if (typeof entry.hasAttribute === 'function' && entry.hasAttribute('hidden')) continue;
+    const nodes = [entry];
+    if (typeof entry.querySelectorAll === 'function') nodes.push(...entry.querySelectorAll('*'));
+    for (const node of nodes) {
+      if (!available(node)) continue;
+      if (isControl(node) || ownText(node)) return true;
+    }
+  }
+  return false;
+}
 // 可脱离 React 测试的 DOM 呈现器：加可释放标记/变量并把原生按钮移出 Tab 序列（方向键仍可达）。
 function createFooterActionPresenter({ document: doc, window: win, readEntries, readPanelRect, onRoot = () => {} }) {
   const attributes = new Map();
@@ -774,10 +815,10 @@ function createFooterActionPresenter({ document: doc, window: win, readEntries, 
     if (!saved) attributes.set(node, saved = new Map());
     if (!saved.has(name)) saved.set(name, node.getAttribute(name));
   };
-  const mark = (node, name) => {
+  const mark = (node, name, value = '') => {
     if (!node) return;
     rememberAttribute(node, name);
-    if (node.getAttribute(name) !== '') node.setAttribute(name, '');
+    if (node.getAttribute(name) !== value) node.setAttribute(name, value);
   };
   const rememberProperty = (node, name) => {
     let saved = properties.get(node);
@@ -881,7 +922,8 @@ function createFooterActionPresenter({ document: doc, window: win, readEntries, 
     const target = footerActionRoot(doc);
     const menuRect = target ? readPanelRect && readPanelRect() : null;
     const plan = target ? footerActionPlan({ entries, drawer: false, menuRect, viewportHeight: win && win.innerHeight }) : null;
-    if (!target || !plan) { restore(); return; }
+    // 注册数只说明“有人登记”，不足以证明已渲染；空 slot 不占样式、不改宿主布局。
+    if (!target || !plan || !footerActionHasContent(target.slot)) { restore(); return; }
     const { slot, host, base } = target;
     mark(host, 'data-dsc-app-footer-host');
     mark(base, 'data-dsc-app-footer-base');
@@ -890,7 +932,15 @@ function createFooterActionPresenter({ document: doc, window: win, readEntries, 
     applyProperty(host, '--dsc-app-footer-bottom', plan.bottom + 'px');
     applyProperty(host, '--dsc-app-footer-max-height', plan.maxHeight + 'px');
     for (const child of slot.children ? [...slot.children] : []) {
-      if (child && typeof child.tagName === 'string') mark(child, 'data-dsc-app-footer-entry');
+      if (!child || typeof child.tagName !== 'string') continue;
+      mark(child, 'data-dsc-app-footer-entry');
+      // 宿主收起态只给这些入口渲染图标（第三方按 wide=false 省略文字节点）；
+      // 分组里用按钮的无障碍名称补一个可见标签，展开态已有原生文字时自动不生效。
+      const button = typeof child.querySelectorAll === 'function' ? child.querySelectorAll('button')[0] : null;
+      const text = typeof child.textContent === 'string' ? child.textContent.replace(/\s+/g, '') : '';
+      const label = button ? String(button.getAttribute('aria-label') || button.getAttribute('title') || '').trim() : '';
+      if (button && text === '' && label) mark(button, 'data-dsc-app-footer-label', label);
+      else if (button) unmark(button, 'data-dsc-app-footer-label');
     }
     if (typeof host.querySelectorAll === 'function') {
       for (const node of host.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')) {
@@ -910,6 +960,29 @@ function createFooterActionPresenter({ document: doc, window: win, readEntries, 
     }
   };
 }
+// 入口可能在菜单打开期间返回 null、被隐藏或整组替换：只监听 slot 自身的子节点与
+// 显示相关属性；本组件写入的 data-*/tabindex/CSS 变量不在观察范围内，不会自激。
+function watchFooterActionSlot(schedule, documentRef, Observer = typeof MutationObserver === 'function' ? MutationObserver : null) {
+  if (!documentRef || typeof Observer !== 'function') return () => {};
+  let observer = null;
+  let target = null;
+  const bind = () => {
+    const slot = documentRef.querySelector('[data-slot="sidebar.footer.action"]');
+    if (slot === target) return;
+    if (observer) observer.disconnect();
+    target = slot;
+    observer = slot ? new Observer(() => { bind(); schedule(); }) : null;
+    if (observer) observer.observe(slot, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden', 'class', 'aria-hidden'] });
+  };
+  bind();
+  const disconnect = () => {
+    if (observer) observer.disconnect();
+    observer = null;
+    target = null;
+  };
+  disconnect.refresh = bind;
+  return disconnect;
+}
 // 菜单打开期间跟踪公开 footer 入口；关闭时恢复属性并把焦点送回齿轮。
 function useHostFooterActions(ctx, open, menuRef, anchorRef) {
   const [groupRoot, setGroupRoot] = useState(null);
@@ -927,8 +1000,9 @@ function useHostFooterActions(ctx, open, menuRef, anchorRef) {
     });
     const schedule = () => {
       if (frame) return;
-      frame = requestAnimationFrame(() => { frame = 0; presenter.sync(); });
+      frame = requestAnimationFrame(() => { frame = 0; disconnectContent.refresh?.(); presenter.sync(); });
     };
+    const disconnectContent = watchFooterActionSlot(schedule, document);
     presenter.sync();
     const sidebar = document.querySelector('[data-slot="sidebar"]');
     const observer = sidebar && typeof MutationObserver === 'function' ? new MutationObserver(schedule) : null;
@@ -945,6 +1019,7 @@ function useHostFooterActions(ctx, open, menuRef, anchorRef) {
     return () => {
       if (frame) { cancelAnimationFrame(frame); frame = 0; }
       if (observer) observer.disconnect();
+      disconnectContent();
       if (size) size.disconnect();
       if (panel && typeof panel.removeEventListener === 'function') panel.removeEventListener('animationend', schedule);
       unsubscribe();

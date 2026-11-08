@@ -268,8 +268,8 @@ async function gateFixture(t, { engines, version }) {
   };
 }
 
-test('shipped manifest declares the compatibility range and release version 0.2.5', () => {
-  assert.equal(manifest.version, '0.2.5');
+test('shipped manifest declares the compatibility range and release version 0.2.6', () => {
+  assert.equal(manifest.version, '0.2.6');
   assert.equal(manifest.engines.dsh, '>=0.2.1-rc.2 <0.3.0-0');
 });
 

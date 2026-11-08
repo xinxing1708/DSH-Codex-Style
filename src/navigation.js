@@ -183,10 +183,9 @@ function makeNavigationControls(ctx, controls, controller) {
   };
 }
 
-// Windows 应用菜单在 preload 创建的 [data-windows-menu] Shadow host 内；
-// 只移动 host，菜单内部和弹出坐标仍由宿主持有。其它宿主再尝试 role=menubar / 标题栏行。
-// 原生固定侧栏按钮按位置区分：左侧 28px 的切换键由自绘按钮替代（隐藏），新会话按钮右移。
-// 只给最小宿主节点加自有 data-* 并还原；不改 DOM、不读 hashed class。
+// Windows 应用菜单由 preload 挂成 body 子元素 [data-windows-menu]，位置由 CSS 外边距跟随宿主；
+// 这里只处理侧栏里的原生固定按钮：左侧切换键由自绘按钮替代（隐藏），其余按钮右移。
+// 只给最小宿主节点加自有 data-* 并还原；不改 DOM、不读 hashed class、不依赖元素插入时序。
 function createNavigationTitlebarMarker() {
   const saved = [];
   let observer = null;
@@ -211,9 +210,6 @@ function createNavigationTitlebarMarker() {
     // 再统一写标记；避免祖先 transform 改变 fixed 包含块后误判原生按钮。
     restore();
     const pending = [];
-    const menubar = document.querySelector('[data-windows-menu]') || document.querySelector('[role="menubar"]');
-    const row = menubar ? null : document.querySelector('[data-slot="sidebar"] [data-window-drag]');
-    const shifted = menubar || row;
     const sidebar = document.querySelector('[data-slot="sidebar"]');
     const buttons = sidebar && typeof sidebar.querySelectorAll === 'function' ? [...sidebar.querySelectorAll('button')] : [];
     const classified = [];
@@ -223,12 +219,9 @@ function createNavigationTitlebarMarker() {
       const box = button.getBoundingClientRect ? button.getBoundingClientRect() : { top: 0, left: 0 };
       if (box.top >= 48) continue;
       // 左侧窄按钮由自绘切换键替代；其余固定按钮右移。
-      // 已随被标记祖先移动的按钮不再单独标记，避免同一行与其子按钮双移。
       if (box.left < 40) classified.push([button, 'data-dsc-navigation-native-toggle']);
-      else if (!shifted || typeof shifted.contains !== 'function' || !shifted.contains(button)) classified.push([button, 'data-dsc-navigation-native-shift']);
+      else classified.push([button, 'data-dsc-navigation-native-shift']);
     }
-    if (menubar) pending.push([menubar, 'data-dsc-navigation-menubar']);
-    else if (row) pending.push([row, 'data-dsc-navigation-titlebar-row']);
     pending.push(...classified);
     for (const [element, name] of pending) mark(element, name);
   };
