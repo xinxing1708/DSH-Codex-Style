@@ -1120,12 +1120,13 @@ function makeHeroWorkspace(ctx) {
       return () => { names.forEach((name, i) => { if (previous[i]) region.style.setProperty(name, previous[i]); else region.style.removeProperty(name); }); region.removeAttribute('data-dsc-hero-layout'); };
     }, [geometry]);
     const close = () => { setOpen(false); onClose(); };
-    const menu = shown && h(Popover, { anchor, label: '选择项目', onClose: close, width: 280 },
+    const menu = shown && h(Popover, { anchor, label: '选择项目', onClose: close, width: 280, placement: 'top-start' },
       h('div', { className: 'dsc-menu-heading' }, '选择项目'),
       workspaces.items.map(row => h(Option, { key: row.workspaceId, title: row.title, detail: row.path, icon: 'folder', selected: row.workspaceId === selectedId, onClick: () => { setOpen(false); onPick(row.workspaceId); } })),
       !workspaces.items.length && h('div', { className: 'dsc-empty' }, '先在左侧添加工作区'));
-    const bar = geometry && createPortal(h('div', { className: 'dsc-ui dsc-hero-projectbar', style: { left: geometry.left + 13, top: geometry.top - 38, width: Math.max(120, geometry.width - 26) } },
-      h('button', { type: 'button', ref: anchor, className: 'dsc-project-picker', 'aria-haspopup': 'menu', 'aria-expanded': shown, onClick: () => { if (shown) close(); else setOpen(true); } }, h(Icon, { name: 'folder' }), current?.title || '选择项目'), menu), document.body);
+    const card = ref.current?.closest('[data-conversation-content]')?.querySelector('[data-slot="conversation.composer.bar"] [data-composer-card]');
+    const bar = geometry && card && createPortal(h('div', { className: 'dsc-ui dsc-hero-projectbar' },
+      h('button', { type: 'button', ref: anchor, className: 'dsc-project-picker', 'aria-haspopup': 'menu', 'aria-expanded': shown, onClick: () => { if (shown) close(); else setOpen(true); } }, h(Icon, { name: 'folder' }), current?.title || '选择项目'), menu), card);
     return h(React.Fragment, null, h('span', { ref, 'aria-hidden': true }), bar);
   };
 }
