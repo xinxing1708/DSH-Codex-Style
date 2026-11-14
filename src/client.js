@@ -170,7 +170,8 @@ function menuFocusItems(primary, extras) {
 }
 
 // 所有浮层位于自己的 portal 根；只读取 anchor 与自己的 DOM，不查宿主私有选择器。
-// placement: 'top' 为默认（锚点上方优先），'right' 用于行尾菜单（锚点右下方展开）。
+// placement: 'top' 为默认（锚点上方优先，右缘对齐），'top-start' 用于左缘对齐的行首菜单，
+// 'right' 用于行尾菜单（锚点右下方展开）。
 function Popover({ anchor, point, onClose, label, width = 300, children, className = '', autoFocus = true, role = 'menu', placement = 'top', extraRoots = [], panelRef }) {
   const localRef = useRef(null);
   const ref = panelRef || localRef;
@@ -200,7 +201,7 @@ function Popover({ anchor, point, onClose, label, width = 300, children, classNa
         setPosition({ position: 'fixed', left, top, width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
         return;
       }
-      const left = Math.max(12, Math.min(window.innerWidth - w - 12, box.right - w));
+      const left = Math.max(12, Math.min(window.innerWidth - w - 12, placement === 'top-start' ? box.left : box.right - w));
       const top = box.top - size.height - 9 >= 12 ? box.top - size.height - 9 : Math.max(12, Math.min(box.bottom + 9, window.innerHeight - size.height - 12));
       setPosition({ position: 'fixed', left, top, width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
     };
