@@ -1106,8 +1106,16 @@ function makeHeroWorkspace(ctx) {
     const ref = useRef(null);
     const anchor = useRef(null);
     const geometry = useHeroGeometry(ref);
+    const [card, setCard] = useState(null);
     const current = workspaces.items.find(row => row.workspaceId === selectedId);
     const shown = ownerOpen || open;
+    // hero 阶段 Conversation 根节点 isolate 成独立层叠上下文，挂在 body 上的 fixed 浮层一定压在
+    // 卡片和草稿上方。项目栏改为输入卡自己的第一行，卡片用 padding-top 让出拦高，层叠顺序交回宿主。
+    useLayoutEffect(() => {
+      const region = ref.current?.closest('[data-conversation-content]');
+      const next = region?.querySelector('[data-slot="conversation.composer.bar"] [data-composer-card]') || null;
+      setCard(previous => previous === next ? previous : next);
+    });
     useLayoutEffect(() => {
       if (!geometry) return;
       const region = ref.current?.closest('[data-conversation-content]');
@@ -1120,12 +1128,14 @@ function makeHeroWorkspace(ctx) {
       return () => { names.forEach((name, i) => { if (previous[i]) region.style.setProperty(name, previous[i]); else region.style.removeProperty(name); }); region.removeAttribute('data-dsc-hero-layout'); };
     }, [geometry]);
     const close = () => { setOpen(false); onClose(); };
-    const menu = shown && h(Popover, { anchor, label: '选择项目', onClose: close, width: 280 },
+    const menu = shown && h(Popover, { anchor, label: '选择项目', onClose: close, width: 280, placement: 'top-start' },
       h('div', { className: 'dsc-menu-heading' }, '选择项目'),
       workspaces.items.map(row => h(Option, { key: row.workspaceId, title: row.title, detail: row.path, icon: 'folder', selected: row.workspaceId === selectedId, onClick: () => { setOpen(false); onPick(row.workspaceId); } })),
       !workspaces.items.length && h('div', { className: 'dsc-empty' }, '先在左侧添加工作区'));
-    const bar = geometry && createPortal(h('div', { className: 'dsc-ui dsc-hero-projectbar', style: { left: geometry.left + 13, top: geometry.top - 38, width: Math.max(120, geometry.width - 26) } },
-      h('button', { type: 'button', ref: anchor, className: 'dsc-project-picker', 'aria-haspopup': 'menu', 'aria-expanded': shown, onClick: () => { if (shown) close(); else setOpen(true); } }, h(Icon, { name: 'folder' }), current?.title || '选择项目'), menu), document.body);
+    // 项目栏落在卡片内部，点它不能再冒泡到卡片自身的“选择工作区”入口。
+    const keepCardClick = event => event.stopPropagation();
+    const bar = card && createPortal(h('div', { className: 'dsc-ui dsc-hero-projectbar', onPointerDown: keepCardClick, onClick: keepCardClick },
+      h('button', { type: 'button', ref: anchor, className: 'dsc-project-picker', 'aria-haspopup': 'menu', 'aria-expanded': shown, onClick: () => { if (shown) close(); else setOpen(true); } }, h(Icon, { name: 'folder' }), current?.title || '选择项目'), menu), card);
     return h(React.Fragment, null, h('span', { ref, 'aria-hidden': true }), bar);
   };
 }

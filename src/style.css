@@ -53,7 +53,10 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-slot="conversation.composer.bar"],
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-slot="conversation.input.dock"],
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-conversation-composer-overlay] { visibility: visible; }
-body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"][data-dsc-hero-layout] [data-slot="conversation.hero.agentPreset"] { visibility: visible; display: inline-flex !important; position: fixed; top: calc(var(--dsc-hero-card-top) - 33px); right: calc(100vw - var(--dsc-hero-card-right) + 18px); z-index: 8; height: 28px; max-width: 180px; }
+/* hero 阶段宿主根节点 isolate 成独立层叠上下文，任何挂到 body 的 fixed 浮层都会压住卡片草稿。
+   项目栏因此改为卡片自己的第一行（见 chrome.js makeHeroWorkspace），由卡片让出 --cx-picker-h 的拦高。 */
+body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-composer-card] { position: relative; padding-top: calc(var(--cx-picker-h) + 8px); }
+body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"][data-dsc-hero-layout] [data-slot="conversation.hero.agentPreset"] { visibility: visible; display: inline-flex !important; position: fixed; top: calc(var(--dsc-hero-card-top) + 5px); right: calc(100vw - var(--dsc-hero-card-right) + 18px); z-index: 8; height: 28px; max-width: 180px; }
 .dsc-ui { font: 14px/22px var(--cx-font-sans); color: var(--cx-text); box-sizing: border-box; }
 .dsc-ui *, .dsc-ui *::before, .dsc-ui *::after { box-sizing: border-box; }
 .dsc-ui button, .dsc-ui input { font: inherit; color: inherit; }
@@ -277,7 +280,7 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-empty-hero { visibility: visible; position: fixed; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 24px; transform: translate(-50%,-50%); pointer-events: none; }
 .dsc-empty-hero svg { color: #525252; }
 .dsc-empty-hero h1 { font-size: 26px; line-height: 34px; font-weight: 400; color: var(--cx-text-2); margin: 0; white-space: nowrap; }
-.dsc-hero-projectbar { visibility: visible; position: fixed; z-index: 6; height: calc(var(--cx-picker-h) + var(--cx-radius-composer)); padding: 4px 4px var(--cx-radius-composer); background: var(--cx-picker-fill); border-radius: 20px; }
+.dsc-hero-projectbar { visibility: visible; position: absolute; inset: 0 0 auto; z-index: 1; display: flex; align-items: center; height: var(--cx-picker-h); padding: 0 12px; background: var(--cx-picker-fill); border-radius: var(--cx-radius-composer) var(--cx-radius-composer) 0 0; }
 .dsc-hero-projectbar .dsc-project-picker { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; max-width: calc(100% - 180px); color: var(--cx-text-2); font-size: 13px; border-radius: var(--cx-radius-full); corner-shape: round; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dsc-hero-projectbar .dsc-project-picker:hover, .dsc-hero-projectbar .dsc-project-picker[aria-expanded=true] { background: var(--cx-active); }
 .dsc-brand-mark { width: 25px; height: 20px; object-fit: contain; }

@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test scripts/test-install.mjs scripts/test-client.mjs scripts/test-theme.mjs scripts/test-header-tabs.mjs scripts/test-skills.mjs scripts/test-image-annotations.mjs scripts/test-image-annotations-host.mjs scripts/test-image-annotations-integration.mjs scripts/test-navigation.mjs scripts/test-host-signatures.mjs scripts/test-community-environment.mjs scripts/test-retirement.mjs"
+    "test": "node --test scripts/test-install.mjs scripts/test-client.mjs scripts/test-theme.mjs scripts/test-header-tabs.mjs scripts/test-skills.mjs scripts/test-image-annotations.mjs scripts/test-image-annotations-host.mjs scripts/test-image-annotations-integration.mjs scripts/test-navigation.mjs scripts/test-host-signatures.mjs scripts/test-community-environment.mjs scripts/test-retirement.mjs scripts/test-hero-composer.mjs"
   },
   "files": [
     "lib",
