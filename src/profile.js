@@ -142,17 +142,19 @@ function ProfileMain({ ctx }) {
     h('header', { className: 'dsc-profile-head' },
       h('span', { className: 'dsc-profile-avatar' }, account.profile?.avatarUrl ? h('img', { src: account.profile.avatarUrl, alt: '', onError: event => { event.currentTarget.remove(); } }) : h(Icon, { name: 'chat', size: 30 })),
       h('span', { className: 'dsc-profile-identity' },
-        h('strong', null, account.profile?.name || '未登录'),
-        h('small', null, account.profile?.contact || 'DeepSeek 账号')),
+        h('strong', null, account.profile?.name || '未登录')),
       ),
     account.status === 'loading' && h('p', { className: 'dsc-profile-note' }, '正在读取账号信息…'),
 
     h('section', { className: 'dsc-profile-stats' },
-      card('Token 消耗', '—', '由平台统计'),
-      card('使用峰值', `${peak} 个/天`, '本地会话活动'),
-      card('最长任务用时', '—', '由平台统计'),
-      card('总消耗金额', '—', '由平台统计'),
-      card('本月消耗金额', '—', '由平台统计')),
+      card('Token 消耗', '—'),
+      card('使用峰值', String(peak), '个会话/天'),
+      card('最长任务用时', '—'),
+      card('总消耗金额', '—'),
+      card('本月消耗金额', '—')),
+    h('p', { className: 'dsc-profile-note' },
+      'Token、任务用时与消费金额由 DeepSeek 平台统计',
+      h('button', { type: 'button', className: 'dsc-profile-link', onClick: () => { if (typeof window !== 'undefined') window.open(PLATFORM_USAGE_URL, '_blank', 'noopener'); } }, '打开平台用量页')),
 
     h('section', { className: 'dsc-profile-stats is-secondary' },
       card('充值余额', formatProfileMoney(account.wallets)),
@@ -172,11 +174,8 @@ function ProfileMain({ ctx }) {
             title: `${day.key} · ${day.count} 个会话`
           }))))),
       h('div', { className: 'dsc-profile-heatmap-meta' },
-        h('span', null, `峰值 ${peak} 个会话/天 · 活跃 ${activeDays} 天`),
+        h('span', null, `活跃 ${activeDays} 天 · 共 ${sessions.length} 个会话`),
         h('span', { className: 'dsc-profile-legend' }, '少', [0, 1, 2, 3, 4].map(level => h('i', { key: level, 'data-level': level })), '多'))),
 
-    h('p', { className: 'dsc-profile-note' },
-      'Token 用量、任务用时与消费金额由 DeepSeek 平台统计；插件只读取账号余额与本地会话活动，不推算金额。',
-      h('button', { type: 'button', className: 'dsc-profile-link', onClick: () => { if (typeof window !== 'undefined') window.open(PLATFORM_USAGE_URL, '_blank', 'noopener'); } }, '打开平台用量页')),
   );
 }

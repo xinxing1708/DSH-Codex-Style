@@ -27,10 +27,12 @@ test('只展示真实可得数据，消费金额交给平台', () => {
   assert.match(profileSource, /ctx\.remote\.account\.getBalance\(client\)/, '读取余额');
   assert.match(profileSource, /formatProfileMoney/, '余额格式化');
   assert.match(profileSource, /platform\.deepseek\.com\/usage/, '平台用量页入口');
-  assert.match(profileSource, /Token 用量、任务用时与消费金额由 DeepSeek 平台统计/, '不伪造消费金额');
+  assert.match(profileSource, /Token、任务用时与消费金额由 DeepSeek 平台统计/, '不伪造消费金额');
   for (const label of ['Token 消耗', '使用峰值', '最长任务用时', '总消耗金额', '本月消耗金额']) assert.ok(profileSource.includes(`\u0027${label}\u0027`), `${label} 卡片`);
   assert.doesNotMatch(profileSource, /最近会话/, '已移除最近会话');
   assert.doesNotMatch(profileSource, /洞察/, '已移除洞察');
+  assert.doesNotMatch(profileSource, /account\.profile\?\.contact/, '昵称下不再显示联系方式');
+  assert.match(css, /\.dsc-profile, \.dsc-profile \* \{ font-family: var\(--cx-font-sans\)/, '整页字体栈统一');
   assert.doesNotMatch(profileSource, /累计消费/, '没有编造的累计消费卡片');
 });
 
