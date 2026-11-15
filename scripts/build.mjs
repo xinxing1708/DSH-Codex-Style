@@ -5,7 +5,7 @@ import { Script } from 'node:vm';
 import { buildThemeTokenCss, CODEX_TOKEN_MAP, EXTRA_HOST_TOKENS } from './theme-map.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const [manifest, source, updateSource, chromeSource, ownCss, tokens, chromeCssSource, icons, mark, skillsSource, skillsCss, skillsHost, navigationSource, navigationCss, navigationHost, imageAnnotationsSource, imageAnnotationsCss, imageAnnotationsHost, themeSource, themeData, appearanceSource] = await Promise.all([
+const [manifest, source, updateSource, chromeSource, ownCss, tokens, chromeCssSource, icons, mark, skillsSource, skillsCss, skillsHost, navigationSource, navigationCss, navigationHost, imageAnnotationsSource, imageAnnotationsCss, imageAnnotationsHost, themeSource, themeData, appearanceSource, profileSource] = await Promise.all([
   readFile(resolve(root, 'package.json'), 'utf8').then(JSON.parse),
   readFile(resolve(root, 'src/client.js'), 'utf8'),
   readFile(resolve(root, 'src/update.js'), 'utf8'),
@@ -26,7 +26,8 @@ const [manifest, source, updateSource, chromeSource, ownCss, tokens, chromeCssSo
   readFile(resolve(root, 'src/image-annotations.mjs'), 'utf8'),
   readFile(resolve(root, 'src/theme-pack.js'), 'utf8'),
   readFile(resolve(root, 'assets/themes.data.json'), 'utf8').then(JSON.parse),
-  readFile(resolve(root, 'src/appearance.js'), 'utf8')
+  readFile(resolve(root, 'src/appearance.js'), 'utf8'),
+  readFile(resolve(root, 'src/profile.js'), 'utf8')
 ]);
 // 构建输入均随源码提供；不读取个人原型、配置或联网下载资源。
 // 图片批注 UI 与宿主适配共享主客户端作用域，由独立组件清单控制装卸。
@@ -42,7 +43,7 @@ const headerCss = await readFile(resolve(root, 'src/header.css'), 'utf8');
 const themePack = themeData.map(theme => ({ id: theme.id, name: theme.name, nameZh: theme.nameZh, desc: theme.desc, descZh: theme.descZh, swatch: theme.swatch, css: theme.css }));
 const themeMapCss = buildThemeTokenCss(themeData);
 const themeHostTokens = [...new Set([...Object.values(CODEX_TOKEN_MAP), ...EXTRA_HOST_TOKENS])];
-const output = `window.__ModuleLoader__.load({\n  id: ${JSON.stringify(manifest.name)},\n  factory: function(require) {\n    'use strict';\n    const CSS_TEXT = ${JSON.stringify(css)};\n    const SKILLS_CSS_TEXT = ${JSON.stringify(skillsCss)};\n    const BODY_CSS_TEXT = ${JSON.stringify(bodyCss)};\n    const HEADER_CSS_TEXT = ${JSON.stringify(headerCss)};\n    const NAVIGATION_CSS_TEXT = ${JSON.stringify(navigationCss)};\n    const IMAGE_ANNOTATIONS_CSS_TEXT = ${JSON.stringify(imageAnnotationsCss + '\n' + imageIntegrationCss)};\n    const PROTOTYPE_ICONS = ${JSON.stringify(icons)};\n    const BRAND_MARK = ${JSON.stringify('data:image/png;base64,' + mark.toString('base64'))};\n    const PLUGIN_VERSION = ${JSON.stringify(manifest.version)};\n    const PLUGIN_PACKAGE = ${JSON.stringify(manifest.name)};\n    const CODEX_THEME_PACK = ${JSON.stringify(themePack)};\n    const CODEX_THEME_MAP_CSS = ${JSON.stringify(themeMapCss)};\n    const CODEX_THEME_HOST_TOKEN_NAMES = ${JSON.stringify(themeHostTokens)};\n    const module = { exports: {} };\n    const exports = module.exports;\n${themeSource}\n${appearanceSource}\n${chromeSource}\n${source}\n${imageAnnotationsSource}\n${imageIntegration}\n${skillsSource}\n${updateSource}\n${bodySource}\n${headerSource}\n${navigationSource}\n    return module.exports;\n  }\n});\n`;
+const output = `window.__ModuleLoader__.load({\n  id: ${JSON.stringify(manifest.name)},\n  factory: function(require) {\n    'use strict';\n    const CSS_TEXT = ${JSON.stringify(css)};\n    const SKILLS_CSS_TEXT = ${JSON.stringify(skillsCss)};\n    const BODY_CSS_TEXT = ${JSON.stringify(bodyCss)};\n    const HEADER_CSS_TEXT = ${JSON.stringify(headerCss)};\n    const NAVIGATION_CSS_TEXT = ${JSON.stringify(navigationCss)};\n    const IMAGE_ANNOTATIONS_CSS_TEXT = ${JSON.stringify(imageAnnotationsCss + '\n' + imageIntegrationCss)};\n    const PROTOTYPE_ICONS = ${JSON.stringify(icons)};\n    const BRAND_MARK = ${JSON.stringify('data:image/png;base64,' + mark.toString('base64'))};\n    const PLUGIN_VERSION = ${JSON.stringify(manifest.version)};\n    const PLUGIN_PACKAGE = ${JSON.stringify(manifest.name)};\n    const CODEX_THEME_PACK = ${JSON.stringify(themePack)};\n    const CODEX_THEME_MAP_CSS = ${JSON.stringify(themeMapCss)};\n    const CODEX_THEME_HOST_TOKEN_NAMES = ${JSON.stringify(themeHostTokens)};\n    const module = { exports: {} };\n    const exports = module.exports;\n${themeSource}\n${appearanceSource}\n${profileSource}\n${chromeSource}\n${source}\n${imageAnnotationsSource}\n${imageIntegration}\n${skillsSource}\n${updateSource}\n${bodySource}\n${headerSource}\n${navigationSource}\n    return module.exports;\n  }\n});\n`;
 new Script(output, { filename: 'dsh-codex-style/client.js' });
 await mkdir(resolve(root, 'lib'), { recursive: true });
 await writeFile(resolve(root, 'lib/client.js'), output);

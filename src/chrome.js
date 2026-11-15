@@ -88,6 +88,7 @@ function usePanelDirectory(ctx) {
 function navigationCategoryOf(panel) {
   const activePanelId = panel === null || panel === undefined || panel.activePanelId === undefined ? null : panel.activePanelId;
   if (activePanelId === MORE_PANEL_ID) return 'more';
+  if (activePanelId === PROFILE_PANEL_ID) return 'profile';
   if (activePanelId === null) return 'home';
   if (activePanelId === 'plugins') return 'plugins';
   if (activePanelId === SKILLS_PANEL_ID) return 'skills';
@@ -97,7 +98,7 @@ function navigationCategoryOf(panel) {
 // 侧栏二级区域：第三方页沿用最近的常规区域；「更多」只在它自己的页面显示，
 // 从「更多」后退到第三方页时不残留「更多」菜单。
 function sidebarSectionOf(category, last, hasMore) {
-  if (category !== 'extension' && category !== 'more') last.current = category;
+  if (category !== 'extension' && category !== 'more' && category !== 'profile') last.current = category;
   return category === 'more' && hasMore ? 'more' : last.current;
 }
 function useNavigationDirectory(ctx, sidebar) {
@@ -281,6 +282,7 @@ function makeNavigationRail(ctx, sidebar) {
         taskRows.length > 0 && item('tasks', '定时任务', 'tasks', () => pick(taskRows[0].id)),
         pluginRows.length > 0 && item('plugins', '自定义', 'plugins', () => pick(pluginRows.some(row => row.id === 'plugins') ? 'plugins' : SKILLS_PANEL_ID), category === 'skills'),
         hasMore && item('more', '更多', 'more', openMore),
+        item('profile', '个人', 'user', () => pick(PROFILE_PANEL_ID), category === 'profile'),
         h('div', { ref: extensions, className: 'dsc-extension-navigation-anchor', 'aria-hidden': true }),
         h('span', { className: 'dsc-rail-hitblock', 'aria-hidden': true })),
       error && h('div', { className: 'dsc-ui dsc-navigation-error' }, h(ErrorLine, { text: error }))), document.body);
@@ -303,6 +305,7 @@ function makeSidebarChrome(ctx, sidebar, archiveNotice) {
   const completions = createSessionCompletionTracker(ctx);
   ctx.effect(() => completions.start(), 'codex-style: unread session completions');
   ctx.effect(() => registerMorePage(ctx), 'codex-style: more page');
+  ctx.effect(() => registerProfilePage(ctx), 'codex-style: profile page');
   const Tree = makeWorkspaceTree(ctx, completions.store, archiveNotice);
   return function SidebarChrome() {
     const { panel, pluginRows, taskRows, category: selectedCategory, hasMore } = useNavigationDirectory(ctx, sidebar);
