@@ -1036,13 +1036,14 @@ function useHostFooterActions(ctx, open, menuRef, anchorRef) {
 function makeGearLauncher(ctx) {
   return function GearLauncher({ openSettings, settingsOpen }) {
     const [open, setOpen] = useState(false);
+    const [pane, setPane] = useState('menu');
     const [profile, setProfile] = useState(null);
     const [failed, setFailed] = useState(false);
     const [avatarFailed, setAvatarFailed] = useState(false);
     const anchor = useRef(null);
     const menuRef = useRef(null);
     const footerRoot = useHostFooterActions(ctx, open, menuRef, anchor);
-    useEffect(() => { if (settingsOpen) setOpen(false); }, [settingsOpen]);
+    useEffect(() => { if (settingsOpen) { setPane('menu'); setOpen(false); } }, [settingsOpen]);
     useEffect(() => {
       if (!open) return;
       let active = true;
@@ -1057,12 +1058,17 @@ function makeGearLauncher(ctx) {
       return () => { active = false; };
     }, [open]);
     const showSettings = () => { setOpen(false); openSettings(); };
+    // 主题包是二级面板：与 dsh-theme 一样把 30 套配色收进插件自身，不额外装第三个插件。
+    const closeMenu = () => { setPane('menu'); setOpen(false); };
+    const themesOpen = pane === 'themes';
     return createPortal(h('div', { className: 'dsc-ui dsc-gear-launcher' },
-      h('button', { ref: anchor, type: 'button', className: 'dsc-gear-button', 'aria-label': '设置', 'aria-haspopup': 'menu', 'aria-expanded': open, onClick: () => setOpen(!open) }, h(PrototypeIcon, { name: 'settings' })),
-      open && h(Popover, { anchor, onClose: () => setOpen(false), label: '设置与账号', width: 228, className: 'dsc-app-menu', panelRef: menuRef, extraRoots: footerRoot ? [footerRoot] : [] },
-        h('button', { type: 'button', className: 'dsc-account-row', role: 'menuitem', onClick: showSettings, title: '在账号子页面中管理' }, profile?.avatarUrl && !avatarFailed ? h('img', { src: profile.avatarUrl, alt: '', onError: () => setAvatarFailed(true) }) : h('span', { className: 'dsc-account-avatar' }, h(Icon, { name: 'chat' })), h('span', null, h('strong', null, profile?.name || profile?.contact || '账号'), h('small', null, profile ? '账号与设置' : failed ? '打开账号设置' : '正在读取账号…'))),
-        h('div', { className: 'dsc-menu-separator', role: 'separator' }),
-        h(Option, { title: '设置', icon: 'settings', onClick: showSettings }))), document.body);
+      h('button', { ref: anchor, type: 'button', className: 'dsc-gear-button', 'aria-label': '设置', 'aria-haspopup': 'menu', 'aria-expanded': open, onClick: () => { setPane('menu'); setOpen(!open); } }, h(PrototypeIcon, { name: 'settings' })),
+      open && h(Popover, { anchor, onClose: closeMenu, label: themesOpen ? '主题包' : '设置与账号', width: themesOpen ? 296 : 228, className: 'dsc-app-menu', panelRef: menuRef, extraRoots: !themesOpen && footerRoot ? [footerRoot] : [] },
+        themesOpen ? h(ThemePackPanel, { onBack: () => setPane('menu') }) : h(React.Fragment, null,
+          h('button', { type: 'button', className: 'dsc-account-row', role: 'menuitem', onClick: showSettings, title: '在账号子页面中管理' }, profile?.avatarUrl && !avatarFailed ? h('img', { src: profile.avatarUrl, alt: '', onError: () => setAvatarFailed(true) }) : h('span', { className: 'dsc-account-avatar' }, h(Icon, { name: 'chat' })), h('span', null, h('strong', null, profile?.name || profile?.contact || '账号'), h('small', null, profile ? '账号与设置' : failed ? '打开账号设置' : '正在读取账号…'))),
+          h('div', { className: 'dsc-menu-separator', role: 'separator' }),
+          h(Option, { title: '主题包', detail: currentThemeLabel(), icon: 'plugins', onClick: () => setPane('themes') }),
+          h(Option, { title: '设置', icon: 'settings', onClick: showSettings })))), document.body);
   };
 }
 

@@ -38,7 +38,7 @@ body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-compose
 }
 @keyframes dsc-composer-sending-spin { to { transform: rotate(360deg); } }
 /* 正文字体颜色：第 134 轮按新版 Codex 默认主题取 #fcfcfc（原 #dfdfdf 偏暗）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
-body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #fcfcfc; --dsw-alias-link: var(--cx-link); }
+body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: var(--cx-text); --dsw-alias-link: var(--cx-link); }
 /* 正文列随输入卡宽度对齐，隐藏宿主两侧的宽度拖拽柄及其整条命中区域。 */
 body[data-dsh-codex-style] [data-conversation-content] > [data-width-handle] { display: none; }
 /* 原 sidebar/settings 父级继续挂载以保留原生页面与子槽位所有权；只隐藏其旧外观。 */
@@ -355,6 +355,19 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-option:hover, .dsc-option:focus-visible { background: #ffffff12; }
 .dsc-option-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; line-height: 20px; }
 .dsc-option-copy small { font-size: 12px; color: var(--cx-text-3); line-height: 17px; }
+/* 主题包：二级面板复用菜单的胶囊与行样式，只额外画一个“底色 + 强调色”索引块。 */
+.dsc-theme-heading { display: flex; align-items: center; gap: 6px; padding: 2px 4px 8px; font-size: 13px; color: var(--cx-text-2); }
+.dsc-theme-back { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--cx-radius-sm); color: var(--cx-text-3); transform: rotate(180deg); }
+.dsc-theme-back:hover { background: var(--cx-active); color: var(--cx-text); }
+.dsc-theme-list { display: flex; flex-direction: column; gap: 1px; max-height: min(52vh, 460px); overflow-y: auto; padding-right: 2px; }
+.dsc-theme-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 8px; border-radius: 7px; text-align: left; }
+.dsc-theme-row:hover, .dsc-theme-row:focus-visible, .dsc-theme-row.is-active { background: var(--cx-active); }
+.dsc-theme-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; line-height: 18px; }
+.dsc-theme-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsc-theme-copy small { font-size: 11px; color: var(--cx-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsc-theme-swatch { flex: none; display: inline-flex; align-items: flex-end; justify-content: flex-end; width: 22px; height: 22px; padding: 3px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--cx-border-l2); }
+.dsc-theme-swatch-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px #0000001a; }
+.dsc-theme-swatch.is-default { background: linear-gradient(135deg, var(--cx-text-4), transparent); box-shadow: inset 0 0 0 1px var(--cx-border-l3); }
 /* 行悬停详情卡：几何按原型实测（项目卡 321×130、右侧 5px；会话卡 470 宽、右侧 12px、上移 6px）。 */
 .dsc-row-pop { position: fixed; z-index: 10000; max-width: calc(100vw - 32px); padding: 6px; border-radius: var(--cx-radius-xl); border: 1px solid var(--cx-border-l1); background: var(--cx-popover-fill); box-shadow: var(--cx-shadow-2xl); animation: dsc-row-pop-in 120ms var(--cx-ease-out) both; }
 .dsc-row-pop--project { width: 321px; padding: 8px; }

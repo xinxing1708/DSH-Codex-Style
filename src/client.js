@@ -1066,18 +1066,38 @@ function makeModelPicker(ctx) {
   };
 }
 
-// 明暗由宿主 ThemeSnapshot.active.colorScheme 决定；不接管用户的主题偏好。
+// 明暗由宿主实际生效的标记决定（自带外观与 dsh-theme 的“浅色/深色”都会落到 data-ds-dark-theme）；
+// 主题包或 dsh-theme 接管配色时，Codex 让出调色板令牌，只保留圆角、阴影这类非配色令牌。
 function mountCodexTheme(ctx, darkTokens, lightTokens) {
-  ctx.effect(() => ctx.theme.overrideTokens(PLUGIN_ID, Object.fromEntries(Object.entries(darkTokens).map(([key, dark]) => [key, { light: lightTokens[key] ?? dark, dark }]))), 'codex-style: theme');
+  const overrideLayer = () => {
+    const themed = isThemePackActive();
+    return Object.fromEntries(Object.entries(darkTokens)
+      .filter(([key]) => !(themed && CODEX_THEME_HOST_TOKENS.has(key)))
+      .map(([key, dark]) => [key, { light: lightTokens[key] ?? dark, dark }]));
+  };
+  ctx.effect(() => {
+    let dispose = ctx.theme.overrideTokens(PLUGIN_ID, overrideLayer());
+    if (typeof MutationObserver !== 'function') return () => dispose();
+    const observer = new MutationObserver(() => { dispose(); dispose = ctx.theme.overrideTokens(PLUGIN_ID, overrideLayer()); });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-dsh-theme'] });
+    return () => { observer.disconnect(); dispose(); };
+  }, 'codex-style: theme');
   ctx.effect(() => {
     const previous = document.body.getAttribute('data-dsc-color-scheme');
     // 旧版本曾把这个自定义 id 写为当前偏好；升级时仅迁回等价的内置深色。
     if (ctx.theme.getTheme()?.preference === 'dsh-codex-dark') ctx.theme.setTheme('dark');
-    const sync = snapshot => document.body.setAttribute('data-dsc-color-scheme', snapshot.active.colorScheme);
+    const bootMarked = typeof document.documentElement?.dataset?.dsThemeSource === 'string';
+    const sync = snapshot => {
+      const dark = bootMarked ? document.body.hasAttribute('data-ds-dark-theme') : snapshot.active.colorScheme === 'dark';
+      document.body.setAttribute('data-dsc-color-scheme', dark ? 'dark' : 'light');
+    };
     sync(ctx.theme.getTheme());
     const off = ctx.on('theme/change', sync);
+    const observer = typeof MutationObserver === 'function' ? new MutationObserver(() => sync(ctx.theme.getTheme())) : null;
+    observer?.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
     return () => {
       off();
+      observer?.disconnect();
       if (previous === null) document.body.removeAttribute('data-dsc-color-scheme');
       else document.body.setAttribute('data-dsc-color-scheme', previous);
     };
@@ -1143,6 +1163,8 @@ function apply(ctx) {
     const skillsStyle = document.createElement('style'); skillsStyle.dataset.dshCodexSkills = PLUGIN_VERSION; skillsStyle.textContent = SKILLS_CSS_TEXT; document.head.appendChild(skillsStyle);
     return () => { style.remove(); skillsStyle.remove(); if (previous === null) document.body.removeAttribute('data-dsh-codex-style'); else document.body.setAttribute('data-dsh-codex-style', previous); };
   }, 'codex-style: stylesheet');
+  // 主题包在自带样式之后挂载：映射表要压过默认深浅色令牌，选择才能立刻生效。
+  installThemePack(ctx);
   registerSkillsPage(ctx);
   const register = (scope, name, component, inject) => scope.slots.inject(name, () => {
     const priorities = scope.slots.entries(name).map(entry => entry.options.priority ?? 0);
