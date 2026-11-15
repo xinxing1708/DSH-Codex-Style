@@ -32,7 +32,8 @@ test('只展示真实可得数据，消费金额交给平台', () => {
   assert.doesNotMatch(profileSource, /最近会话/, '已移除最近会话');
   assert.doesNotMatch(profileSource, /洞察/, '已移除洞察');
   assert.doesNotMatch(profileSource, /account\.profile\?\.contact/, '昵称下不再显示联系方式');
-  assert.match(css, /\.dsc-profile, \.dsc-profile \* \{ font-family: var\(--cx-font-sans\)/, '整页字体栈统一');
+  assert.match(css, /\.dsc-profile, \.dsc-profile \* \{ font-family: [^}]*Microsoft YaHei[^}]*\}/, '页内固定含中文的系统字体栈');
+  assert.doesNotMatch(css, /\.dsc-profile, \.dsc-profile \* \{ font-family: var\(--cx-font-sans\)/, '不再跟随外观字体');
   assert.doesNotMatch(profileSource, /累计消费/, '没有编造的累计消费卡片');
 });
 
