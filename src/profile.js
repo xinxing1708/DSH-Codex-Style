@@ -133,25 +133,7 @@ function ProfileMain({ ctx }) {
   const streaks = useMemo(() => buildProfileStreaks([...activity.keys()]), [activity]);
   const grid = useMemo(() => buildProfileGrid(activity), [activity]);
   const activeDays = activity.size;
-  const workspaceCount = workspaces.items.length;
-  const archivedCount = (workspaces.archivedSessionIds || []).length;
-  const byWorkspace = useMemo(() => {
-    const counts = new Map();
-    for (const workspace of workspaces.items) counts.set(workspace.workspaceId, { title: workspace.title || '未命名项目', count: 0 });
-    for (const session of sessions) {
-      const owner = workspaces.items.find(workspace => workspace.sessionIds.includes(session.id));
-      if (owner && counts.has(owner.workspaceId)) counts.get(owner.workspaceId).count += 1;
-    }
-    return [...counts.values()].sort((left, right) => right.count - left.count);
-  }, [sessions, workspaces.items]);
   const peak = Math.max(0, ...[...activity.values()]);
-  const timeFormat = value => {
-    const time = profileTime(value);
-    if (!time) return '—';
-    const date = new Date(time);
-    return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-  };
-  const workspaceOf = session => workspaces.items.find(workspace => workspace.sessionIds.includes(session.id))?.title || '最近';
 
   const card = (label, value, hint) => h('div', { className: 'dsc-profile-card' },
     h('strong', null, value), h('span', null, label), hint ? h('small', null, hint) : null);
@@ -161,11 +143,18 @@ function ProfileMain({ ctx }) {
       h('span', { className: 'dsc-profile-avatar' }, account.profile?.avatarUrl ? h('img', { src: account.profile.avatarUrl, alt: '', onError: event => { event.currentTarget.remove(); } }) : h(Icon, { name: 'chat', size: 30 })),
       h('span', { className: 'dsc-profile-identity' },
         h('strong', null, account.profile?.name || '未登录'),
-        h('small', null, account.profile?.id ? `@${account.profile.id}` : account.profile?.contact || '登录后显示账号信息')),
+        h('small', null, account.profile?.contact || 'DeepSeek 账号')),
       ),
     account.status === 'loading' && h('p', { className: 'dsc-profile-note' }, '正在读取账号信息…'),
 
     h('section', { className: 'dsc-profile-stats' },
+      card('Token 消耗', '—', '由平台统计'),
+      card('使用峰值', `${peak} 个/天`, '本地会话活动'),
+      card('最长任务用时', '—', '由平台统计'),
+      card('总消耗金额', '—', '由平台统计'),
+      card('本月消耗金额', '—', '由平台统计')),
+
+    h('section', { className: 'dsc-profile-stats is-secondary' },
       card('充值余额', formatProfileMoney(account.wallets)),
       card('赠送余额', formatProfileMoney(account.bonus)),
       card('会话总数', String(sessions.length)),
@@ -186,25 +175,8 @@ function ProfileMain({ ctx }) {
         h('span', null, `峰值 ${peak} 个会话/天 · 活跃 ${activeDays} 天`),
         h('span', { className: 'dsc-profile-legend' }, '少', [0, 1, 2, 3, 4].map(level => h('i', { key: level, 'data-level': level })), '多'))),
 
-    h('section', { className: 'dsc-profile-block' },
-      h('div', { className: 'dsc-profile-block-title' }, '最近会话'),
-      h('table', { className: 'dsc-profile-table' },
-        h('thead', null, h('tr', null, h('th', null, '会话'), h('th', null, '项目'), h('th', null, '最近活动'))),
-        h('tbody', null, sessions.slice(0, 8).map(session => h('tr', { key: session.id },
-          h('td', { className: 'dsc-profile-cell-title', title: session.title || '未命名会话' }, h('button', { type: 'button', onClick: () => ctx.uiWorkspace.openSession(session.id) }, session.title || '未命名会话')),
-          h('td', { className: 'dsc-profile-cell-muted' }, workspaceOf(session)),
-          h('td', { className: 'dsc-profile-cell-muted' }, timeFormat(session.updatedAt)))))),
-      !sessions.length && h('p', { className: 'dsc-profile-note' }, '还没有会话记录')),
-
-    h('section', { className: 'dsc-profile-block' },
-      h('div', { className: 'dsc-profile-block-title' }, '洞察'),
-      h('dl', { className: 'dsc-profile-insights' },
-        h('div', null, h('dt', null, '最常用的项目'), h('dd', null, byWorkspace[0] ? `${byWorkspace[0].title} · ${byWorkspace[0].count} 个会话` : '—')),
-        h('div', null, h('dt', null, '项目数'), h('dd', null, `${workspaceCount} 个`)),
-        h('div', null, h('dt', null, '已归档会话'), h('dd', null, `${archivedCount} 个`)),
-        h('div', null, h('dt', null, '账号'), h('dd', null, account.profile?.contact || '—'))),
-      h('p', { className: 'dsc-profile-note' },
-        'Token 用量与消费明细由 DeepSeek 平台统计，插件只读取余额，不推算金额。',
-        h('button', { type: 'button', className: 'dsc-profile-link', onClick: () => { if (typeof window !== 'undefined') window.open(PLATFORM_USAGE_URL, '_blank', 'noopener'); } }, '打开平台用量页'))),
+    h('p', { className: 'dsc-profile-note' },
+      'Token 用量、任务用时与消费金额由 DeepSeek 平台统计；插件只读取账号余额与本地会话活动，不推算金额。',
+      h('button', { type: 'button', className: 'dsc-profile-link', onClick: () => { if (typeof window !== 'undefined') window.open(PLATFORM_USAGE_URL, '_blank', 'noopener'); } }, '打开平台用量页')),
   );
 }

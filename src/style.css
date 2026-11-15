@@ -711,6 +711,7 @@ body[data-dsh-codex-style][data-dsc-color-scheme="light"]:has([data-slot="conver
 .dsc-profile-action { margin-left: auto; height: 30px; padding: 0 12px; border-radius: var(--cx-radius-full); border: 1px solid var(--cx-border-l1); color: var(--cx-text-2); font-size: 12px; }
 .dsc-profile-action:hover { background: var(--cx-hover); color: var(--cx-text); }
 .dsc-profile-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.dsc-profile-stats.is-secondary { margin-top: -10px; }
 .dsc-profile-card { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-xl); background: var(--cx-surface); }
 .dsc-profile-card strong { font-size: 18px; line-height: 24px; font-weight: var(--cx-weight-semibold); color: var(--cx-text); font-variant-numeric: tabular-nums; }
 .dsc-profile-card span { font-size: 12px; line-height: 16px; color: var(--cx-text-3); }
