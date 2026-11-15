@@ -524,7 +524,6 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
     const [expanded, setExpanded] = useState({});
     const [moreExpanded, setMoreExpanded] = useState({});
     const [projectsOpen, setProjectsOpen] = useState(true);
-    const [showArchived, setShowArchived] = useState(false);
     const [message, setMessage] = useState('');
     const [adding, setAdding] = useState(false);
     const [menu, setMenu] = useState(null);
@@ -562,8 +561,8 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
       .sort((a, b) => (Number(b.updatedAt) || Date.parse(b.updatedAt) || 0) - (Number(a.updatedAt) || Date.parse(a.updatedAt) || 0)), [catalog.ids, catalog.byId]);
     const currentId = useMemo(() => catalog.ids.find(id => (catalog.byId[id]?.retainedBy?.mainView ?? 0) > 0), [catalog.ids, catalog.byId]);
     const searchText = query.trim().toLowerCase();
-    const visible = useMemo(() => ordered.filter(s => (showArchived || !archived.has(s.sessionId)) &&
-      (!searchText || `${s.title || ''} ${memberships.get(s.sessionId)?.[0]?.title || ''}`.toLowerCase().includes(searchText))), [ordered, archived, showArchived, searchText, memberships]);
+    const visible = useMemo(() => ordered.filter(s => !archived.has(s.sessionId) &&
+      (!searchText || `${s.title || ''} ${memberships.get(s.sessionId)?.[0]?.title || ''}`.toLowerCase().includes(searchText))), [ordered, archived, searchText, memberships]);
     const groups = useMemo(() => {
       const projects = new Map(), pins = [], recent = [];
       for (const session of visible) {
@@ -719,7 +718,6 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
           h('div', { className: 'dsc-section-title' }, '最近'), groups.recent.map(s => row(s))),
         !visible.length && catalog.phase === 'ready' && h('div', { className: 'dsc-empty' }, query ? '没有匹配的对话' : '选择项目，开始新对话'),
         catalog.phase !== 'ready' && h('div', { className: 'dsc-empty', role: 'status' }, '正在加载会话…')),
-      h('label', { className: 'dsc-archive-toggle' }, h('input', { type: 'checkbox', checked: showArchived, onChange: e => setShowArchived(e.target.checked) }), '显示已归档对话'),
       menu && h(Popover, { anchor: menuAnchor, point: menu.point, onClose: () => setMenu(null), label: '对话菜单', width: 228 },
         h(Option, { title: '重命名', icon: 'pencil', onClick: () => { const target = menu; setMenu(null); hideHover(); setRenaming(target); } }),
         h(Option, { title: pinned.has(menu.sessionId) ? '取消置顶' : '置顶', icon: 'pin', onClick: () => { const target = menu; setMenu(null); togglePin(target); } }),
