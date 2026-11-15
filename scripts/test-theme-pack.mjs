@@ -9,6 +9,7 @@ const themes = JSON.parse(await readFile(new URL('../assets/themes.data.json', i
 const bundle = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
 const chrome = await readFile(new URL('../src/chrome.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8');
+const appearanceSource = await readFile(new URL('../src/appearance.js', import.meta.url), 'utf8');
 
 test('内置主题包保留 30 套配色和唯一 id', () => {
   assert.equal(themes.length, 30, '主题包完整');
@@ -47,10 +48,10 @@ test('发行 bundle 内联主题包与映射表', () => {
   assert.match(bundle, /function AppearancePage\(/, 'bundle 含外观设置页');
 });
 
-test('齿轮菜单只留「外观」入口，打开设置页', () => {
-  assert.match(chrome, /title: '外观'/, '菜单项');
-  assert.match(chrome, /openSettings\('codex-appearance'\)/, '打开设置分区');
-  assert.match(css, /\.dsc-appearance-theme/, '外观页样式');
+test('外观入口只在设置里，齿轮菜单不再放浮层入口', () => {
+  assert.doesNotMatch(chrome, /title: '外观'/, '齿轮菜单没有外观行');
+  assert.match(appearanceSource, /name: 'settings\.section', id: 'codex-appearance'/, '设置分区仍在');
+  assert.match(css, /\.dsc-appearance-theme/, '外观页样式仍在');
 });
 
 test('主题包写入与撤销 DOM、持久化选择', async () => {

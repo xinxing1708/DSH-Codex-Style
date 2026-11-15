@@ -80,10 +80,44 @@ function formatProfileMoney(wallets, fallback = '—') {
   return wallets.map(wallet => `${wallet.currency === 'CNY' ? '¥' : '$'}${Number(wallet.balance).toFixed(2)}`).join(' / ');
 }
 
-function registerProfilePage(ctx) {
-  return ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PROFILE_PANEL_ID }, function ProfilePage() {
-    return h(ProfileMain, { ctx });
-  }));
+let profileOverlay = null;
+
+function createProfileOverlay() {
+  const store = createSnapshotStore({ open: false });
+  return {
+    store,
+    open() { store.set({ open: true }); },
+    close() { store.set({ open: false }); }
+  };
+}
+
+/** 齿轮菜单「个人」入口：浮层展示，不依赖 main 面板注册。 */
+function installProfilePage(ctx) {
+  profileOverlay = createProfileOverlay();
+  const overlay = profileOverlay;
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'codex-style:profile' },
+    () => h(ProfileOverlay, { ctx, overlay })));
+}
+
+function openProfilePanel() {
+  profileOverlay?.open();
+}
+
+function ProfileOverlay({ ctx, overlay }) {
+  const state = useSource(overlay.store);
+  const close = () => overlay.close();
+  useEffect(() => {
+    if (!state.open) return;
+    const onKey = event => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [state.open]);
+  if (!state.open) return null;
+  return createPortal(h('div', { className: 'dsc-ui dsc-profile-layer', role: 'dialog', 'aria-modal': 'true', 'aria-label': '个人' },
+    h('div', { className: 'dsc-profile-backdrop', 'aria-hidden': true, onClick: close }),
+    h('div', { className: 'dsc-profile-sheet' },
+      h('button', { type: 'button', className: 'dsc-profile-close', 'aria-label': '关闭', onClick: close }, '\u00d7'),
+      h(ProfileMain, { ctx }))), document.body);
 }
 
 function ProfileMain({ ctx }) {
@@ -153,7 +187,7 @@ function ProfileMain({ ctx }) {
       h('span', { className: 'dsc-profile-identity' },
         h('strong', null, account.profile?.name || '未登录'),
         h('small', null, account.profile?.id ? `@${account.profile.id}` : account.profile?.contact || '登录后显示账号信息')),
-      h('button', { type: 'button', className: 'dsc-profile-action', onClick: () => ctx.layout.selectPanel(null) }, '返回会话')),
+      ),
     account.status === 'loading' && h('p', { className: 'dsc-profile-note' }, '正在读取账号信息…'),
 
     h('section', { className: 'dsc-profile-stats' },

@@ -11,13 +11,13 @@ const [profileSource, chrome, css, bundle] = await Promise.all([
   readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
 ]);
 
-test('个人页注册为 main 面板并从 rail 进入', () => {
-  assert.match(profileSource, /const PROFILE_PANEL_ID = 'codex-style-profile'/, '面板 id');
-  assert.match(profileSource, /ctx\.slots\.register\(\{ name: 'main', key: PROFILE_PANEL_ID \}/, '注册 main 面板');
-  assert.match(chrome, /item\('profile', '个人', 'user', \(\) => pick\(PROFILE_PANEL_ID\)/, 'rail 入口');
-  assert.match(chrome, /activePanelId === PROFILE_PANEL_ID\) return 'profile'/, '分类映射');
-  assert.match(chrome, /registerProfilePage\(ctx\)/, '插件启动时注册');
-  assert.match(css, /\.dsc-profile-stats/, '样式存在');
+test('个人页从齿轮菜单以浮层打开', () => {
+  assert.match(profileSource, /function installProfilePage\(ctx\)/, '安装入口');
+  assert.match(profileSource, /name: 'shell\.overlay', id: 'codex-style:profile'/, '注册浮层');
+  assert.match(profileSource, /function openProfilePanel\(\)/, '打开函数');
+  assert.match(chrome, /title: '个人', detail: '用量与统计'/, '齿轮菜单入口');
+  assert.match(chrome, /openProfilePanel\(\)/, '点击打开浮层');
+  assert.match(css, /\.dsc-profile-sheet/, '浮层样式');
 });
 
 test('只展示真实可得数据，消费金额交给平台', () => {

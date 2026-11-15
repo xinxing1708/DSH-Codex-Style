@@ -203,7 +203,7 @@ body[data-dsh-codex-style][data-dsc-color-scheme="light"] {
   --cx-hover: rgba(0, 0, 0, 0.045);
   --cx-active: rgba(0, 0, 0, 0.065);
   --cx-hover-strong: rgba(0, 0, 0, 0.08);
-  --cx-tooltip-fill: #0d0d0d;
+  --cx-tooltip-fill: #ffffff;
   --cx-border-l1: rgba(0, 0, 0, 0.12);
   --cx-border-l2: rgba(0, 0, 0, 0.055);
   --cx-border-l3: rgba(0, 0, 0, 0.18);

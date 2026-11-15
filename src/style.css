@@ -750,3 +750,11 @@ body[data-dsh-codex-style][data-dsc-color-scheme="light"]:has([data-slot="conver
   .dsc-profile-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dsc-profile-insights { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* 个人浮层：从齿轮菜单「个人」打开，卡片居中、背景遮罩、Esc 关闭。 */
+.dsc-profile-layer { position: fixed; inset: 0; z-index: 10020; display: grid; place-items: center; padding: 24px; }
+.dsc-profile-backdrop { position: absolute; inset: 0; background: #00000047; }
+.dsc-profile-sheet { position: relative; display: flex; flex-direction: column; width: min(1080px, 100%); height: min(86vh, 900px); overflow: hidden; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-2xl); background: var(--cx-window); box-shadow: var(--cx-shadow-2xl); }
+.dsc-profile-close { position: absolute; top: 10px; right: 12px; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--cx-radius-md); color: var(--cx-text-3); font-size: 18px; line-height: 1; }
+.dsc-profile-close:hover { background: var(--cx-hover); color: var(--cx-text); }
+@media (max-width: 900px) { .dsc-profile-layer { padding: 12px; } .dsc-profile-sheet { height: min(92vh, 900px); } }
