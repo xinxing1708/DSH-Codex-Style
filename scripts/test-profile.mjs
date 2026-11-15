@@ -11,12 +11,12 @@ const [profileSource, chrome, css, bundle] = await Promise.all([
   readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
 ]);
 
-test('个人页从齿轮菜单以浮层打开', () => {
-  assert.match(profileSource, /function installProfilePage\(ctx\)/, '安装入口');
-  assert.match(profileSource, /name: 'shell\.overlay', id: 'codex-style:profile'/, '注册浮层');
-  assert.match(profileSource, /function openProfilePanel\(\)/, '打开函数');
-  assert.match(chrome, /title: '个人', detail: '用量与统计'/, '齿轮菜单入口');
-  assert.match(chrome, /openProfilePanel\(\)/, '点击打开浮层');
+test('个人页由齿轮菜单直接挂载浮层', () => {
+  assert.match(profileSource, /function ProfileOverlay\(\{ ctx, onClose \}\)/, '浮层组件');
+  assert.match(profileSource, /className: 'dsc-profile-sheet'/, '浮层卡片');
+  assert.match(chrome, /title: '个人', detail: '用量与统计'/, '菜单入口');
+  assert.match(chrome, /setProfileOpen\(true\)/, '点击打开');
+  assert.match(chrome, /h\(ProfileOverlay, \{ ctx, onClose/, '菜单组件内挂载浮层');
   assert.match(css, /\.dsc-profile-sheet/, '浮层样式');
 });
 

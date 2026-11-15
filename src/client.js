@@ -1164,7 +1164,6 @@ function apply(ctx) {
   // 主题包在自带样式之后挂载：映射表要压过默认深浅色令牌，选择才能立刻生效。
   installThemePack(ctx);
   installAppearance(ctx);
-  installProfilePage(ctx);
   registerSkillsPage(ctx);
   const register = (scope, name, component, inject) => scope.slots.inject(name, () => {
     const priorities = scope.slots.entries(name).map(entry => entry.options.priority ?? 0);

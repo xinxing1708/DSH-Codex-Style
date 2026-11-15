@@ -1060,6 +1060,7 @@ function useHostFooterActions(ctx, open, menuRef, anchorRef) {
 function makeGearLauncher(ctx) {
   return function GearLauncher({ openSettings, settingsOpen }) {
     const [open, setOpen] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
     const [profile, setProfile] = useState(null);
     const [failed, setFailed] = useState(false);
     const [avatarFailed, setAvatarFailed] = useState(false);
@@ -1087,8 +1088,9 @@ function makeGearLauncher(ctx) {
         h('button', { type: 'button', className: 'dsc-account-row', role: 'menuitem', onClick: showSettings, title: '在账号子页面中管理' }, profile?.avatarUrl && !avatarFailed ? h('img', { src: profile.avatarUrl, alt: '', onError: () => setAvatarFailed(true) }) : h('span', { className: 'dsc-account-avatar' }, h(Icon, { name: 'chat' })), h('span', null, h('strong', null, profile?.name || profile?.contact || '账号'), h('small', null, profile ? '账号与设置' : failed ? '打开账号设置' : '正在读取账号…'))),
         h('div', { className: 'dsc-menu-separator', role: 'separator' }),
         // 外观选择搬进设置页：齿轮菜单只留入口，避免再开一层浮层。
-        h(Option, { title: '个人', detail: '用量与统计', icon: 'user', onClick: () => { setOpen(false); openProfilePanel(); } }),
-        h(Option, { title: '设置', icon: 'settings', onClick: showSettings }))), document.body);
+        h(Option, { title: '个人', detail: '用量与统计', icon: 'user', onClick: () => { setOpen(false); setProfileOpen(true); } }),
+        h(Option, { title: '设置', icon: 'settings', onClick: showSettings })),
+      profileOpen && h(ProfileOverlay, { ctx, onClose: () => setProfileOpen(false) })), document.body);
   };
 }
 

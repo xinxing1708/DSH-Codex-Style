@@ -2,7 +2,6 @@
 // 只使用宿主公开数据：remote.account（资料/钱包）与 sessions.list（会话目录，本地时间戳）。
 // Token 用量与消费明细由 DeepSeek 平台统计，插件拿不到，界面上明确标注并给出平台入口，不伪造数字。
 
-const PROFILE_PANEL_ID = 'codex-style-profile';
 const PLATFORM_USAGE_URL = 'https://platform.deepseek.com/usage';
 
 const PROFILE_MONTHS = 12;
@@ -80,43 +79,17 @@ function formatProfileMoney(wallets, fallback = '—') {
   return wallets.map(wallet => `${wallet.currency === 'CNY' ? '¥' : '$'}${Number(wallet.balance).toFixed(2)}`).join(' / ');
 }
 
-let profileOverlay = null;
-
-function createProfileOverlay() {
-  const store = createSnapshotStore({ open: false });
-  return {
-    store,
-    open() { store.set({ open: true }); },
-    close() { store.set({ open: false }); }
-  };
-}
-
-/** 齿轮菜单「个人」入口：浮层展示，不依赖 main 面板注册。 */
-function installProfilePage(ctx) {
-  profileOverlay = createProfileOverlay();
-  const overlay = profileOverlay;
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'codex-style:profile' },
-    () => h(ProfileOverlay, { ctx, overlay })));
-}
-
-function openProfilePanel() {
-  profileOverlay?.open();
-}
-
-function ProfileOverlay({ ctx, overlay }) {
-  const state = useSource(overlay.store);
-  const close = () => overlay.close();
+/** 个人浮层：由齿轮菜单挂载，portal 到 body，Esc/遮罩/右上角关闭。 */
+function ProfileOverlay({ ctx, onClose }) {
   useEffect(() => {
-    if (!state.open) return;
-    const onKey = event => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
+    const onKey = event => { if (event.key === 'Escape') { event.preventDefault(); onClose(); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [state.open]);
-  if (!state.open) return null;
+  }, [onClose]);
   return createPortal(h('div', { className: 'dsc-ui dsc-profile-layer', role: 'dialog', 'aria-modal': 'true', 'aria-label': '个人' },
-    h('div', { className: 'dsc-profile-backdrop', 'aria-hidden': true, onClick: close }),
+    h('div', { className: 'dsc-profile-backdrop', 'aria-hidden': true, onClick: onClose }),
     h('div', { className: 'dsc-profile-sheet' },
-      h('button', { type: 'button', className: 'dsc-profile-close', 'aria-label': '关闭', onClick: close }, '\u00d7'),
+      h('button', { type: 'button', className: 'dsc-profile-close', 'aria-label': '关闭', onClick: onClose }, '\u00d7'),
       h(ProfileMain, { ctx }))), document.body);
 }
 
@@ -138,7 +111,9 @@ function ProfileMain({ ctx }) {
     }).catch(() => null);
     Promise.allSettled([
       read(ctx.remote.account.getProfile(client), details => details.value),
-      read(ctx.remote.account.getBalance(client), details => ({ wallets: details.value || [], bonus: details.bonusWallets || [] }))
+      typeof ctx.remote.account.getBalance === 'function'
+        ? read(ctx.remote.account.getBalance(client), details => ({ wallets: details.value || [], bonus: details.bonusWallets || [] }))
+        : Promise.resolve(null)
     ]).then(([profile, balance]) => {
       if (!alive) return;
       setAccount({
