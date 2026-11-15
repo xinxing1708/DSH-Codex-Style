@@ -170,7 +170,8 @@ function menuFocusItems(primary, extras) {
 }
 
 // 所有浮层位于自己的 portal 根；只读取 anchor 与自己的 DOM，不查宿主私有选择器。
-// placement: 'top' 为默认（锚点上方优先），'right' 用于行尾菜单（锚点右下方展开）。
+// placement: 'top' 为默认（锚点上方优先，右缘对齐），'top-start' 用于左缘对齐的行首菜单，
+// 'right' 用于行尾菜单（锚点右下方展开）。
 function Popover({ anchor, point, onClose, label, width = 300, children, className = '', autoFocus = true, role = 'menu', placement = 'top', extraRoots = [], panelRef }) {
   const localRef = useRef(null);
   const ref = panelRef || localRef;
@@ -200,7 +201,7 @@ function Popover({ anchor, point, onClose, label, width = 300, children, classNa
         setPosition({ position: 'fixed', left, top, width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
         return;
       }
-      const left = Math.max(12, Math.min(window.innerWidth - w - 12, box.right - w));
+      const left = Math.max(12, Math.min(window.innerWidth - w - 12, placement === 'top-start' ? box.left : box.right - w));
       const top = box.top - size.height - 9 >= 12 ? box.top - size.height - 9 : Math.max(12, Math.min(box.bottom + 9, window.innerHeight - size.height - 12));
       setPosition({ position: 'fixed', left, top, width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
     };
@@ -524,7 +525,6 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
     const [expanded, setExpanded] = useState({});
     const [moreExpanded, setMoreExpanded] = useState({});
     const [projectsOpen, setProjectsOpen] = useState(true);
-    const [showArchived, setShowArchived] = useState(false);
     const [message, setMessage] = useState('');
     const [adding, setAdding] = useState(false);
     const [menu, setMenu] = useState(null);
@@ -562,8 +562,8 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
       .sort((a, b) => (Number(b.updatedAt) || Date.parse(b.updatedAt) || 0) - (Number(a.updatedAt) || Date.parse(a.updatedAt) || 0)), [catalog.ids, catalog.byId]);
     const currentId = useMemo(() => catalog.ids.find(id => (catalog.byId[id]?.retainedBy?.mainView ?? 0) > 0), [catalog.ids, catalog.byId]);
     const searchText = query.trim().toLowerCase();
-    const visible = useMemo(() => ordered.filter(s => (showArchived || !archived.has(s.sessionId)) &&
-      (!searchText || `${s.title || ''} ${memberships.get(s.sessionId)?.[0]?.title || ''}`.toLowerCase().includes(searchText))), [ordered, archived, showArchived, searchText, memberships]);
+    const visible = useMemo(() => ordered.filter(s => !archived.has(s.sessionId) &&
+      (!searchText || `${s.title || ''} ${memberships.get(s.sessionId)?.[0]?.title || ''}`.toLowerCase().includes(searchText))), [ordered, archived, searchText, memberships]);
     const groups = useMemo(() => {
       const projects = new Map(), pins = [], recent = [];
       for (const session of visible) {
@@ -719,7 +719,6 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
           h('div', { className: 'dsc-section-title' }, '最近'), groups.recent.map(s => row(s))),
         !visible.length && catalog.phase === 'ready' && h('div', { className: 'dsc-empty' }, query ? '没有匹配的对话' : '选择项目，开始新对话'),
         catalog.phase !== 'ready' && h('div', { className: 'dsc-empty', role: 'status' }, '正在加载会话…')),
-      h('label', { className: 'dsc-archive-toggle' }, h('input', { type: 'checkbox', checked: showArchived, onChange: e => setShowArchived(e.target.checked) }), '显示已归档对话'),
       menu && h(Popover, { anchor: menuAnchor, point: menu.point, onClose: () => setMenu(null), label: '对话菜单', width: 228 },
         h(Option, { title: '重命名', icon: 'pencil', onClick: () => { const target = menu; setMenu(null); hideHover(); setRenaming(target); } }),
         h(Option, { title: pinned.has(menu.sessionId) ? '取消置顶' : '置顶', icon: 'pin', onClick: () => { const target = menu; setMenu(null); togglePin(target); } }),
@@ -1066,18 +1065,38 @@ function makeModelPicker(ctx) {
   };
 }
 
-// 明暗由宿主 ThemeSnapshot.active.colorScheme 决定；不接管用户的主题偏好。
+// 明暗由宿主实际生效的标记决定（自带外观与 dsh-theme 的“浅色/深色”都会落到 data-ds-dark-theme）；
+// 主题包或 dsh-theme 接管配色时，Codex 让出调色板令牌，只保留圆角、阴影这类非配色令牌。
 function mountCodexTheme(ctx, darkTokens, lightTokens) {
-  ctx.effect(() => ctx.theme.overrideTokens(PLUGIN_ID, Object.fromEntries(Object.entries(darkTokens).map(([key, dark]) => [key, { light: lightTokens[key] ?? dark, dark }]))), 'codex-style: theme');
+  const overrideLayer = () => {
+    const themed = isThemePackActive() || isAppearanceActive();
+    return Object.fromEntries(Object.entries(darkTokens)
+      .filter(([key]) => !(themed && CODEX_THEME_HOST_TOKENS.has(key)))
+      .map(([key, dark]) => [key, { light: lightTokens[key] ?? dark, dark }]));
+  };
+  ctx.effect(() => {
+    let dispose = ctx.theme.overrideTokens(PLUGIN_ID, overrideLayer());
+    if (typeof MutationObserver !== 'function') return () => dispose();
+    const observer = new MutationObserver(() => { dispose(); dispose = ctx.theme.overrideTokens(PLUGIN_ID, overrideLayer()); });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-dsh-theme', 'data-dsh-appearance'] });
+    return () => { observer.disconnect(); dispose(); };
+  }, 'codex-style: theme');
   ctx.effect(() => {
     const previous = document.body.getAttribute('data-dsc-color-scheme');
     // 旧版本曾把这个自定义 id 写为当前偏好；升级时仅迁回等价的内置深色。
     if (ctx.theme.getTheme()?.preference === 'dsh-codex-dark') ctx.theme.setTheme('dark');
-    const sync = snapshot => document.body.setAttribute('data-dsc-color-scheme', snapshot.active.colorScheme);
+    const bootMarked = typeof document.documentElement?.dataset?.dsThemeSource === 'string';
+    const sync = snapshot => {
+      const dark = bootMarked ? document.body.hasAttribute('data-ds-dark-theme') : snapshot.active.colorScheme === 'dark';
+      document.body.setAttribute('data-dsc-color-scheme', dark ? 'dark' : 'light');
+    };
     sync(ctx.theme.getTheme());
     const off = ctx.on('theme/change', sync);
+    const observer = typeof MutationObserver === 'function' ? new MutationObserver(() => sync(ctx.theme.getTheme())) : null;
+    observer?.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
     return () => {
       off();
+      observer?.disconnect();
       if (previous === null) document.body.removeAttribute('data-dsc-color-scheme');
       else document.body.setAttribute('data-dsc-color-scheme', previous);
     };
@@ -1143,6 +1162,9 @@ function apply(ctx) {
     const skillsStyle = document.createElement('style'); skillsStyle.dataset.dshCodexSkills = PLUGIN_VERSION; skillsStyle.textContent = SKILLS_CSS_TEXT; document.head.appendChild(skillsStyle);
     return () => { style.remove(); skillsStyle.remove(); if (previous === null) document.body.removeAttribute('data-dsh-codex-style'); else document.body.setAttribute('data-dsh-codex-style', previous); };
   }, 'codex-style: stylesheet');
+  // 主题包在自带样式之后挂载：映射表要压过默认深浅色令牌，选择才能立刻生效。
+  installThemePack(ctx);
+  installAppearance(ctx);
   registerSkillsPage(ctx);
   const register = (scope, name, component, inject) => scope.slots.inject(name, () => {
     const priorities = scope.slots.entries(name).map(entry => entry.options.priority ?? 0);
@@ -1169,7 +1191,8 @@ function apply(ctx) {
     scope.slots.inject('shell.overlay', () => scope.slots.register({ name: 'shell.overlay', id: 'codex-style:shell' }, makeShellChrome(scope, sidebar)));
     register(scope, 'conversation.header.leading', makeCollapsedNewChat(scope));
   });
-  ctx.inject(['modules', 'locale', 'remote', 'remote.account'], scope => register(scope, 'settings.launcher', makeGearLauncher(scope)));
+  // 齿轮菜单里的「个人」浮层需要会话目录、工作区与打开会话的动作，一并注入到该作用域。
+  ctx.inject(['modules', 'locale', 'remote', 'remote.account', 'sessions', 'workspaces', 'uiWorkspace'], scope => register(scope, 'settings.launcher', makeGearLauncher(scope)));
   const desktopUpdates = createDesktopUpdateSource();
   ctx.effect(() => desktopUpdates.start(globalThis.dshDesktop), 'codex-style: desktop update carrier');
   // 原生设置行指示器随被隐藏的宿主侧栏不可见；侧栏展开键上的蓝点由公开单槽位让给蓝圆入口。

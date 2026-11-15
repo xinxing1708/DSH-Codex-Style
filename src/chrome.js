@@ -1,6 +1,28 @@
 // 保留官方 sidebar/settings/composer 的所有者；导航在 shell.overlay 独立挂载。
 // 二级侧栏复用同一内容与真实动作；收起态只改变呈现方式，不导航或展开宿主列。
-const DEFAULT_SIDEBAR_WIDTH = 288;
+// 侧栏宽度三档：216 / 264 / 312，默认 264（原硬编码 288 的收敛值）。
+const DEFAULT_SIDEBAR_WIDTH = 264;
+const SIDEBAR_WIDTH_STORAGE = 'dsh-codex-style:sidebar-width';
+const SIDEBAR_WIDTHS = [216, 264, 312];
+let hostSidebarStore = null;
+
+function savedSidebarWidth() {
+  try {
+    const value = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE));
+    return SIDEBAR_WIDTHS.includes(value) ? value : DEFAULT_SIDEBAR_WIDTH;
+  } catch { return DEFAULT_SIDEBAR_WIDTH; }
+}
+
+/** 设置页改宽度：侧栏未收起时写宿主 store；选择另存，供下次启动使用。 */
+function applyHostSidebarWidth(width) {
+  const target = SIDEBAR_WIDTHS.includes(Number(width)) ? Number(width) : DEFAULT_SIDEBAR_WIDTH;
+  try { localStorage.setItem(SIDEBAR_WIDTH_STORAGE, String(target)); } catch {}
+  const store = hostSidebarStore;
+  const snapshot = store?.getSnapshot?.();
+  if (!store?.actions?.setSidebar || !snapshot?.layoutInfo) return false;
+  if (snapshot.layoutInfo.sidebar > 0) store.actions.setSidebar(target);
+  return true;
+}
 // 「更多」是插件自有 main 面板；与技能页同模式，点击即切换布局页面，
 // 历史、右侧内容与轨道高亮全部由 activePanelId 推导，不再使用侧栏局部状态。
 const MORE_PANEL_ID = 'codex-style-more';
@@ -10,10 +32,12 @@ const MORE_PANEL_ID = 'codex-style-more';
 function initializeSidebarWidth(ctx) {
   const entry = ctx.slots.entriesOfSlot('root')[0];
   const store = entry?.store?.create();
+  hostSidebarStore = store || hostSidebarStore;
   if (!store?.actions?.setSidebar || !store.getSnapshot().layoutInfo) {
     console.warn('codex-style: 当前 root 未提供已核实的侧栏宽度动作');
     return;
   }
+  const target = savedSidebarWidth();
   let previous = store.getSnapshot().layoutInfo.sidebar;
   let owned = false;
   const sync = initial => {
@@ -23,16 +47,16 @@ function initializeSidebarWidth(ctx) {
     previous = width;
     if (width !== 280 || (!initial && !reopening)) return;
     // 先更新本地记录，避免 setSidebar 的同步通知被误认为用户拖动。
-    previous = DEFAULT_SIDEBAR_WIDTH;
+    previous = target;
     owned = true;
-    store.actions.setSidebar(DEFAULT_SIDEBAR_WIDTH);
+    store.actions.setSidebar(target);
   };
   const unsubscribe = store.subscribe(() => sync(false));
   sync(true);
   return () => {
     // 卸载时只恢复本次仍在生效的默认值；保留用户后续拖动值和 0px 收起态。
     unsubscribe();
-    if (owned && store.getSnapshot().layoutInfo.sidebar === DEFAULT_SIDEBAR_WIDTH) store.actions.setSidebar(280);
+    if (owned && store.getSnapshot().layoutInfo.sidebar === target) store.actions.setSidebar(280);
   };
 }
 
@@ -1036,6 +1060,7 @@ function useHostFooterActions(ctx, open, menuRef, anchorRef) {
 function makeGearLauncher(ctx) {
   return function GearLauncher({ openSettings, settingsOpen }) {
     const [open, setOpen] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
     const [profile, setProfile] = useState(null);
     const [failed, setFailed] = useState(false);
     const [avatarFailed, setAvatarFailed] = useState(false);
@@ -1062,7 +1087,10 @@ function makeGearLauncher(ctx) {
       open && h(Popover, { anchor, onClose: () => setOpen(false), label: '设置与账号', width: 228, className: 'dsc-app-menu', panelRef: menuRef, extraRoots: footerRoot ? [footerRoot] : [] },
         h('button', { type: 'button', className: 'dsc-account-row', role: 'menuitem', onClick: showSettings, title: '在账号子页面中管理' }, profile?.avatarUrl && !avatarFailed ? h('img', { src: profile.avatarUrl, alt: '', onError: () => setAvatarFailed(true) }) : h('span', { className: 'dsc-account-avatar' }, h(Icon, { name: 'chat' })), h('span', null, h('strong', null, profile?.name || profile?.contact || '账号'), h('small', null, profile ? '账号与设置' : failed ? '打开账号设置' : '正在读取账号…'))),
         h('div', { className: 'dsc-menu-separator', role: 'separator' }),
-        h(Option, { title: '设置', icon: 'settings', onClick: showSettings }))), document.body);
+        // 外观选择搬进设置页：齿轮菜单只留入口，避免再开一层浮层。
+        h(Option, { title: '个人', detail: '用量与统计', icon: 'user', onClick: () => { setOpen(false); setProfileOpen(true); } }),
+        h(Option, { title: '设置', icon: 'settings', onClick: showSettings })),
+      profileOpen && h(ProfileOverlay, { ctx, onClose: () => setProfileOpen(false) })), document.body);
   };
 }
 
@@ -1106,8 +1134,16 @@ function makeHeroWorkspace(ctx) {
     const ref = useRef(null);
     const anchor = useRef(null);
     const geometry = useHeroGeometry(ref);
+    const [card, setCard] = useState(null);
     const current = workspaces.items.find(row => row.workspaceId === selectedId);
     const shown = ownerOpen || open;
+    // hero 阶段 Conversation 根节点 isolate 成独立层叠上下文，挂在 body 上的 fixed 浮层一定压在
+    // 卡片和草稿上方。项目栏改为输入卡自己的第一行，卡片用 padding-top 让出拦高，层叠顺序交回宿主。
+    useLayoutEffect(() => {
+      const region = ref.current?.closest('[data-conversation-content]');
+      const next = region?.querySelector('[data-slot="conversation.composer.bar"] [data-composer-card]') || null;
+      setCard(previous => previous === next ? previous : next);
+    });
     useLayoutEffect(() => {
       if (!geometry) return;
       const region = ref.current?.closest('[data-conversation-content]');
@@ -1120,12 +1156,14 @@ function makeHeroWorkspace(ctx) {
       return () => { names.forEach((name, i) => { if (previous[i]) region.style.setProperty(name, previous[i]); else region.style.removeProperty(name); }); region.removeAttribute('data-dsc-hero-layout'); };
     }, [geometry]);
     const close = () => { setOpen(false); onClose(); };
-    const menu = shown && h(Popover, { anchor, label: '选择项目', onClose: close, width: 280 },
+    const menu = shown && h(Popover, { anchor, label: '选择项目', onClose: close, width: 280, placement: 'top-start' },
       h('div', { className: 'dsc-menu-heading' }, '选择项目'),
       workspaces.items.map(row => h(Option, { key: row.workspaceId, title: row.title, detail: row.path, icon: 'folder', selected: row.workspaceId === selectedId, onClick: () => { setOpen(false); onPick(row.workspaceId); } })),
       !workspaces.items.length && h('div', { className: 'dsc-empty' }, '先在左侧添加工作区'));
-    const bar = geometry && createPortal(h('div', { className: 'dsc-ui dsc-hero-projectbar', style: { left: geometry.left + 13, top: geometry.top - 38, width: Math.max(120, geometry.width - 26) } },
-      h('button', { type: 'button', ref: anchor, className: 'dsc-project-picker', 'aria-haspopup': 'menu', 'aria-expanded': shown, onClick: () => { if (shown) close(); else setOpen(true); } }, h(Icon, { name: 'folder' }), current?.title || '选择项目'), menu), document.body);
+    // 项目栏落在卡片内部，点它不能再冒泡到卡片自身的“选择工作区”入口。
+    const keepCardClick = event => event.stopPropagation();
+    const bar = card && createPortal(h('div', { className: 'dsc-ui dsc-hero-projectbar', onPointerDown: keepCardClick, onClick: keepCardClick },
+      h('button', { type: 'button', ref: anchor, className: 'dsc-project-picker', 'aria-haspopup': 'menu', 'aria-expanded': shown, onClick: () => { if (shown) close(); else setOpen(true); } }, h(Icon, { name: 'folder' }), current?.title || '选择项目'), menu), card);
     return h(React.Fragment, null, h('span', { ref, 'aria-hidden': true }), bar);
   };
 }

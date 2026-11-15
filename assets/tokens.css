@@ -34,6 +34,10 @@
   --cx-summary: #2d2d2d;
   --cx-hover: rgba(255, 255, 255, 0.045);
   --cx-active: rgba(255, 255, 255, 0.08);
+  --cx-hover-strong: rgba(255, 255, 255, 0.12);
+  --cx-tooltip-fill: #2b2b2b;
+  --cx-focus-ring: 0 0 0 2px var(--cx-focus);
+  --cx-disabled-opacity: 0.45;
 
   /* ---- 边框 ---- */
   --cx-border-l1: rgba(255, 255, 255, 0.08);
@@ -110,7 +114,7 @@
      以真实 Codex 窗口截图（1988×1292 @1.5x）实测回填：
      侧栏 288、标题栏 44、输入栈 710，详见 02-开发日志 第 10 轮。 */
   --cx-titlebar-h: 44px;
-  --cx-rail-w: 52px;
+  --cx-rail-w: 48px;
   --cx-sidebar-w: 288px;
   --cx-thread-max: 768px;
   --cx-right-w: 667px;
@@ -121,6 +125,18 @@
   --cx-composer-stack-w: 768px; /* 2026-10-25 用户截图：左右各 16px，卡片 736 */
   --cx-composer-h: 98px;
   --cx-picker-h: 38px;
+
+  /* ---- 密度（Standard / Compact）----
+     只压缩自有 rail 与设置页尺寸，宿主消息排版不参与缩放。 */
+  --cx-density-item: 34px;
+  --cx-density-pad: 8px;
+  --cx-density-gap: 2px;
+  --cx-density-row: 30px;
+
+  /* ---- 侧栏宽度档位：由设置页写入，宿主 layoutInfo.sidebar 持久化 ---- */
+  --cx-sidebar-compact: 216px;
+  --cx-sidebar-standard: 264px;
+  --cx-sidebar-wide: 312px;
 
   /* ---- 输入区实测色（真实截图取色） ---- */
   --cx-picker-fill: #282828;
@@ -186,6 +202,8 @@ body[data-dsh-codex-style][data-dsc-color-scheme="light"] {
   --cx-summary: #f3f3f3;
   --cx-hover: rgba(0, 0, 0, 0.045);
   --cx-active: rgba(0, 0, 0, 0.065);
+  --cx-hover-strong: rgba(0, 0, 0, 0.08);
+  --cx-tooltip-fill: #ffffff;
   --cx-border-l1: rgba(0, 0, 0, 0.12);
   --cx-border-l2: rgba(0, 0, 0, 0.055);
   --cx-border-l3: rgba(0, 0, 0, 0.18);
@@ -226,4 +244,12 @@ body[data-dsh-codex-style][data-dsc-color-scheme="light"] {
     0 0 0 0.5px #ededed,
     0 3px 7.5px rgb(0 0 0 / 0.025),
     0 0 20px rgb(0 0 0 / 0.035);
+}
+
+/* 紧凑密度：只改自有外壳，图标仍为 20px，命中区不低于 30px。 */
+body[data-dsh-codex-style][data-dsc-density="compact"] {
+  --cx-density-item: 30px;
+  --cx-density-pad: 6px;
+  --cx-density-gap: 1px;
+  --cx-density-row: 26px;
 }

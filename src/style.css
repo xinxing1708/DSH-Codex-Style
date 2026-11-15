@@ -10,6 +10,7 @@ body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] { --dsw-speci
 /* 单行卡片按截图为 736×98；输入区保留自然增高，发送/停止不改变工具行高度。 */
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] > :has(> [data-composer-card]) { width: 100%; padding: 0; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] { min-height: var(--cx-composer-h); }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: 2px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-input] { min-height: 42px; padding-left: 12px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-placeholder] { left: 12px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-dock] { display: flex; box-sizing: border-box; min-height: 20px; padding-top: 2px; }
@@ -38,7 +39,7 @@ body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-compose
 }
 @keyframes dsc-composer-sending-spin { to { transform: rotate(360deg); } }
 /* 正文字体颜色：第 134 轮按新版 Codex 默认主题取 #fcfcfc（原 #dfdfdf 偏暗）。仅覆盖对话内容区，不影响按钮、菜单等其它主文本。 */
-body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: #fcfcfc; --dsw-alias-link: var(--cx-link); }
+body[data-dsh-codex-style] [data-conversation-content] { --dsw-alias-label-primary: var(--cx-text); --dsw-alias-link: var(--cx-link); }
 /* 正文列随输入卡宽度对齐，隐藏宿主两侧的宽度拖拽柄及其整条命中区域。 */
 body[data-dsh-codex-style] [data-conversation-content] > [data-width-handle] { display: none; }
 /* 原 sidebar/settings 父级继续挂载以保留原生页面与子槽位所有权；只隐藏其旧外观。 */
@@ -53,12 +54,15 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-slot="conversation.composer.bar"],
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-slot="conversation.input.dock"],
 body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-conversation-composer-overlay] { visibility: visible; }
-body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"][data-dsc-hero-layout] [data-slot="conversation.hero.agentPreset"] { visibility: visible; display: inline-flex !important; position: fixed; top: calc(var(--dsc-hero-card-top) - 33px); right: calc(100vw - var(--dsc-hero-card-right) + 18px); z-index: 8; height: 28px; max-width: 180px; }
+/* hero 阶段宿主根节点 isolate 成独立层叠上下文，任何挂到 body 的 fixed 浮层都会压住卡片草稿。
+   项目栏因此改为卡片自己的第一行（见 chrome.js makeHeroWorkspace），由卡片让出 --cx-picker-h 的拦高。 */
+body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"] [data-composer-card] { position: relative; padding-top: calc(var(--cx-picker-h) + 8px); }
+body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero"][data-dsc-hero-layout] [data-slot="conversation.hero.agentPreset"] { visibility: visible; display: inline-flex !important; position: fixed; top: calc(var(--dsc-hero-card-top) + 5px); right: calc(100vw - var(--dsc-hero-card-right) + 18px); z-index: 8; height: 28px; max-width: 180px; }
 .dsc-ui { font: 14px/22px var(--cx-font-sans); color: var(--cx-text); box-sizing: border-box; }
 .dsc-ui *, .dsc-ui *::before, .dsc-ui *::after { box-sizing: border-box; }
 .dsc-ui button, .dsc-ui input { font: inherit; color: inherit; }
 .dsc-ui button { border: 0; cursor: pointer; background: none; }
-.dsc-ui button:disabled { cursor: default; opacity: .45; }
+.dsc-ui button:disabled { cursor: default; opacity: var(--cx-disabled-opacity); }
 .dsc-ui button:focus-visible, .dsc-ui [role=slider]:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: 2px; }
 .dsc-ui svg { flex: none; }
 .dsc-update-control { display: inline-flex; align-items: center; gap: 12px; -webkit-app-region: no-drag; }
@@ -179,7 +183,7 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-secondary-nav .dsc-secondary-item.is-active, .dsc-secondary-nav .dsc-secondary-item:hover { background: var(--cx-active); color: var(--cx-text); }
 .dsc-secondary-item .dsc-proto-icon svg { width: 16px; height: 16px; }
 /* 「更多」main 页面：与正文同色的空白页。 */
-.dsc-more-page { box-sizing: border-box; width: 100%; height: 100%; min-height: 100%; background: #181818; }
+.dsc-more-page { box-sizing: border-box; width: 100%; height: 100%; min-height: 100%; background: var(--cx-thread); color: var(--cx-text); }
 .dsc-window-sidebar-toggle { visibility: visible; position: fixed; top: 6px; left: 12px; z-index: 35; -webkit-app-region: no-drag; }
 .dsc-collapsed-new-chat { display: none; align-items: center; margin-right: 8px; -webkit-app-region: no-drag; }
 body[data-dsh-codex-chrome] [data-dsc-frame][data-sidebar-collapsed] .dsc-collapsed-new-chat { display: flex; }
@@ -277,7 +281,7 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-empty-hero { visibility: visible; position: fixed; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 24px; transform: translate(-50%,-50%); pointer-events: none; }
 .dsc-empty-hero svg { color: #525252; }
 .dsc-empty-hero h1 { font-size: 26px; line-height: 34px; font-weight: 400; color: var(--cx-text-2); margin: 0; white-space: nowrap; }
-.dsc-hero-projectbar { visibility: visible; position: fixed; z-index: 6; height: calc(var(--cx-picker-h) + var(--cx-radius-composer)); padding: 4px 4px var(--cx-radius-composer); background: var(--cx-picker-fill); border-radius: 20px; }
+.dsc-hero-projectbar { visibility: visible; position: absolute; inset: 0 0 auto; z-index: 1; display: flex; align-items: center; height: var(--cx-picker-h); padding: 0 12px; background: var(--cx-picker-fill); border-radius: var(--cx-radius-composer) var(--cx-radius-composer) 0 0; }
 .dsc-hero-projectbar .dsc-project-picker { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; max-width: calc(100% - 180px); color: var(--cx-text-2); font-size: 13px; border-radius: var(--cx-radius-full); corner-shape: round; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dsc-hero-projectbar .dsc-project-picker:hover, .dsc-hero-projectbar .dsc-project-picker[aria-expanded=true] { background: var(--cx-active); }
 .dsc-brand-mark { width: 25px; height: 20px; object-fit: contain; }
@@ -345,8 +349,6 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-ui .dsc-project-more:hover, .dsc-ui .dsc-project-more:focus-visible { color: var(--cx-sidebar-text); background: #ffffff0d; }
 .dsc-ui .dsc-project-more:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: -2px; }
 .dsc-empty { display: block; color: var(--cx-sidebar-muted); padding: 10px 12px; font-size: 12px; }
-.dsc-archive-toggle { padding: 8px 12px; display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--cx-sidebar-muted); }
-.dsc-archive-toggle input { accent-color: var(--cx-accent); }
 .dsc-thread.is-archived { opacity: .55; }
 .dsc-error { padding: 4px 8px; color: var(--cx-danger); font: 12px/17px var(--cx-font-sans); white-space: normal; max-width: 310px; }
 .dsc-menu { z-index: 10000; padding: 6px; background: var(--cx-popover-fill); border: 1px solid var(--cx-border-l1); border-radius: 14px; box-shadow: 0 12px 36px #0007; overflow: auto; animation: dsc-pop-in 130ms ease both; }
@@ -355,6 +357,61 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-option:hover, .dsc-option:focus-visible { background: #ffffff12; }
 .dsc-option-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; line-height: 20px; }
 .dsc-option-copy small { font-size: 12px; color: var(--cx-text-3); line-height: 17px; }
+/* 主题包：二级面板复用菜单的胶囊与行样式，只额外画一个“底色 + 强调色”索引块。 */
+.dsc-theme-heading { display: flex; align-items: center; gap: 6px; padding: 2px 4px 8px; font-size: 13px; color: var(--cx-text-2); }
+.dsc-theme-back { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--cx-radius-sm); color: var(--cx-text-3); transform: rotate(180deg); }
+.dsc-theme-back:hover { background: var(--cx-active); color: var(--cx-text); }
+.dsc-theme-list { display: flex; flex-direction: column; gap: 1px; max-height: min(52vh, 460px); overflow-y: auto; padding-right: 2px; }
+.dsc-theme-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 8px; border-radius: 7px; text-align: left; }
+.dsc-theme-row:hover, .dsc-theme-row:focus-visible, .dsc-theme-row.is-active { background: var(--cx-active); }
+.dsc-theme-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; line-height: 18px; }
+.dsc-theme-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsc-theme-copy small { font-size: 11px; color: var(--cx-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsc-theme-swatch { flex: none; display: inline-flex; align-items: flex-end; justify-content: flex-end; width: 22px; height: 22px; padding: 3px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--cx-border-l2); }
+.dsc-theme-swatch-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px #0000001a; }
+.dsc-theme-swatch.is-default { background: linear-gradient(135deg, var(--cx-text-4), transparent); box-shadow: inset 0 0 0 1px var(--cx-border-l3); }
+/* 设置 →「外观」：模式预览、预设网格、三色与字体。全部使用自有令牌，主题切换后自动跟随。 */
+.dsc-appearance { display: flex; flex-direction: column; gap: 18px; padding: 4px 2px 24px; }
+.dsc-appearance-title { margin: 0; font-size: 20px; line-height: 28px; font-weight: var(--cx-weight-semibold); color: var(--cx-text); }
+.dsc-appearance-note { margin: -10px 0 0; font-size: 12px; line-height: 18px; color: var(--cx-text-3); }
+.dsc-appearance-group { display: flex; flex-direction: column; gap: 10px; }
+.dsc-appearance-group-title { font-size: 13px; line-height: 18px; color: var(--cx-text-2); }
+.dsc-appearance-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 520px; }
+.dsc-appearance-mode { display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: var(--cx-radius-xl); border: 1px solid var(--cx-border-l1); background: var(--cx-surface); text-align: left; }
+.dsc-appearance-mode:hover { border-color: var(--cx-border-l3); }
+.dsc-appearance-mode.is-active { border-color: var(--cx-accent); box-shadow: 0 0 0 1px var(--cx-accent); }
+.dsc-appearance-mode-preview { display: flex; flex-direction: column; gap: 4px; height: 56px; padding: 8px; border-radius: var(--cx-radius-lg); background: var(--cx-thread); border: 1px solid var(--cx-border-l2); }
+.dsc-appearance-mode-preview[data-mode="dark"] { background: #171717; border-color: #ffffff1a; }
+.dsc-appearance-mode-preview[data-mode="light"] { background: #fafafa; border-color: #00000014; }
+.dsc-appearance-mode-preview i { display: block; height: 5px; border-radius: 3px; background: var(--cx-text-3); opacity: .5; }
+.dsc-appearance-mode-preview i:nth-child(1) { width: 60%; }
+.dsc-appearance-mode-preview i:nth-child(2) { width: 88%; }
+.dsc-appearance-mode-preview i:nth-child(3) { width: 44%; }
+.dsc-appearance-mode-label { font-size: 13px; color: var(--cx-text-2); }
+.dsc-appearance-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.dsc-appearance-theme { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--cx-radius-lg); border: 1px solid var(--cx-border-l1); background: var(--cx-surface); text-align: left; }
+.dsc-appearance-theme:hover { border-color: var(--cx-border-l3); }
+.dsc-appearance-theme.is-active { border-color: var(--cx-accent); box-shadow: 0 0 0 1px var(--cx-accent); }
+.dsc-appearance-theme-swatch { flex: none; display: inline-flex; align-items: flex-end; justify-content: flex-end; gap: 3px; width: 30px; height: 22px; padding: 4px; border-radius: 6px; border: 1px solid transparent; }
+.dsc-appearance-theme-swatch i { display: block; width: 7px; height: 7px; border-radius: 50%; }
+.dsc-appearance-theme-name { font-size: 12px; line-height: 16px; color: var(--cx-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsc-appearance-subtitle { grid-column: 1 / -1; margin: 6px 0 -2px; font-size: 12px; line-height: 16px; color: var(--cx-text-3); }
+.dsc-appearance-card { display: flex; flex-direction: column; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-xl); background: var(--cx-surface); overflow: hidden; max-width: 720px; }
+.dsc-appearance-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: calc(var(--cx-density-row) + 16px); padding: 8px 14px; }
+.dsc-appearance-row + .dsc-appearance-row { border-top: 1px solid var(--cx-border-l2); }
+.dsc-appearance-row-label { font-size: 13px; color: var(--cx-text-2); }
+.dsc-appearance-color { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 6px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-full); }
+.dsc-appearance-swatch { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.dsc-appearance-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.dsc-appearance-swatch::-webkit-color-swatch { border: 1px solid var(--cx-border-l3); border-radius: 50%; }
+.dsc-appearance-hex { width: 84px; border: 0; background: none; color: var(--cx-text-2); font: 12px/16px var(--cx-font-mono); text-transform: uppercase; }
+.dsc-appearance-select { height: 28px; padding: 0 8px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-md); background: var(--cx-surface); color: var(--cx-text-2); font-size: 13px; }
+/* 分段选择：密度 / 侧栏宽度；与菜单胶囊保持同一套圆角与悬停。 */
+.dsc-appearance-segment { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--cx-radius-md); background: var(--cx-thread); border: 1px solid var(--cx-border-l1); }
+.dsc-appearance-segment-item { height: calc(var(--cx-density-row) - 4px); min-width: 52px; padding: 0 10px; border-radius: 6px; font-size: 12px; line-height: 16px; color: var(--cx-text-3); }
+.dsc-appearance-segment-item:hover { background: var(--cx-hover); color: var(--cx-text-2); }
+.dsc-appearance-segment-item.is-active { background: var(--cx-surface); color: var(--cx-text); box-shadow: var(--cx-shadow-sm); }
+.dsc-appearance-static { font-size: 12px; color: var(--cx-text-3); }
 /* 行悬停详情卡：几何按原型实测（项目卡 321×130、右侧 5px；会话卡 470 宽、右侧 12px、上移 6px）。 */
 .dsc-row-pop { position: fixed; z-index: 10000; max-width: calc(100vw - 32px); padding: 6px; border-radius: var(--cx-radius-xl); border: 1px solid var(--cx-border-l1); background: var(--cx-popover-fill); box-shadow: var(--cx-shadow-2xl); animation: dsc-row-pop-in 120ms var(--cx-ease-out) both; }
 .dsc-row-pop--project { width: 321px; padding: 8px; }
@@ -598,7 +655,6 @@ body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-thread.is-active 
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-sidebar .dsc-brand__badge { background: #303030; color: #fff; }
 /* 只调整单色品牌字形，不影响附件和正文图片。 */
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-brand__mark { filter: brightness(0); }
-body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-more-page { background: #fff; }
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-workspace-mark { color: #303030; }
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-workspace-mark:focus-visible { outline-color: #2b68cb; }
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-empty-hero svg { color: #bababa; }
@@ -645,3 +701,97 @@ body[data-dsh-codex-style][data-dsc-color-scheme="light"] :is([role="tooltip"], 
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-gear-button::after { background: #0d0d0d; color: #fff; border-color: #ffffff14; }
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .dsc-desktop-update-tip strong { color: #fff; }
 body[data-dsh-codex-style][data-dsc-color-scheme="light"]:has([data-slot="conversation.composer.bar"] [data-composer-card] button[aria-haspopup="listbox"]:is(:hover,:focus-visible):not(:disabled)) [role="tooltip"] { background: #0d0d0d; color: #fff; }
+
+/* ============ 个人主页（rail「个人」） ============ */
+.dsc-profile, .dsc-profile * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif; }
+.dsc-profile { font-variant-numeric: tabular-nums; height: 100%; overflow: auto; padding: 40px 32px 64px; display: flex; flex-direction: column; gap: 28px; max-width: 960px; margin: 0 auto; }
+.dsc-profile-head { display: flex; align-items: center; gap: 16px; }
+.dsc-profile-avatar { flex: none; display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; background: var(--cx-nested); color: var(--cx-text-3); }
+.dsc-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dsc-profile-identity { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dsc-profile-identity strong { font-size: 22px; line-height: 30px; font-weight: var(--cx-weight-semibold); color: var(--cx-text); }
+.dsc-profile-identity small { font-size: 12px; line-height: 18px; color: var(--cx-text-3); }
+.dsc-profile-action { margin-left: auto; height: 30px; padding: 0 12px; border-radius: var(--cx-radius-full); border: 1px solid var(--cx-border-l1); color: var(--cx-text-2); font-size: 12px; }
+.dsc-profile-action:hover { background: var(--cx-hover); color: var(--cx-text); }
+.dsc-profile-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.dsc-profile-stats.is-secondary { margin-top: -10px; }
+.dsc-profile-card { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-xl); background: var(--cx-surface); }
+.dsc-profile-card strong { font-size: 18px; line-height: 24px; font-weight: var(--cx-weight-semibold); color: var(--cx-text); font-variant-numeric: tabular-nums; }
+.dsc-profile-card span { font-size: 12px; line-height: 16px; color: var(--cx-text-3); }
+.dsc-profile-card small { font-size: 11px; line-height: 15px; color: var(--cx-text-4); }
+.dsc-profile-block { display: flex; flex-direction: column; gap: 12px; }
+.dsc-profile-block-title { font-size: 13px; line-height: 18px; color: var(--cx-text-2); }
+.dsc-profile-heatmap { display: flex; gap: 3px; padding: 12px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-xl); background: var(--cx-surface); overflow-x: auto; }
+.dsc-profile-week { display: flex; flex-direction: column; gap: 3px; }
+.dsc-profile-day { display: block; width: 11px; height: 11px; border-radius: 2px; background: var(--cx-nested); }
+.dsc-profile-day[data-level="1"] { background: var(--cx-accent); opacity: .3; }
+.dsc-profile-day[data-level="2"] { background: var(--cx-accent); opacity: .5; }
+.dsc-profile-day[data-level="3"] { background: var(--cx-accent); opacity: .72; }
+.dsc-profile-day[data-level="4"] { background: var(--cx-accent); }
+.dsc-profile-day.is-future { background: transparent; }
+.dsc-profile-heatmap-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; line-height: 16px; color: var(--cx-text-3); }
+.dsc-profile-legend { display: inline-flex; align-items: center; gap: 3px; }
+.dsc-profile-legend i { display: block; width: 9px; height: 9px; border-radius: 2px; background: var(--cx-nested); }
+.dsc-profile-legend i[data-level="1"] { background: var(--cx-accent); opacity: .3; }
+.dsc-profile-legend i[data-level="2"] { background: var(--cx-accent); opacity: .5; }
+.dsc-profile-legend i[data-level="3"] { background: var(--cx-accent); opacity: .72; }
+.dsc-profile-legend i[data-level="4"] { background: var(--cx-accent); }
+.dsc-profile-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 18px; }
+.dsc-profile-table th { padding: 6px 8px; text-align: left; font-weight: var(--cx-weight-regular); color: var(--cx-text-3); border-bottom: 1px solid var(--cx-border-l2); }
+.dsc-profile-table td { padding: 7px 8px; border-bottom: 1px solid var(--cx-border-l2); color: var(--cx-text-2); }
+.dsc-profile-cell-title { max-width: 420px; }
+.dsc-profile-cell-title button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--cx-text); text-align: left; }
+.dsc-profile-cell-title button:hover { color: var(--cx-accent); }
+.dsc-profile-cell-muted { color: var(--cx-text-3); white-space: nowrap; }
+.dsc-profile-insights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; margin: 0; }
+.dsc-profile-insights div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--cx-border-l2); }
+.dsc-profile-insights dt { font-size: 12px; color: var(--cx-text-3); }
+.dsc-profile-insights dd { margin: 0; font-size: 12px; color: var(--cx-text-2); text-align: right; }
+.dsc-profile-note { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; line-height: 18px; color: var(--cx-text-3); margin: 0; }
+.dsc-profile-link { color: var(--cx-link); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 900px) {
+  .dsc-profile { padding: 28px 20px 48px; }
+  .dsc-profile-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dsc-profile-insights { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* 个人浮层：从齿轮菜单「个人」打开，卡片居中、背景遮罩、Esc 关闭。 */
+.dsc-profile-layer { position: fixed; inset: 0; z-index: 10020; display: grid; place-items: center; padding: 24px; }
+.dsc-profile-backdrop { position: absolute; inset: 0; background: #00000047; }
+.dsc-profile-sheet { position: relative; display: flex; flex-direction: column; width: min(1080px, 100%); height: min(86vh, 900px); overflow: hidden; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-2xl); background: var(--cx-window); box-shadow: var(--cx-shadow-2xl); }
+.dsc-profile-close { position: absolute; top: 10px; right: 12px; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--cx-radius-md); color: var(--cx-text-3); font-size: 18px; line-height: 1; }
+.dsc-profile-close:hover { background: var(--cx-hover); color: var(--cx-text); }
+@media (max-width: 900px) { .dsc-profile-layer { padding: 12px; } .dsc-profile-sheet { height: min(92vh, 900px); } }
+
+/* ============ Remote（dsh-remote）兼容层 ============
+   Remote 自身大量使用 --dsw-* 令牌，配色会跟随主题；这里补齐字体、层级与工作台边界，
+   让它与 Codex 外壳（rail + 顶栏 + 侧栏）对齐。只读公开 data-rw-* 锚点与 .dsh-rw-* 类。 */
+body[data-dsh-codex-style] :is([data-rw-ide-shell], [data-rw-settings], [data-rw-dir-picker], .dsh-rw-modal-panel, .dsh-rw-settings, .dsh-rw-settings-field, .dsh-rw-list-item, .dsh-rw-section-btn) {
+  font-family: var(--cx-font-sans);
+}
+/* 工作台是 fixed 全窗层：从一级导航右侧开始，避免被 rail 遮住，也不与 frame 左边距错位。 */
+body[data-dsh-codex-style][data-dsh-codex-chrome] [data-rw-ide-shell] {
+  left: var(--cx-rail-w) !important;
+  background: var(--cx-window) !important;
+  color: var(--cx-text);
+}
+/* Remote 的弹窗与目录选择器要压过本插件的浮层（外观/个人 10020）。 */
+body[data-dsh-codex-style] :is(.dsh-rw-modal-panel, [data-rw-dir-picker]) {
+  z-index: 10060 !important;
+  font-family: var(--cx-font-sans);
+}
+/* 工作台顶栏与 Codex 顶栏同高，底色/分割线走令牌。 */
+body[data-dsh-codex-style] [data-rw-ide-header] {
+  height: 38px; min-height: 38px;
+  background: var(--cx-window);
+  border-bottom: 1px solid var(--cx-border-l2);
+}
+/* 工作台三块表面（文件树 / 编辑器 / 会话）与主题表面一致。 */
+body[data-dsh-codex-style] :is([data-rw-ide-body], [data-rw-ide-editor], [data-rw-ide-chat]) {
+  background: var(--cx-surface);
+}
+body[data-dsh-codex-style] :is([data-rw-ide-tree], [data-rw-ide-tools]) { background: var(--cx-sidebar); }
+/* 行悬停/选中与设置页控件统一到令牌。 */
+body[data-dsh-codex-style] :is([data-rw-tree-row]:hover, .dsh-rw-list-item:hover) { background: var(--cx-hover); }
+body[data-dsh-codex-style] :is([data-rw-tree-row][aria-selected="true"], [data-rw-tree-row][data-selected="true"]) { background: var(--cx-active); }
+body[data-dsh-codex-style] [data-rw-settings] :is(input, select, textarea, button) { font-family: var(--cx-font-sans); }
