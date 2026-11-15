@@ -124,6 +124,8 @@ function deriveTokens(triple) {
     '--dsw-specific-sidebar-nav-item-hover': alpha(fg, 0.05),
     '--dsw-specific-sidebar-nav-item-active-accent': alpha(fg, 0.14),
     '--dsw-specific-input-major': surface,
+    '--dsw-specific-bubble': mix(bg, fg, 0.06),
+    '--dsw-specific-bubble-highlight': alpha(accent, 0.14),
     '--dsw-specific-menu': elevated,
     '--dsw-menu-surface-fill': elevated,
     '--dsw-alias-markdown-code-block': nested,

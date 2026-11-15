@@ -34,6 +34,8 @@ test('三色推导出 Codex 与宿主两套令牌', () => {
   assert.match(appearanceSource, /'--cx-text': fg/, '正文色取前景');
   assert.match(appearanceSource, /'--cx-accent': accent/, '强调色');
   assert.match(appearanceSource, /'--dsw-alias-bg-base': bg/, '宿主底色同步');
+  assert.match(appearanceSource, /'--dsw-specific-bubble': mix\(bg, fg, 0\.06\)/, '用户气泡跟随背景');
+  assert.match(appearanceSource, /'--dsw-specific-bubble-highlight': alpha\(accent, 0\.14\)/, '气泡高亮跟随强调色');
   assert.match(appearanceSource, /html body\[data-dsh-codex-style\]\[data-dsh-appearance\]/, '映射选择器压过默认令牌');
 });
 

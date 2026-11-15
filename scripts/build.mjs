@@ -2,7 +2,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Script } from 'node:vm';
-import { buildThemeTokenCss, CODEX_TOKEN_MAP } from './theme-map.mjs';
+import { buildThemeTokenCss, CODEX_TOKEN_MAP, EXTRA_HOST_TOKENS } from './theme-map.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const [manifest, source, updateSource, chromeSource, ownCss, tokens, chromeCssSource, icons, mark, skillsSource, skillsCss, skillsHost, navigationSource, navigationCss, navigationHost, imageAnnotationsSource, imageAnnotationsCss, imageAnnotationsHost, themeSource, themeData, appearanceSource] = await Promise.all([
@@ -41,7 +41,7 @@ const headerCss = await readFile(resolve(root, 'src/header.css'), 'utf8');
 // 主题包：数据来自 dsh-theme（Apache-2.0），映射表由两套令牌在构建期对齐，运行时不解析 CSS。
 const themePack = themeData.map(theme => ({ id: theme.id, name: theme.name, nameZh: theme.nameZh, desc: theme.desc, descZh: theme.descZh, swatch: theme.swatch, css: theme.css }));
 const themeMapCss = buildThemeTokenCss(themeData);
-const themeHostTokens = [...new Set(Object.values(CODEX_TOKEN_MAP))];
+const themeHostTokens = [...new Set([...Object.values(CODEX_TOKEN_MAP), ...EXTRA_HOST_TOKENS])];
 const output = `window.__ModuleLoader__.load({\n  id: ${JSON.stringify(manifest.name)},\n  factory: function(require) {\n    'use strict';\n    const CSS_TEXT = ${JSON.stringify(css)};\n    const SKILLS_CSS_TEXT = ${JSON.stringify(skillsCss)};\n    const BODY_CSS_TEXT = ${JSON.stringify(bodyCss)};\n    const HEADER_CSS_TEXT = ${JSON.stringify(headerCss)};\n    const NAVIGATION_CSS_TEXT = ${JSON.stringify(navigationCss)};\n    const IMAGE_ANNOTATIONS_CSS_TEXT = ${JSON.stringify(imageAnnotationsCss + '\n' + imageIntegrationCss)};\n    const PROTOTYPE_ICONS = ${JSON.stringify(icons)};\n    const BRAND_MARK = ${JSON.stringify('data:image/png;base64,' + mark.toString('base64'))};\n    const PLUGIN_VERSION = ${JSON.stringify(manifest.version)};\n    const PLUGIN_PACKAGE = ${JSON.stringify(manifest.name)};\n    const CODEX_THEME_PACK = ${JSON.stringify(themePack)};\n    const CODEX_THEME_MAP_CSS = ${JSON.stringify(themeMapCss)};\n    const CODEX_THEME_HOST_TOKEN_NAMES = ${JSON.stringify(themeHostTokens)};\n    const module = { exports: {} };\n    const exports = module.exports;\n${themeSource}\n${appearanceSource}\n${chromeSource}\n${source}\n${imageAnnotationsSource}\n${imageIntegration}\n${skillsSource}\n${updateSource}\n${bodySource}\n${headerSource}\n${navigationSource}\n    return module.exports;\n  }\n});\n`;
 new Script(output, { filename: 'dsh-codex-style/client.js' });
 await mkdir(resolve(root, 'lib'), { recursive: true });

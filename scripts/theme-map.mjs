@@ -45,6 +45,9 @@ export const CODEX_TOKEN_MAP = {
   '--cx-reasoning-max-text': '--dsw-alias-brand-primary'
 };
 
+/** 只存在于宿主侧、没有对应 Codex 令牌的配色项；主题生效时也要让出，否则气泡等会停在插件自带色。 */
+export const EXTRA_HOST_TOKENS = ['--dsw-specific-bubble', '--dsw-specific-bubble-highlight'];
+
 const RULE = /body\[data-dsh-theme="[^"]+"\](?:\[data-ds-dark-theme\])?\{([^}]*)\}/g;
 const DECLARATION = /(--dsw-[a-z0-9-]+)\s*:\s*([^;]+);/g;
 
