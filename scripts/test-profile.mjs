@@ -4,11 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { Script } from 'node:vm';
 
 // 个人主页只读宿主公开数据：账号资料/钱包 + 本地会话目录；Token 与消费金额明确交给平台。
-const [profileSource, chrome, css, bundle] = await Promise.all([
+const [profileSource, chrome, css, bundle, clientSource] = await Promise.all([
   readFile(new URL('../src/profile.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/chrome.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/style.css', import.meta.url), 'utf8'),
-  readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
+  readFile(new URL('../lib/client.js', import.meta.url), 'utf8'),
+  readFile(new URL('../src/client.js', import.meta.url), 'utf8')
 ]);
 
 test('个人页由齿轮菜单直接挂载浮层', () => {
@@ -18,6 +19,7 @@ test('个人页由齿轮菜单直接挂载浮层', () => {
   assert.match(chrome, /setProfileOpen\(true\)/, '点击打开');
   assert.match(chrome, /h\(ProfileOverlay, \{ ctx, onClose/, '菜单组件内挂载浮层');
   assert.match(css, /\.dsc-profile-sheet/, '浮层样式');
+  assert.match(clientSource, /ctx\.inject\(\[[^\]]*'sessions'[^\]]*'workspaces'[^\]]*'uiWorkspace'[^\]]*\]/, '齿轮作用域注入会话/工作区/打开会话');
 });
 
 test('只展示真实可得数据，消费金额交给平台', () => {
