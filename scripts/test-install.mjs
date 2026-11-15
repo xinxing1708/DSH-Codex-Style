@@ -46,8 +46,8 @@ async function fixture(t, { layout = 'legacy', withLock = true, version = '0.2.1
   };
   return { root, home, profile, installDir, runtimeFile, markerPath, environment, run, success, restored };
 }
-// engines.dsh 改为范围声明后，0.2.x 全系列（含预发布）都应通过安装门禁。
-for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.3']) for (const withLock of [true, false]) {
+// 推荐版本不作为门禁；旧版、当前版和未来版本均允许安装（不等于实机兼容验收）。
+for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3', '0.2.2', '0.2.3', '0.3.0-rc.1', '0.3.0', '1.0.0']) for (const withLock of [true, false]) {
   test(`install, same-version upgrade and two rollbacks; runtime=${version}, lock=${withLock}`, async t => {
     const f = await fixture(t, { version, withLock, dependencies: withLock });
     const a = JSON.parse(f.success()); const link = join(f.profile, 'node_modules', manifest.name);
@@ -130,12 +130,14 @@ test('community DSH Desktop without a readable runtime is refused, never guessed
   await assert.rejects(lstat(f.markerPath), { code: 'ENOENT' });
 });
 
-test('unsupported community runtime is refused without touching the profile or environment marker', async t => {
+test('newer community runtime is allowed with the existing community notice', async t => {
   const f = await fixture(t, { layout: 'custom', version: '0.3.0-rc.1' });
   const hosts = JSON.stringify([{ ...desktop, location: f.installDir }]);
   const r = f.run(undefined, { ...registryMode, DSH_CODEX_STYLE_TEST_HOSTS: hosts });
-  assert.notEqual(r.status, 0); assert.match(r.stderr, /版本不匹配：检测到 0\.3\.0-rc\.1/); assert.match(r.stderr, /未作任何修改/);
-  await f.restored(); await assert.rejects(lstat(f.markerPath), { code: 'ENOENT' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /不是 DeepSeek 官方版/);
+  const installed = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
+  f.success(installed.rollback); await f.restored();
 });
 
 test('official installation leaves no community warning and marks the official target', async t => {
@@ -191,10 +193,14 @@ test('explicit DSH_INSTALL_DIR stays official even when a community host is pres
   const a = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
   f.success(a.rollback); await f.restored();
 });
-// 范围外才拒绝：低于下界、0.3 线（含 0.3.0-rc.*，由 `<0.3.0-0` 上界挡住）以及更高的主版本。
-for (const version of ['0.2.1-rc.1', '0.3.0-rc.1', '0.3.0', '2.0.19-next']) test(`unsupported runtime ${version} refuses to modify profile`, async t => {
-  const f = await fixture(t, { version }); const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, new RegExp(`版本不匹配：检测到 ${version.replaceAll('.', '\\.')}`)); assert.match(r.stderr, /未作任何修改/); await f.restored();
+// 不再因低于旧下界或高于旧上界而拒绝安装。
+for (const version of ['0.2.1-rc.1', '0.3.0-rc.1', '0.3.0', '2.0.19-next']) test(`unbounded runtime ${version} installs and rolls back`, async t => {
+  const f = await fixture(t, { version });
+  const installed = JSON.parse(f.success());
+  assert.equal(installed.runtimeVersion, version);
+  f.success(installed.rollback); await f.restored();
 });
+
 test('invalid explicit runtime does not silently use another installation', async t => {
   const f = await fixture(t); const r = f.run(undefined, { DSH_RUNTIME_FILE: join(f.root, 'missing.json') }); assert.notEqual(r.status, 0); assert.match(r.stderr, /未找到 DSH/); await f.restored();
 });
@@ -268,18 +274,18 @@ async function gateFixture(t, { engines, version }) {
   };
 }
 
-test('shipped manifest declares the compatibility range and release version 0.2.6', () => {
-  assert.equal(manifest.version, '0.2.6');
-  assert.equal(manifest.engines.dsh, '>=0.2.1-rc.2 <0.3.0-0');
+test('shipped manifest declares unbounded DSH support and release version 0.2.7', () => {
+  assert.equal(manifest.version, '0.2.7');
+  assert.equal(manifest.engines.dsh, '*');
 });
 
-// 派单要求的六版本矩阵，外加新范围下由拒绝转为通过的旧断言项与仍需拒绝的边界项。
+// 当前推荐版与跨旧上下界版本均放行，包括预发布。
 const compatibilityWindow = [
   ['0.2.1-rc.2', false], ['0.2.1-rc.5', false], ['0.2.2-rc.1', false], ['0.2.3', false],
   ['0.2.1-rc.6', false], ['0.2.1', false], ['0.2.2-rc.2', false], ['0.2.2', false],
-  ['0.3.0-rc.1', true], ['0.3.0', true], ['0.2.1-rc.1', true], ['2.0.19-next', true]
+  ['0.2.2-rc.3', false], ['0.3.0-rc.1', false], ['0.3.0', false], ['0.2.1-rc.1', false], ['2.0.19-next', false]
 ];
-test('installer gate accepts the whole 0.2.x window and refuses the 0.3 line', async t => {
+test('installer wildcard accepts recommended, older and future DSH versions', async t => {
   const wrong = [];
   for (const [version, refused] of compatibilityWindow) {
     const gate = await gateFixture(t, { version });
@@ -297,7 +303,7 @@ test('installer gate still enforces the legacy exact version list', async t => {
 });
 
 test('installer gate fails loudly on engines.dsh syntax it does not implement', async t => {
-  for (const engines of ['^0.2.0', '~0.2.1', '<=0.2.3', '>0.2.1', '*', '>=0.2.1-rc.2 || ^0.2.2']) {
+  for (const engines of ['^0.2.0', '~0.2.1', '<=0.2.3', '>0.2.1', '>=0.2.1-rc.2 || ^0.2.2']) {
     const gate = await gateFixture(t, { engines, version: '0.2.3' });
     assert.equal(gate.refused, false, engines);
     assert.equal(gate.passedGate, false, engines);
@@ -371,7 +377,7 @@ function loadHostSemver() {
 }
 after(async () => { if (hostSemverRoot) await rm(hostSemverRoot, { recursive: true, force: true }); });
 
-const hostCoverage = ['0.2.0', '0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.5', '0.2.1', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.3', '0.2.3-rc.1', '0.2.9', '0.3.0-rc.0', '0.3.0-rc.1', '0.3.0', '0.3.1', '2.0.19-next'];
+const hostCoverage = ['0.2.0', '0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.5', '0.2.1', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3', '0.2.2', '0.2.3', '0.2.3-rc.1', '0.2.9', '0.3.0-rc.0', '0.3.0-rc.1', '0.3.0', '0.3.1', '2.0.19-next'];
 test('installer version gate matches the real host semver', { skip: !ASAR_PATH || !existsSync(ASAR_PATH) ? 'set DSH_ASAR to a DSH app.asar to compare against the host semver' : false }, async t => {
   const semver = await loadHostSemver();
   const mismatches = [];

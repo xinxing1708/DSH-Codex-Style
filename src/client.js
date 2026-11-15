@@ -170,7 +170,7 @@ function menuFocusItems(primary, extras) {
 }
 
 // 所有浮层位于自己的 portal 根；只读取 anchor 与自己的 DOM，不查宿主私有选择器。
-// placement: 'top' 为默认（锚点上方优先），'right' 用于行尾菜单（锚点右下方展开）。
+// placement: 'top' 为默认（上方优先、右缘对齐），'top-start' 为左缘对齐，'right' 用于行尾菜单。
 function Popover({ anchor, point, onClose, label, width = 300, children, className = '', autoFocus = true, role = 'menu', placement = 'top', extraRoots = [], panelRef }) {
   const localRef = useRef(null);
   const ref = panelRef || localRef;
@@ -200,7 +200,7 @@ function Popover({ anchor, point, onClose, label, width = 300, children, classNa
         setPosition({ position: 'fixed', left, top, width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
         return;
       }
-      const left = Math.max(12, Math.min(window.innerWidth - w - 12, box.right - w));
+      const left = Math.max(12, Math.min(window.innerWidth - w - 12, placement === 'top-start' ? box.left : box.right - w));
       const top = box.top - size.height - 9 >= 12 ? box.top - size.height - 9 : Math.max(12, Math.min(box.bottom + 9, window.innerHeight - size.height - 12));
       setPosition({ position: 'fixed', left, top, width: w, maxHeight: Math.max(100, window.innerHeight - 24) });
     };
@@ -212,7 +212,10 @@ function Popover({ anchor, point, onClose, label, width = 300, children, classNa
     return () => { observer.disconnect(); window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
   }, [anchor, point, width, placement]);
   useEffect(() => {
-    if (autoFocus) (ref.current?.querySelector('input, [aria-checked="true"], button, [role="slider"]'))?.focus({ preventScroll: true });
+    // 首次定位前菜单 visibility:hidden；等位置就绪再聚焦，冷启动从输入卡打开也能用 Escape。
+    if (autoFocus && position.visibility !== 'hidden') (ref.current?.querySelector('input, [aria-checked="true"], button, [role="slider"]'))?.focus({ preventScroll: true });
+  }, [autoFocus, position.visibility]);
+  useEffect(() => {
     const pointer = e => { if (!isInsideMenuTarget(e.target, ref.current, extras.current) && !anchor.current?.contains(e.target)) onClose(); };
     const key = e => {
       if (e.key === 'Escape') {
@@ -565,17 +568,18 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
     const visible = useMemo(() => ordered.filter(s => (showArchived || !archived.has(s.sessionId)) &&
       (!searchText || `${s.title || ''} ${memberships.get(s.sessionId)?.[0]?.title || ''}`.toLowerCase().includes(searchText))), [ordered, archived, showArchived, searchText, memberships]);
     const groups = useMemo(() => {
-      const projects = new Map(), pins = [], recent = [];
+      const projects = new Map(), pins = [];
       for (const session of visible) {
         if (pinned.has(session.sessionId)) { pins.push(session); continue; }
         const owners = memberships.get(session.sessionId);
-        if (!owners) { recent.push(session); continue; }
+        if (!owners) continue;
         for (const workspace of owners) {
           if (!projects.has(workspace.workspaceId)) projects.set(workspace.workspaceId, []);
           projects.get(workspace.workspaceId).push(session);
         }
       }
-      return { projects, pins, recent };
+      // 最近是跨项目的时间视图，与项目/置顶共享同一会话，不按归属排除。
+      return { projects, pins, recent: visible };
     }, [visible, pinned, memberships]);
     // 归属只读宿主公开目录：首次发现当前会话所属项目时固化为展开，避免切换会话后按 currentId 实时派生把它误折叠。
     // 已有记录（含用户显式收起）一律保留；空白会话或目录异步到达时，等 currentId / memberships 更新再补记。
@@ -1160,6 +1164,10 @@ function apply(ctx) {
   // 等各区域自己的服务就绪；权限 RPC 的命名空间不能由 remote 根服务存在来推断。
   ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale', 'pluginNavigation'], scope => {
     const sidebar = createSidebarPresentation();
+    sidebar.pins = createSidebarPinAdapter(scope);
+    sidebar.pinMenu = createSidebarPinMenu();
+    scope.effect(() => sidebar.pins.start(), 'codex-style: sidebar pin compatibility');
+    scope.effect(() => () => sidebar.pinMenu.close(), 'codex-style: sidebar pin menu');
     scope.effect(() => () => sidebar.dispose(), 'codex-style: sidebar presentation');
     // 归档提示状态由插件持有并独立注册到 shell.overlay：侧栏子树卸载仍可见，随插件 scope 卸载清理。
     const archiveNotice = createArchiveNotice(sessionId => scope.uiWorkspace.unarchiveSession(sessionId));

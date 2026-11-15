@@ -80,8 +80,8 @@ for (const candidate of runtimeCandidates) {
 // 也读不到宿主 app.asar 里的 semver，所以这里实现一个只覆盖本插件声明所需写法的严格范围解析：
 //   1) `||` 分隔的多个分支，每个分支的条件全部满足才算兼容；仍兼容旧式精确版本列表
 //      （如 `0.2.1-rc.2 || 0.2.1-rc.3`），精确项按版本相等判定。
-//   2) 单个分支内以空白分隔的比较器，只支持 `>=` 下界与 `<` 上界（如 `>=0.2.1-rc.2 <0.3.0-0`）。
-// 其他写法（`^`、`~`、`<=`、`>`、`*`，以及运算符与版本间留空格）一律报错而不是放行：
+//   2) 单个分支内支持 `*`、`>=` 下界与 `<` 上界；当前声明 `*`，不按 DSH 版本号设限。
+// 其他写法（`^`、`~`、`<=`、`>`，以及运算符与版本间留空格）一律报错而不是放行：
 // 这里的漏判会让不兼容版本照常安装，宁可让安装器停下也不静默通过。
 // 比较规则与 semver 一致：预发布低于同号正式版；预发布标识符中数字段低于字母段，
 // 数字段按数值比较；因此 `-0` 上界同时挡住 `0.3.0` 与 `0.3.0-rc.*`。
@@ -112,6 +112,7 @@ function compareVersions(a, b) {
   return a.prerelease.length === b.prerelease.length ? 0 : (a.prerelease.length < b.prerelease.length ? -1 : 1);
 }
 function parseCondition(text) {
+  if (text === '*') return { operator: '*' };
   const bound = /^(>=|<)(\S+)$/.exec(text);
   if (bound !== null) return { operator: bound[1], version: parseVersion(bound[2]) };
   return { operator: '=', version: parseVersion(text) };
@@ -131,6 +132,7 @@ function isSupportedRuntime(versionText) {
   const runtimeVersion = parseVersion(versionText.trim());
   const range = parseCompatibilityRange(manifest.engines?.dsh);
   return range.some(conditions => conditions.every(condition => {
+    if (condition.operator === '*') return true;
     const order = compareVersions(runtimeVersion, condition.version);
     if (condition.operator === '>=') return order >= 0;
     if (condition.operator === '<') return order < 0;
@@ -138,7 +140,7 @@ function isSupportedRuntime(versionText) {
   }));
 }
 if (typeof manifest.engines?.dsh !== 'string' || manifest.engines.dsh.trim() === '') throw new Error('package.json 缺少 engines.dsh 版本声明。');
-const supportedNote = `本插件 ${manifest.version} 只适配 DeepSeek 官方桌面版 DeepSeek Harness ${manifest.engines.dsh}。`;
+const supportedNote = `本插件 ${manifest.version} 推荐使用已验证的 DeepSeek 官方桌面版 DeepSeek Harness 0.2.2-rc.3；不按 DSH 版本号设限，其他版本的界面兼容情况以实际使用为准。`;
 if (!runtime) {
   const communityNote = thirdParty.length ? `\n注册表检测到 ${thirdPartyNote}，但其安装目录中没有可读的 DSH runtime.json。` : '';
   throw new Error('未找到 DSH runtime.json。已查找：\n  ' + runtimeCandidates.map(candidate => candidate.path).join('\n  ') + communityNote + '\nDSH 装在其他目录时，请先执行 set DSH_INSTALL_DIR=<DSH 安装目录>（含 "DeepSeek Harness.exe" 的文件夹），再运行 install.cmd。');

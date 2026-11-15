@@ -79,19 +79,35 @@ function sidebarSectionOf(category, last, hasMore) {
 function useNavigationDirectory(ctx, sidebar) {
   const panel = useSource(ctx.layout.panelInfo);
   const panels = usePanelDirectory(ctx);
+  const pins = useSource(sidebar.pins.store);
   const moreVersion = useSlotVersion(ctx, ['sidebar.panellist.actions']);
-  const hasMore = useMemo(() => ctx.slots.entriesOfSlot('sidebar.panellist.actions').some(entry => entry.options.id === 'entry-customization'), [ctx, moreVersion]);
+  const entryActions = useMemo(() => ctx.slots.entriesOfSlot('sidebar.panellist.actions'), [ctx, moreVersion]);
+  const hasMore = entryActions.some(entry => entry.options.id === 'entry-customization');
+  const hasEntryActions = entryActions.length > 0;
   // 官方分组只按已核实的 main id 识别；社区入口的名称不能决定它属于自定义。
   const pluginRows = panels.filter(row => row.available && row.id === 'plugins').concat([{ id: SKILLS_PANEL_ID, order: 90, label: '技能', available: true }]);
   const taskRows = panels.filter(row => row.available && row.id === 'schedules');
+  // 目录继续保留所有页面；只有轨道可见性跟随宿主的同一份固定状态。
+  const pinnedTaskRows = taskRows.filter(row => !pins.available || !hasEntryActions || !pins.unpinned.includes(row.id));
+  const moreRows = pins.available ? panels.filter(row => row.available && row.id !== 'plugins').map(row => ({ ...row, pinned: !pins.unpinned.includes(row.id) })) : [];
   const category = navigationCategoryOf(panel);
-  return { panel, panels, pluginRows, taskRows, category, hasMore };
+  return { panel, panels, pluginRows, taskRows, pinnedTaskRows, moreRows, pins, category, hasMore, hasEntryActions };
+}
+
+// 右键与 Shift+F10 共用真实固定动作；普通左键仍由原生页面按钮处理。
+function openSidebarPinContext(event, sidebar, row, anchor) {
+  if (!row || !sidebar.pins.canPin(row.id)) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  sidebar.hide();
+  sidebar.pinMenu.open({ id: row.id, label: row.label, anchor, ...(event.type === 'contextmenu' ? { x: event.clientX, y: event.clientY } : {}) });
+  return true;
 }
 
 // 原 sidebar entry 拥有 panellist 的 renderSlot 授权。保留原按钮、图标及注入，
 // 仅以公开 slot 锚点定位原 nav，给第三方行添加可释放标记并用 CSS 呈现在轨道中。
 // 不复制 component、不借用私有 renderer、不搬移 React 所拥有的 DOM。
-function useNativeExtensionNavigation(sidebar, target, panels) {
+function useNativeExtensionNavigation(sidebar, target, panels, pins, hasMore, hasEntryActions) {
   useLayoutEffect(() => {
     const host = document.querySelector('[data-slot="sidebar"]');
     if (!host || !target.current) return;
@@ -99,6 +115,7 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
     const properties = new Map();
     let nav;
     let frame;
+    let buttonRows = new Map();
     const mark = (node, name, value) => {
       let saved = attributes.get(node);
       if (!saved) attributes.set(node, saved = new Map());
@@ -114,23 +131,36 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
     };
     const hidePreview = () => sidebar.hide();
     const followNative = () => sidebar.hide();
+    const contextMenu = event => {
+      const button = event.target.closest?.('button[data-dsc-extension-row]');
+      if (button && hasMore) openSidebarPinContext(event, sidebar, buttonRows.get(button), button);
+    };
+    const contextKey = event => {
+      if (event.key !== 'F10' || !event.shiftKey) return;
+      contextMenu(event);
+    };
     const detach = () => {
       nav?.removeEventListener('pointerenter', hidePreview);
       nav?.removeEventListener('focusin', hidePreview);
       nav?.removeEventListener('click', followNative, true);
+      nav?.removeEventListener('contextmenu', contextMenu);
+      nav?.removeEventListener('keydown', contextKey);
     };
     const sync = () => {
       frame = undefined;
       const glyphs = [...host.querySelectorAll('[data-slot="sidebar.panellist"]')];
       const buttons = glyphs.map(glyph => glyph.closest('button'));
-      // rc.3 可在「更多」中取消固定，真实行因而只是目录的子集；保留原生固定状态。
+      // rc.3 按相同目录顺序过滤未固定项；全段数量和标签相符时按索引对应，
+      // 避免两个同名插件在另一项取消固定后被误认成同一个页面。
+      const visiblePanels = pins.available && hasEntryActions ? panels.filter(row => row.id === 'plugins' || !pins.unpinned.includes(row.id)) : panels;
+      const aligned = buttons.length === visiblePanels.length && buttons.every((button, i) => button && visiblePanels[i]?.label === button.getAttribute('aria-label'));
       const rows = buttons.map((button, i) => {
         if (!button) return null;
         const label = button.getAttribute('aria-label');
-        if (buttons.length === panels.length && panels[i]?.label === label) return panels[i];
-        const retained = panels.find(row => row.id === button.getAttribute('data-dsc-extension-row') && row.label === label);
+        if (aligned) return visiblePanels[i];
+        const retained = visiblePanels.find(row => row.id === button.getAttribute('data-dsc-extension-row') && row.label === label);
         if (retained) return retained;
-        const matches = panels.filter(row => row.label === label);
+        const matches = visiblePanels.filter(row => row.label === label);
         return matches.length === 1 ? matches[0] : null;
       });
       // 同名或提交时序不同的行保留原生入口，不让单行识别失败隐藏整个导航。
@@ -143,16 +173,31 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
         nav.addEventListener('pointerenter', hidePreview);
         nav.addEventListener('focusin', hidePreview);
         nav.addEventListener('click', followNative, true);
+        nav.addEventListener('contextmenu', contextMenu);
+        nav.addEventListener('keydown', contextKey);
       }
       mark(nav, 'data-dsc-extension-nav', '');
+      buttonRows = new Map();
       buttons.forEach((button, i) => {
         const row = rows[i];
         const extension = !row || (row.available && row.id !== 'plugins' && row.id !== 'schedules');
+        // 新版主按钮和取消固定按钮是同一 panelEntry 的兄弟；以 nav 的直接子行
+        // 为呈现单位，避免只缩主按钮后，原生 pin 仍压在图标中心。
+        let entry = button;
+        while (entry.parentElement && entry.parentElement !== nav) entry = entry.parentElement;
+        if (entry.parentElement !== nav) entry = button;
+        mark(entry, 'data-dsc-extension-entry', '');
+        mark(entry, 'data-dsc-extension-hidden', extension ? null : '');
         mark(button, 'data-dsc-extension-row', row?.id ?? '');
         mark(button, 'data-dsc-extension-hidden', extension ? null : '');
+        if (row && extension) buttonRows.set(button, row);
+        if (entry !== button) for (const pin of entry.querySelectorAll('button')) {
+          if (pin === button) continue;
+          mark(pin, 'data-dsc-extension-pin', pins.available && hasMore && row && sidebar.pins.canPin(row.id) ? '' : null);
+        }
         if (!extension) return;
         mark(button, 'title', row?.label ?? button.getAttribute('aria-label'));
-        const glyph = glyphs[i].parentElement;
+        const glyph = [...button.children].find(child => child === glyphs[i] || child.contains(glyphs[i])) || glyphs[i].parentElement;
         mark(glyph, 'data-dsc-extension-glyph', '');
         [...button.children].filter(child => child !== glyph).forEach(child => mark(child, 'data-dsc-extension-label', ''));
       });
@@ -186,7 +231,7 @@ function useNativeExtensionNavigation(sidebar, target, panels) {
         if (value) node.style.setProperty(name, value, priority); else node.style.removeProperty(name);
       }
     };
-  }, [sidebar, target, panels]);
+  }, [sidebar, target, panels, pins, hasMore, hasEntryActions]);
 }
 
 // 导航与二级侧栏共享呈现状态；悬停计时不调用 layout，也不发起模型请求。
@@ -230,18 +275,18 @@ function openMorePanel(ctx, sidebar, setError) {
 
 function makeNavigationRail(ctx, sidebar) {
   return function NavigationRail() {
-    const { panels, pluginRows, taskRows, category, hasMore } = useNavigationDirectory(ctx, sidebar);
+    const { panels, pluginRows, pinnedTaskRows, pins, category, hasMore, hasEntryActions } = useNavigationDirectory(ctx, sidebar);
     const { collapsed, preview } = useSource(sidebar.store);
     const [error, setError] = useState('');
     const extensions = useRef(null);
-    useNativeExtensionNavigation(sidebar, extensions, panels);
+    useNativeExtensionNavigation(sidebar, extensions, panels, pins, hasMore, hasEntryActions);
     const pick = id => {
       sidebar.hide();
       setError('');
       try { ctx.layout.selectPanel(id); } catch (e) { setError(errorText(e)); }
     };
     const openMore = () => { openMorePanel(ctx, sidebar, setError); };
-    const item = (id, name, icon, action, active) => h('button', {
+    const item = (id, name, icon, action, active, pinRow) => h('button', {
       key: id, type: 'button', className: 'dsc-rail__item' + ((active === true || category === id) ? ' dsc-rail__item--active' : ''),
       title: collapsed ? undefined : name, 'data-tip': name, 'data-dsc-preview-trigger': id, 'data-preview-enabled': collapsed,
       'aria-label': name, 'aria-current': (active === true || category === id) ? 'page' : undefined,
@@ -249,17 +294,22 @@ function makeNavigationRail(ctx, sidebar) {
       'aria-controls': collapsed ? 'dsc-sidebar-card' : undefined,
       onPointerEnter: e => { if (e.pointerType !== 'touch') sidebar.enter(id); }, onPointerLeave: sidebar.leave,
       onFocus: () => sidebar.enter(id), onBlur: sidebar.leave,
-      onKeyDown: e => { if (e.key === 'Escape') { sidebar.hide(); e.preventDefault(); } }, onClick: action
+      onContextMenu: e => { if (hasMore && pinRow) openSidebarPinContext(e, sidebar, pinRow, e.currentTarget); },
+      onKeyDown: e => {
+        if (hasMore && pinRow && e.key === 'F10' && e.shiftKey && openSidebarPinContext(e, sidebar, pinRow, e.currentTarget)) return;
+        if (e.key === 'Escape') { sidebar.hide(); e.preventDefault(); }
+      }, onClick: action
     }, icon === 'more' ? h(Icon, { name: 'more', size: 20 }) : h(PrototypeIcon, { name: icon }));
     return createPortal(h(React.Fragment, null,
       h('nav', { className: 'dsc-ui dsc-rail dsc-independent-rail', 'aria-label': '主导航' },
         item('home', '首页', 'home', () => pick(null)),
-        taskRows.length > 0 && item('tasks', '定时任务', 'tasks', () => pick(taskRows[0].id)),
+        pinnedTaskRows.length > 0 && item('tasks', '定时任务', 'tasks', () => pick(pinnedTaskRows[0].id), undefined, pinnedTaskRows[0]),
         pluginRows.length > 0 && item('plugins', '自定义', 'plugins', () => pick(pluginRows.some(row => row.id === 'plugins') ? 'plugins' : SKILLS_PANEL_ID), category === 'skills'),
         hasMore && item('more', '更多', 'more', openMore),
         h('div', { ref: extensions, className: 'dsc-extension-navigation-anchor', 'aria-hidden': true }),
         h('span', { className: 'dsc-rail-hitblock', 'aria-hidden': true })),
-      error && h('div', { className: 'dsc-ui dsc-navigation-error' }, h(ErrorLine, { text: error }))), document.body);
+      error && h('div', { className: 'dsc-ui dsc-navigation-error' }, h(ErrorLine, { text: error })),
+      h(SidebarPinContextMenu, { sidebar })), document.body);
   };
 }
 
@@ -281,7 +331,7 @@ function makeSidebarChrome(ctx, sidebar, archiveNotice) {
   ctx.effect(() => registerMorePage(ctx), 'codex-style: more page');
   const Tree = makeWorkspaceTree(ctx, completions.store, archiveNotice);
   return function SidebarChrome() {
-    const { panel, pluginRows, taskRows, category: selectedCategory, hasMore } = useNavigationDirectory(ctx, sidebar);
+    const { panel, pluginRows, taskRows, moreRows, category: selectedCategory, hasMore } = useNavigationDirectory(ctx, sidebar);
     const { collapsed, preview } = useSource(sidebar.store);
     const [searchOpen, setSearchOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -362,6 +412,18 @@ function makeSidebarChrome(ctx, sidebar, archiveNotice) {
         category === 'home' && searchOpen && h('label', { className: 'dsc-search dsc-sidebar-search' }, h(Icon, { name: 'search' }), h('input', { ref: search, value: query, onChange: e => setQuery(e.target.value), onKeyDown: e => { if (e.key === 'Escape') { e.preventDefault(); closeSearch(); } }, placeholder: '搜索标题或项目', 'aria-label': '搜索标题或项目' }), h('button', { type: 'button', onClick: closeSearch, 'aria-label': '关闭搜索' }, '×')),
         h(ErrorLine, { text: error }),
         category === 'home' ? h(Tree, { query, tools: false, active: shown, onNavigate: sidebar.hide }) : category === 'more' ? h('div', { className: 'dsc-secondary-nav' },
+          h('p', { className: 'dsc-more-hint' }, '点击名称打开页面，点击图钉管理固定。', h('br'), '也可右键导航图标快捷取消固定。'),
+          moreRows.length > 0 && [false, true].map(pinned => {
+            const rows = moreRows.filter(row => row.pinned === pinned);
+            const label = pinned ? '已固定' : '未固定';
+            return h('section', { key: label, className: 'dsc-more-group', 'aria-label': label },
+              h('h3', { className: 'dsc-more-group-title' }, label),
+              rows.length ? rows.map(row => h('div', { key: row.id, className: 'dsc-more-entry' },
+                h('button', { type: 'button', className: 'dsc-secondary-item' + (row.id === panel.activePanelId ? ' is-active' : ''), 'aria-current': row.id === panel.activePanelId ? 'page' : undefined, onClick: () => pick(row.id) }, h(PrototypeIcon, { name: row.id === 'schedules' ? 'tasks' : 'plugins' }), h('span', { className: 'dsc-more-entry-label' }, row.label)),
+                h('button', { type: 'button', className: 'dsc-more-pin-button', title: pinned ? '从左侧栏取消固定' : '固定到左侧栏', 'aria-label': pinned ? '取消固定“' + row.label + '”' : '固定“' + row.label + '”到左侧栏', 'aria-pressed': pinned, onClick: () => run(() => sidebar.pins.setPinned(row.id, !pinned)) }, h(Icon, { name: 'pin', size: 16, fill: pinned ? 'currentColor' : 'none' }))))
+                : h('p', { className: 'dsc-more-empty' }, pinned ? '暂无已固定项' : '所有导航项均已固定'));
+          }),
+          h('div', { className: 'dsc-more-separator', role: 'separator' }),
           h('button', { type: 'button', className: 'dsc-secondary-item', onClick: () => moreAction(() => ctx.pluginNavigation.openList()) }, h(PrototypeIcon, { name: 'plugins' }), '浏览更多插件'),
           h('button', { type: 'button', className: 'dsc-secondary-item', onClick: () => moreAction(() => ctx.uiWorkspace.startSession(undefined, { agentPreset: 'cordis', prompt: ctx.locale.bind('entryCustomization')('createPrompt.sidebar'), whenDraftExists: 'append' })) }, h(Icon, { name: 'plus' }), '创建你的插件'))
           : h('div', { className: 'dsc-secondary-nav' }, pageRows.map(row => h('button', { key: row.id, type: 'button', className: 'dsc-secondary-item' + (row.id === panel.activePanelId ? ' is-active' : ''), 'aria-current': row.id === panel.activePanelId ? 'page' : undefined, onClick: () => pick(row.id) }, h(Icon, { name: category === 'tasks' ? 'tasks' : row.id === SKILLS_PANEL_ID ? 'skill' : 'plugins' }), row.label)))));
@@ -1100,32 +1162,27 @@ function EmptyHero() {
   return h(React.Fragment, null, h('span', { ref, 'aria-hidden': true }), geometry && createPortal(h('div', { className: 'dsc-ui dsc-empty-hero', style: { left: geometry.centerX, top: geometry.centerY } }, h(CloudMark), h('h1', null, '我们要构建什么？')), document.body));
 }
 function makeHeroWorkspace(ctx) {
-  return function HeroWorkspace({ open: ownerOpen, selectedId, onPick, onClose }) {
+  return function HeroWorkspace({ open, anchorRef, selectedId, onPick, onClose }) {
     const workspaces = useSource(ctx.workspaces.list);
-    const [open, setOpen] = useState(false);
     const ref = useRef(null);
-    const anchor = useRef(null);
-    const geometry = useHeroGeometry(ref);
-    const current = workspaces.items.find(row => row.workspaceId === selectedId);
-    const shown = ownerOpen || open;
+    // 宿主提供真实 WorkspaceChip 及所在行；只标记样式，不复制触发器或搬移节点。
+    // 行继续在 composerStack 中自然占位，避免 body 浮层靠坐标/层级遮盖输入区。
     useLayoutEffect(() => {
-      if (!geometry) return;
-      const region = ref.current?.closest('[data-conversation-content]');
-      if (!region) return;
-      const names = ['--dsc-hero-card-top', '--dsc-hero-card-right'];
-      const previous = names.map(name => region.style.getPropertyValue(name));
-      region.style.setProperty(names[0], geometry.top + 'px');
-      region.style.setProperty(names[1], geometry.left + geometry.width + 'px');
-      region.setAttribute('data-dsc-hero-layout', '');
-      return () => { names.forEach((name, i) => { if (previous[i]) region.style.setProperty(name, previous[i]); else region.style.removeProperty(name); }); region.removeAttribute('data-dsc-hero-layout'); };
-    }, [geometry]);
-    const close = () => { setOpen(false); onClose(); };
-    const menu = shown && h(Popover, { anchor, label: '选择项目', onClose: close, width: 280 },
+      const button = anchorRef?.current;
+      const row = button?.parentElement;
+      if (!row || !row.contains(ref.current)) return;
+      const marks = [[row, 'data-dsc-hero-workspace-row'], [button, 'data-dsc-hero-workspace-trigger']];
+      const previous = marks.map(([node, name]) => node.getAttribute(name));
+      marks.forEach(([node, name]) => node.setAttribute(name, ''));
+      return () => marks.forEach(([node, name], i) => {
+        if (previous[i] === null) node.removeAttribute(name);
+        else node.setAttribute(name, previous[i]);
+      });
+    }, [anchorRef]);
+    const menu = open && h(Popover, { anchor: anchorRef, label: '选择项目', onClose, width: 280, placement: 'top-start' },
       h('div', { className: 'dsc-menu-heading' }, '选择项目'),
-      workspaces.items.map(row => h(Option, { key: row.workspaceId, title: row.title, detail: row.path, icon: 'folder', selected: row.workspaceId === selectedId, onClick: () => { setOpen(false); onPick(row.workspaceId); } })),
+      workspaces.items.map(row => h(Option, { key: row.workspaceId, title: row.title, detail: row.path, icon: 'folder', selected: row.workspaceId === selectedId, onClick: () => onPick(row.workspaceId) })),
       !workspaces.items.length && h('div', { className: 'dsc-empty' }, '先在左侧添加工作区'));
-    const bar = geometry && createPortal(h('div', { className: 'dsc-ui dsc-hero-projectbar', style: { left: geometry.left + 13, top: geometry.top - 38, width: Math.max(120, geometry.width - 26) } },
-      h('button', { type: 'button', ref: anchor, className: 'dsc-project-picker', 'aria-haspopup': 'menu', 'aria-expanded': shown, onClick: () => { if (shown) close(); else setOpen(true); } }, h(Icon, { name: 'folder' }), current?.title || '选择项目'), menu), document.body);
-    return h(React.Fragment, null, h('span', { ref, 'aria-hidden': true }), bar);
+    return h(React.Fragment, null, h('span', { ref, 'aria-hidden': true }), menu);
   };
 }
