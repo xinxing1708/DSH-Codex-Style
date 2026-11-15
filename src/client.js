@@ -1070,7 +1070,7 @@ function makeModelPicker(ctx) {
 // 主题包或 dsh-theme 接管配色时，Codex 让出调色板令牌，只保留圆角、阴影这类非配色令牌。
 function mountCodexTheme(ctx, darkTokens, lightTokens) {
   const overrideLayer = () => {
-    const themed = isThemePackActive();
+    const themed = isThemePackActive() || isAppearanceActive();
     return Object.fromEntries(Object.entries(darkTokens)
       .filter(([key]) => !(themed && CODEX_THEME_HOST_TOKENS.has(key)))
       .map(([key, dark]) => [key, { light: lightTokens[key] ?? dark, dark }]));
@@ -1079,7 +1079,7 @@ function mountCodexTheme(ctx, darkTokens, lightTokens) {
     let dispose = ctx.theme.overrideTokens(PLUGIN_ID, overrideLayer());
     if (typeof MutationObserver !== 'function') return () => dispose();
     const observer = new MutationObserver(() => { dispose(); dispose = ctx.theme.overrideTokens(PLUGIN_ID, overrideLayer()); });
-    observer.observe(document.body, { attributes: true, attributeFilter: ['data-dsh-theme'] });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-dsh-theme', 'data-dsh-appearance'] });
     return () => { observer.disconnect(); dispose(); };
   }, 'codex-style: theme');
   ctx.effect(() => {
@@ -1165,6 +1165,7 @@ function apply(ctx) {
   }, 'codex-style: stylesheet');
   // 主题包在自带样式之后挂载：映射表要压过默认深浅色令牌，选择才能立刻生效。
   installThemePack(ctx);
+  installAppearance(ctx);
   registerSkillsPage(ctx);
   const register = (scope, name, component, inject) => scope.slots.inject(name, () => {
     const priorities = scope.slots.entries(name).map(entry => entry.options.priority ?? 0);

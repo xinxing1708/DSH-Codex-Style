@@ -44,13 +44,13 @@ test('发行 bundle 内联主题包与映射表', () => {
   for (const theme of themes) {
     assert.ok(bundle.includes(`data-dsh-theme=\\"${theme.id}\\"`), `${theme.id} 进入映射表`);
   }
-  assert.match(bundle, /function ThemePackPanel\(/, 'bundle 含主题选择面板');
+  assert.match(bundle, /function AppearancePage\(/, 'bundle 含外观设置页');
 });
 
-test('齿轮菜单提供主题包二级面板', () => {
-  assert.match(chrome, /title: '主题包'/, '菜单项');
-  assert.match(chrome, /h\(ThemePackPanel, \{ onBack:/, '打开面板');
-  assert.match(css, /\.dsc-theme-row/, '面板样式');
+test('齿轮菜单只留「外观」入口，打开设置页', () => {
+  assert.match(chrome, /title: '外观'/, '菜单项');
+  assert.match(chrome, /openSettings\('codex-appearance'\)/, '打开设置分区');
+  assert.match(css, /\.dsc-appearance-theme/, '外观页样式');
 });
 
 test('主题包写入与撤销 DOM、持久化选择', async () => {
