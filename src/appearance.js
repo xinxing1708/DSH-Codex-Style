@@ -163,7 +163,10 @@ function createAppearance(ctx) {
   const savedState = loadState();
   // 只有用户动过外观才接管宿主明暗；首次启用保持 DSH 自己的外观选择。
   let managed = savedState !== null;
-  let state = Object.assign({ preset: 'default', mode: 'system', font: 'system' }, savedState || {});
+  let state = Object.assign({ preset: 'default', mode: 'system', font: 'system', density: 'standard', sidebarWidth: 264 }, savedState || {});
+  if (state.density !== 'compact') state.density = 'standard';
+  if (![216, 264, 312].includes(Number(state.sidebarWidth))) state.sidebarWidth = 264;
+  state.sidebarWidth = Number(state.sidebarWidth);
   if (!Array.isArray(state.customLight)) custom = null; else custom = { light: state.customLight, dark: state.customDark };
   if (!managed && typeof document !== 'undefined' && typeof document.body?.getAttribute === 'function') {
     state.mode = document.body.getAttribute('data-ds-dark-theme') !== null ? 'dark' : 'light';
@@ -214,6 +217,8 @@ function createAppearance(ctx) {
     const pack = getThemePack();
     ensureStyle();
     applyFont();
+    // 密度：只影响自有 rail 与设置页尺寸，不动宿主消息排版。
+    if (typeof body.setAttribute === 'function') body.setAttribute('data-dsc-density', state.density);
     // 用户动过外观后才接管明暗：与 dsh-theme 一样写宿主实际读取的标记。
     if (managed) setDark(scheme === 'dark');
     if (packId && pack) {
@@ -254,6 +259,19 @@ function createAppearance(ctx) {
     applyAndMaybeWrite();
   };
   const setFont = font => { managed = true; state = { ...state, font }; applyAndMaybeWrite(); };
+  const setDensity = density => {
+    managed = true;
+    state = { ...state, density: density === 'compact' ? 'compact' : 'standard' };
+    applyAndMaybeWrite();
+  };
+  const setSidebarWidth = width => {
+    const target = [216, 264, 312].includes(Number(width)) ? Number(width) : 264;
+    managed = true;
+    state = { ...state, sidebarWidth: target };
+    applyAndMaybeWrite();
+    // 立即写宿主侧栏；侧栏处于收起态时只记选择，展开后由 initializeSidebarWidth 生效。
+    applyHostSidebarWidth(target);
+  };
   const reset = () => {
     custom = null;
     managed = false;
@@ -292,7 +310,7 @@ function createAppearance(ctx) {
     getState: () => ({ ...state }),
     getCustom: () => custom ? { light: { ...custom.light }, dark: { ...custom.dark } } : null,
     getTriple: () => tripleFor(state.preset, resolveScheme(state.mode)),
-    setMode, setPreset, setColor, setFont, reset,
+    setMode, setPreset, setColor, setFont, setDensity, setSidebarWidth, reset,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     mount() { watchSystem(); watchHostScheme(); apply(); },
     unmount() {
@@ -300,6 +318,7 @@ function createAppearance(ctx) {
       media?.removeEventListener?.('change', () => {});
       if (style) { style.remove(); style = null; }
       document.body?.removeAttribute?.('data-dsh-appearance');
+      document.body?.removeAttribute?.('data-dsc-density');
       document.body?.style?.removeProperty?.('--cx-font-sans');
       document.body?.style?.removeProperty?.('--dsh-font-family-text');
       document.body?.style?.removeProperty?.('font-family');
@@ -377,6 +396,12 @@ function AppearancePage() {
   const pack = getThemePack();
   const packThemes = pack ? pack.themes : [];
   const active = state.preset;
+  const segment = (options, value, onSelect) => h('div', { className: 'dsc-appearance-segment', role: 'radiogroup' },
+    options.map(([id, label]) => h('button', {
+      key: id, type: 'button', role: 'radio', 'aria-checked': String(value) === id,
+      className: 'dsc-appearance-segment-item' + (String(value) === id ? ' is-active' : ''),
+      onClick: () => onSelect(id)
+    }, label)));
   const colorRow = (label, key) => h('div', { className: 'dsc-appearance-row' },
     h('span', { className: 'dsc-appearance-row-label' }, label),
     h('span', { className: 'dsc-appearance-color' },
@@ -395,6 +420,18 @@ function AppearancePage() {
         },
         h('span', { className: 'dsc-appearance-mode-preview', 'data-mode': id === 'system' ? scheme : id }, h('i', null), h('i', null), h('i', null)),
         h('span', { className: 'dsc-appearance-mode-label' }, label))))),
+    h('div', { className: 'dsc-appearance-group' },
+      h('div', { className: 'dsc-appearance-group-title' }, '界面'),
+      h('div', { className: 'dsc-appearance-card' },
+        h('div', { className: 'dsc-appearance-row' },
+          h('span', { className: 'dsc-appearance-row-label' }, '密度'),
+          segment([['standard', '标准'], ['compact', '紧凑']], state.density, appearance.setDensity)),
+        h('div', { className: 'dsc-appearance-row' },
+          h('span', { className: 'dsc-appearance-row-label' }, '侧栏宽度'),
+          segment([['216', '紧凑'], ['264', '标准'], ['312', '宽']], String(state.sidebarWidth), value => appearance.setSidebarWidth(Number(value)))),
+        h('div', { className: 'dsc-appearance-row' },
+          h('span', { className: 'dsc-appearance-row-label' }, '材质'),
+          h('span', { className: 'dsc-appearance-static' }, '不透明（固定）')))),
     h('div', { className: 'dsc-appearance-group' },
       h('div', { className: 'dsc-appearance-group-title' }, '主题'),
       h('div', { className: 'dsc-appearance-themes' },

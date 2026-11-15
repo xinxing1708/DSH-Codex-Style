@@ -10,6 +10,7 @@ body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] { --dsw-speci
 /* 单行卡片按截图为 736×98；输入区保留自然增高，发送/停止不改变工具行高度。 */
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] > :has(> [data-composer-card]) { width: 100%; padding: 0; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] { min-height: var(--cx-composer-h); }
+body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-card] button:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: 2px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-input] { min-height: 42px; padding-left: 12px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-placeholder] { left: 12px; }
 body[data-dsh-codex-style] [data-slot="conversation.composer.bar"] [data-composer-dock] { display: flex; box-sizing: border-box; min-height: 20px; padding-top: 2px; }
@@ -58,7 +59,7 @@ body[data-dsh-codex-chrome] [data-conversation-content][data-content-phase="hero
 .dsc-ui *, .dsc-ui *::before, .dsc-ui *::after { box-sizing: border-box; }
 .dsc-ui button, .dsc-ui input { font: inherit; color: inherit; }
 .dsc-ui button { border: 0; cursor: pointer; background: none; }
-.dsc-ui button:disabled { cursor: default; opacity: .45; }
+.dsc-ui button:disabled { cursor: default; opacity: var(--cx-disabled-opacity); }
 .dsc-ui button:focus-visible, .dsc-ui [role=slider]:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: 2px; }
 .dsc-ui svg { flex: none; }
 .dsc-update-control { display: inline-flex; align-items: center; gap: 12px; -webkit-app-region: no-drag; }
@@ -395,7 +396,7 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-appearance-theme-name { font-size: 12px; line-height: 16px; color: var(--cx-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsc-appearance-subtitle { grid-column: 1 / -1; margin: 6px 0 -2px; font-size: 12px; line-height: 16px; color: var(--cx-text-3); }
 .dsc-appearance-card { display: flex; flex-direction: column; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-xl); background: var(--cx-surface); overflow: hidden; max-width: 720px; }
-.dsc-appearance-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 46px; padding: 8px 14px; }
+.dsc-appearance-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: calc(var(--cx-density-row) + 16px); padding: 8px 14px; }
 .dsc-appearance-row + .dsc-appearance-row { border-top: 1px solid var(--cx-border-l2); }
 .dsc-appearance-row-label { font-size: 13px; color: var(--cx-text-2); }
 .dsc-appearance-color { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 6px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-full); }
@@ -404,6 +405,12 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-appearance-swatch::-webkit-color-swatch { border: 1px solid var(--cx-border-l3); border-radius: 50%; }
 .dsc-appearance-hex { width: 84px; border: 0; background: none; color: var(--cx-text-2); font: 12px/16px var(--cx-font-mono); text-transform: uppercase; }
 .dsc-appearance-select { height: 28px; padding: 0 8px; border: 1px solid var(--cx-border-l1); border-radius: var(--cx-radius-md); background: var(--cx-surface); color: var(--cx-text-2); font-size: 13px; }
+/* 分段选择：密度 / 侧栏宽度；与菜单胶囊保持同一套圆角与悬停。 */
+.dsc-appearance-segment { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--cx-radius-md); background: var(--cx-thread); border: 1px solid var(--cx-border-l1); }
+.dsc-appearance-segment-item { height: calc(var(--cx-density-row) - 4px); min-width: 52px; padding: 0 10px; border-radius: 6px; font-size: 12px; line-height: 16px; color: var(--cx-text-3); }
+.dsc-appearance-segment-item:hover { background: var(--cx-hover); color: var(--cx-text-2); }
+.dsc-appearance-segment-item.is-active { background: var(--cx-surface); color: var(--cx-text); box-shadow: var(--cx-shadow-sm); }
+.dsc-appearance-static { font-size: 12px; color: var(--cx-text-3); }
 /* 行悬停详情卡：几何按原型实测（项目卡 321×130、右侧 5px；会话卡 470 宽、右侧 12px、上移 6px）。 */
 .dsc-row-pop { position: fixed; z-index: 10000; max-width: calc(100vw - 32px); padding: 6px; border-radius: var(--cx-radius-xl); border: 1px solid var(--cx-border-l1); background: var(--cx-popover-fill); box-shadow: var(--cx-shadow-2xl); animation: dsc-row-pop-in 120ms var(--cx-ease-out) both; }
 .dsc-row-pop--project { width: 321px; padding: 8px; }

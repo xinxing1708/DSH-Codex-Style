@@ -1,6 +1,28 @@
 // 保留官方 sidebar/settings/composer 的所有者；导航在 shell.overlay 独立挂载。
 // 二级侧栏复用同一内容与真实动作；收起态只改变呈现方式，不导航或展开宿主列。
-const DEFAULT_SIDEBAR_WIDTH = 288;
+// 侧栏宽度三档：216 / 264 / 312，默认 264（原硬编码 288 的收敛值）。
+const DEFAULT_SIDEBAR_WIDTH = 264;
+const SIDEBAR_WIDTH_STORAGE = 'dsh-codex-style:sidebar-width';
+const SIDEBAR_WIDTHS = [216, 264, 312];
+let hostSidebarStore = null;
+
+function savedSidebarWidth() {
+  try {
+    const value = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE));
+    return SIDEBAR_WIDTHS.includes(value) ? value : DEFAULT_SIDEBAR_WIDTH;
+  } catch { return DEFAULT_SIDEBAR_WIDTH; }
+}
+
+/** 设置页改宽度：侧栏未收起时写宿主 store；选择另存，供下次启动使用。 */
+function applyHostSidebarWidth(width) {
+  const target = SIDEBAR_WIDTHS.includes(Number(width)) ? Number(width) : DEFAULT_SIDEBAR_WIDTH;
+  try { localStorage.setItem(SIDEBAR_WIDTH_STORAGE, String(target)); } catch {}
+  const store = hostSidebarStore;
+  const snapshot = store?.getSnapshot?.();
+  if (!store?.actions?.setSidebar || !snapshot?.layoutInfo) return false;
+  if (snapshot.layoutInfo.sidebar > 0) store.actions.setSidebar(target);
+  return true;
+}
 // 「更多」是插件自有 main 面板；与技能页同模式，点击即切换布局页面，
 // 历史、右侧内容与轨道高亮全部由 activePanelId 推导，不再使用侧栏局部状态。
 const MORE_PANEL_ID = 'codex-style-more';
@@ -10,10 +32,12 @@ const MORE_PANEL_ID = 'codex-style-more';
 function initializeSidebarWidth(ctx) {
   const entry = ctx.slots.entriesOfSlot('root')[0];
   const store = entry?.store?.create();
+  hostSidebarStore = store || hostSidebarStore;
   if (!store?.actions?.setSidebar || !store.getSnapshot().layoutInfo) {
     console.warn('codex-style: 当前 root 未提供已核实的侧栏宽度动作');
     return;
   }
+  const target = savedSidebarWidth();
   let previous = store.getSnapshot().layoutInfo.sidebar;
   let owned = false;
   const sync = initial => {
@@ -23,16 +47,16 @@ function initializeSidebarWidth(ctx) {
     previous = width;
     if (width !== 280 || (!initial && !reopening)) return;
     // 先更新本地记录，避免 setSidebar 的同步通知被误认为用户拖动。
-    previous = DEFAULT_SIDEBAR_WIDTH;
+    previous = target;
     owned = true;
-    store.actions.setSidebar(DEFAULT_SIDEBAR_WIDTH);
+    store.actions.setSidebar(target);
   };
   const unsubscribe = store.subscribe(() => sync(false));
   sync(true);
   return () => {
     // 卸载时只恢复本次仍在生效的默认值；保留用户后续拖动值和 0px 收起态。
     unsubscribe();
-    if (owned && store.getSnapshot().layoutInfo.sidebar === DEFAULT_SIDEBAR_WIDTH) store.actions.setSidebar(280);
+    if (owned && store.getSnapshot().layoutInfo.sidebar === target) store.actions.setSidebar(280);
   };
 }
 

@@ -61,13 +61,21 @@ test('运行时写入、切换明暗、自定义颜色与字体，并可复位',
   };
   const storage = new Map();
   const window = { __ModuleLoader__: { load: definition => { window.__definition = definition; } } };
-  new Script(bundle.replace('    return module.exports;', 'module.exports.fixture = { createAppearance }; return module.exports;'), { filename: 'dsh-codex-style/client.js' })
+  new Script(bundle.replace('    return module.exports;', 'module.exports.fixture = { createAppearance, initializeSidebarWidth }; return module.exports;'), { filename: 'dsh-codex-style/client.js' })
     .runInNewContext({ window, document, localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) }, console: { warn() {}, error() {} } });
   const plugin = window.__definition.factory(name => {
     if (name === 'react') return { Component: class {} };
     if (name === '@deepseek-ai/dsh-client-store') return { createSnapshotStore: initial => ({ getSnapshot: () => initial, set() {}, subscribe: () => () => {} }) };
     return {};
   });
+  const layout = { width: 280 };
+  const sidebarCalls = [];
+  const layoutStore = {
+    getSnapshot: () => ({ layoutInfo: { sidebar: layout.width } }),
+    actions: { setSidebar: value => { layout.width = value; sidebarCalls.push(value); } },
+    subscribe: () => () => {}
+  };
+  plugin.fixture.initializeSidebarWidth({ slots: { entriesOfSlot: () => [{ store: { create: () => layoutStore } }] } });
   const appearance = plugin.fixture.createAppearance({});
   assert.ok(appearance, '可导出外观实例');
   appearance.mount();
@@ -88,6 +96,14 @@ test('运行时写入、切换明暗、自定义颜色与字体，并可复位',
   appearance.setColor('accent', '#123456');
   assert.equal(attributes.get('data-dsh-appearance'), 'custom', '改色转为自定义');
   assert.match(styles[0].textContent, /--cx-accent:#123456/, '自定义颜色写入');
+
+  appearance.setDensity('compact');
+  assert.equal(attributes.get('data-dsc-density'), 'compact', '紧凑密度写入标记');
+  assert.match(storage.get('dsh-codex-style:appearance') || '', /"density":"compact"/, '密度持久化');
+
+  appearance.setSidebarWidth(312);
+  assert.equal(sidebarCalls.at(-1), 312, '侧栏宽度写入宿主 store');
+  assert.equal(storage.get('dsh-codex-style:sidebar-width'), '312', '侧栏宽度持久化');
 
   appearance.setFont('inter');
   assert.match(bodyStyle.get('--cx-font-sans') || '', /Inter/, '字体写入 CSS 变量');

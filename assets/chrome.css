@@ -17,8 +17,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: var(--cx-density-item);
+  height: var(--cx-density-item);
   border-radius: var(--cx-radius-md);
   color: var(--cx-nav-icon);
   transition: background-color var(--cx-dur-fast) var(--cx-ease), color var(--cx-dur-fast) var(--cx-ease);
@@ -38,7 +38,7 @@
   padding: 4px 8px;
   border-radius: var(--cx-radius-sm);
   border: 1px solid var(--cx-border-l1);
-  background: #2b2b2b;
+  background: var(--cx-tooltip-fill);
   color: var(--cx-text);
   font-size: 12px;
   line-height: 16px;
@@ -50,14 +50,15 @@
   transition: opacity var(--cx-dur-fast) var(--cx-ease), transform var(--cx-dur-fast) var(--cx-ease);
 }
 .rail__item:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+.rail__item:focus-visible, .new-chat:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: 2px; }
 
 /* ============ 侧栏 ============ */
 .sidebar {
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px;
+  gap: var(--cx-density-gap);
+  padding: var(--cx-density-pad);
   background: var(--cx-sidebar);
   border-right: 1px solid var(--cx-border-l2);
   overflow: hidden;
@@ -67,7 +68,7 @@
   align-items: center;
   justify-content: space-between;
   height: 44px;
-  margin: -8px -8px 6px;
+  margin: calc(-1 * var(--cx-density-pad)) calc(-1 * var(--cx-density-pad)) 6px;
   padding: 0 6px 0 10px;
 }
 .brand { display: flex; align-items: center; gap: 7px; }
@@ -94,7 +95,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
+  height: calc(var(--cx-density-row) + 2px);
   padding: 0 8px;
   border-radius: var(--cx-radius-md);
   font-size: 13px;
@@ -103,11 +104,9 @@
   background: var(--cx-active);
   transition: background-color var(--cx-dur-fast) var(--cx-ease);
 }
-.new-chat:hover { background: rgba(255, 255, 255, 0.12); }
+.new-chat:hover { background: var(--cx-hover-strong); }
 .new-chat kbd { margin-left: auto; font-size: 11px; color: var(--cx-sidebar-muted); }
 
 /* 浅色导航的插件线条保留原图形，深色提示仍为黑底白字。 */
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .rail__plugin-icon { color: #303030; }
 body[data-dsh-codex-style][data-dsc-color-scheme="light"] .rail__item--active .rail__plugin-icon { color: #0d0d0d; }
-body[data-dsh-codex-style][data-dsc-color-scheme="light"] .rail__item[data-tip]::after { background: #0d0d0d; color: #fff; }
-body[data-dsh-codex-style][data-dsc-color-scheme="light"] .new-chat:hover { background: rgba(0, 0, 0, .06); }
