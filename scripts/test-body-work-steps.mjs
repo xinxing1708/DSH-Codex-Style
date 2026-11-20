@@ -73,7 +73,8 @@ const chat=expose(asar.read(base+'dsh-client-ui-chat/lib/client.js'),'ChatFlow,C
 const tool=expose(asar.read(base+'dsh-client-ui-tool/lib/client.js'),'ToolRow,BashRow');
 const renderer=asar.read(base+'dsh-client-ui-renderer/lib/client.js');
 const bodySource=fs.readFileSync(path.join(root,'src/body.js'),'utf8'),bodyCss=fs.readFileSync(path.join(root,'src/body.css'),'utf8');
-const plugin=process.env.FOLD_BUNDLE ? expose(fs.readFileSync(path.join(root,'lib/client.js')),'CodexTurnProcess,mountCodexBody,CSS_TEXT,bodyDuration') : `window.__ModuleLoader__.load({id:'@xinxing1708/dsh-codex-style',factory:require=>{const React=require('react'),h=React.createElement,{useState,useEffect,useLayoutEffect,useRef,useMemo,useCallback}=React;const BODY_CSS_TEXT=${JSON.stringify(bodyCss)},CSS_TEXT='';${bodySource};return {fixture:{CodexTurnProcess,mountCodexBody,CSS_TEXT,bodyDuration}};}});`;
+const bundlePath=process.env.DSH_BODY_BUNDLE || path.join(root,'lib/client.js');
+const plugin=process.env.FOLD_BUNDLE ? expose(fs.readFileSync(bundlePath),'CodexTurnProcess,mountCodexBody,CSS_TEXT,bodyDuration') : `window.__ModuleLoader__.load({id:'@xinxing1708/dsh-codex-style',factory:require=>{const React=require('react'),h=React.createElement,{useState,useEffect,useLayoutEffect,useRef,useMemo,useCallback}=React;const BODY_CSS_TEXT=${JSON.stringify(bodyCss)},CSS_TEXT='';${bodySource};return {fixture:{CodexTurnProcess,mountCodexBody,CSS_TEXT,bodyDuration}};}});`;
 const vendorName=path.basename(vendorJs);
 const routes={'/host.js':['text/javascript',host],['/'+vendorName]:['text/javascript',asar.read(vendorJs)],'/host.css':['text/css',asar.read(indexCss)],'/vendor.css':['text/css',asar.read(vendorCss)],'/chat.js':['text/javascript',chat],'/tool.js':['text/javascript',tool],'/renderer.js':['text/javascript',renderer],'/plugin.js':['text/javascript',plugin]};
 const hostVersion=JSON.parse(asar.read(base+'dsh-client-ui-chat/package.json').toString('utf8')).version;
@@ -103,13 +104,14 @@ window.calls=[];
 const make=()=>{const state=turnState.getSnapshot(),closed=state.status==='closed';const turn={turn:1,status:state.status,start:{time:clockStart},...(closed?{end:{time:clockStart+218000,data:{reason:{kind:state.reason||'completed'}}}}:{}),data:turnData};
  const spec={turn:1,processStartSeq:1,answerAnchorSeq:closed&&!window.noAnswer?50:null,answerStep:window.noAnswer?null:2,inlineReasoning:true};
  const loc={kind:'step',turn};const nodes=new Map([
- ['head',{key:'head',kind:'turn-process',anchorSeq:0,location:{kind:'turn',turn},data:{turn:1,messageCount:2,toolCallCount:2,subagentCount:0}}],
+ ['head',{key:'head',kind:'turn-process',anchorSeq:0,location:{kind:'turn',turn},data:{turn:1,messageCount:2,toolCallCount:3,subagentCount:0}}],
  ['a1',{key:'a1',kind:'assistant-step',anchorSeq:2,location:loc,data:{step:1,status:closed?'ok':'running',blocks:[{kind:'reasoning',text:'这是一段演示思考。'},{kind:'text',text:'我会先核对桌面端的运行配置。'}]}}],
  ['t1',{key:'t1',kind:'context',anchorSeq:1,location:loc,data:{content:[],source:null,producer:{role:'inject',label:'stop-that-shit'},form:null}}],
  ['t2',{key:'t2',kind:'tool-call',anchorSeq:4,location:loc,data:{variant:'edit',toolName:'edit',state:closed?'ok':'running',title:closed?'已编辑':'正在编辑',summary:'src/body.css',bodyRaw:'--- body.css\\n+++ body.css\\n+ color: #969696;',filePath:'src/body.css'}}],
+ ['t3',{key:'t3',kind:'tool-call',anchorSeq:5,location:loc,data:{variant:'bash',toolName:'bash',state:'ok'}}],
  ['a2',{key:'a2',kind:'assistant-step',anchorSeq:50,location:loc,data:{step:2,status:closed?'ok':'running',blocks:[{kind:'text',text:closed?'正文效果已完成，工具结果可以继续展开查看。':'正文会继续流式追加，只有当前操作保留流动高光。'}]}}]
  ]);model.set({turn,spec,closed,process:{turn:1,turnStarted:true,turnClosed:closed,hasExternalProcess:true,hasNonReplyProcess:true,hasInterleavedInput:window.interleaved===true,spec}});
- chat.set({nodes,navigation:{items:()=>[{anchorKey:'a2'}]}});groups.set(new Map([['g',{key:'g',data:{turn:1,closed,summary:{running:closed?undefined:'edit',runningDetail:'src/body.css',counts:[{kind:'thinking',count:1}]}},members:[{kind:'node',key:'t1'},{kind:'node',key:'a1',groupPart:'reasoning'}]}],['g2',{key:'g2',data:{turn:1,closed,summary:{counts:[{kind:'commands',count:1}]}},members:[{kind:'node',key:'t2'}]}]]));session.set({running:!closed});};
+ chat.set({nodes,navigation:{items:()=>[{anchorKey:'a2'}]}});groups.set(new Map([['g',{key:'g',data:{turn:1,closed,summary:{running:closed?undefined:'edit',runningDetail:'src/body.css',counts:[{kind:'thinking',count:1}]}},members:[{kind:'node',key:'t1'},{kind:'node',key:'a1',groupPart:'reasoning'}]}],['g2',{key:'g2',data:{turn:1,closed,summary:{counts:[{kind:'commands',count:2}]}},members:[{kind:'node',key:'t2'},{kind:'node',key:'t3'}]}]]));session.set({running:!closed});};
 window.finish=reason=>{turnState.set({status:'closed',reason});make();};window.restart=()=>{turnState.set({status:'open',reason:null});make();};make();
 const dict={'message.contextInjection':'上下文注入','tool.title.bash':'运行命令','message.think':'思考过程','message.stepProcess.done.thinking':'已完成分析','chat.deepDiving':'深度求索中','chat.deepDivingFor':'深度求索中 {duration}','message.turnProcess.took':'已处理 ','message.turnProcess.worked':'已处理','message.stopped':'已停止','message.turnProcess.failed':'出错','message.stepProcess.edit':'正在编辑','message.stepProcess.done.edit':'编辑了文件','message.stepProcess.done.commands':'运行了命令','message.stepProcess.sharedPrefix':'','message.stepProcess.joinTwo':'{first}{second}','row.running':'运行中','message.turnProcess.separator':' · ','row.input':'输入','row.output':'输出','runDuration.minute':'{count}分钟','runDuration.second':'{count}秒'};
 const t=(key,args={})=>Object.entries(args).reduce((s,[k,v])=>s.replaceAll('{'+k+'}',v),dict[key]||key);
@@ -124,7 +126,7 @@ const renderSlot=(name,owner,opts)=>{
   if(opts.entryKey==='turn-process'){const e=ctx.slots.entriesOfSlot(name).find(e=>e.options.key==='turn-process');return h(e.component,{...owner,t,useSession});}
   if(opts.entryKey==='context')return h(C.ContextMessageNodeView,{...owner,t});
   if(opts.entryKey==='assistant-step')return h(C.AssistantNodeView,{...owner,useContextMenu:()=>({getTriggerProps:()=>({})}),resolveFilePath:x=>x,useTurnData:()=>null,useDisclosure:C.useDisclosure,useGroupAction,usePresentation,renderSlot,t});
-  if(opts.entryKey==='tool-call' && owner.node.key==='t1')return h(T.BashRow,{toolName:'bash',block:{kind:'result',callId:'fixture-shell',call:{name:'bash',argsRaw:JSON.stringify({command:'node scripts/build.mjs'})},args:{text:()=>undefined},content:[{type:'text',text:'Built successfully\\nExit code: 0'}],isError:false},sessionId:'fixture',useSessions:selector=>selector({byId:{fixture:{cwd:'D:/fixture'}}}),useDisclosure:C.useDisclosure,t,inspect:()=>calls.push({type:'inspect'})});
+  if(opts.entryKey==='tool-call' && owner.node.key==='t3')return h(T.BashRow,{toolName:'bash',block:{kind:'result',callId:'fixture-shell',call:{name:'bash',argsRaw:JSON.stringify({command:'node scripts/build.mjs'})},args:{text:()=>undefined},content:[{type:'text',text:'Built successfully\\nExit code: 0'}],isError:false},sessionId:'fixture',useSessions:selector=>selector({byId:{fixture:{cwd:'D:/fixture'}}}),useDisclosure:C.useDisclosure,t,inspect:()=>calls.push({type:'inspect'})});
   if(opts.entryKey==='tool-call')return h(T.ToolRow,{...owner.node.data,useDisclosure:C.useDisclosure,t,icon:h('svg',{width:14,height:14},h('circle',{cx:7,cy:7,r:5,fill:'none',stroke:'currentColor'})),inspect:()=>calls.push({type:'inspect'}),onOpenFile:path=>calls.push({type:'file',path})});
  }
  if(name==='conversation.chat.reasoning.body')return h('div',null,owner.text);
@@ -146,6 +148,34 @@ routes['/']=['text/html',html];
 await page.route('**/*',route=>{const found=routes[new URL(route.request().url()).pathname];return found?route.fulfill({contentType:found[0],body:found[1]}):route.fulfill({status:404,body:''});});
 const checks=[];
 const screenshot=async name=>{if(process.env.DSH_BODY_SCREENSHOT_DIR){fs.mkdirSync(process.env.DSH_BODY_SCREENSHOT_DIR,{recursive:true});await page.locator('#fixture').screenshot({path:path.join(process.env.DSH_BODY_SCREENSHOT_DIR,name)});}};
+const expansionId = 'dsc-body-expand';
+async function verifyExpansion(target, label) {
+  const frames = await target.evaluate((el, id) => {
+    const animation = el.getAnimations().find(animation => animation.id === id);
+    if (!animation) return null;
+    const duration = animation.effect.getComputedTiming().activeDuration;
+    const at = fraction => {
+      animation.currentTime = duration * fraction;
+      return { height: el.getBoundingClientRect().height, opacity: Number(getComputedStyle(el).opacity) };
+    };
+    return { duration, start: at(0), middle: at(.45) };
+  }, expansionId);
+  assert.ok(frames, `${label} has a height/opacity animation when opened`);
+  const { start, middle, duration } = frames;
+  assert.ok(duration >= 140 && duration <= 260, `${label} takes ${duration}ms to open`);
+  assert.ok(middle.height > start.height, `${label} grows between its first and middle frames`);
+  assert.ok(middle.opacity > start.opacity, `${label} fades in while growing`);
+  return middle.height;
+}
+async function verifySettled(target, middleHeight, label) {
+  const element = await target.elementHandle();
+  await page.waitForFunction(({el,id}) => !el.getAnimations().some(animation => animation.id === id), {el:element,id:expansionId});
+  await element.dispose();
+  const final = await target.evaluate(el => ({ height: el.getBoundingClientRect().height, opacity: Number(getComputedStyle(el).opacity) }));
+  assert.ok(final.height > middleHeight, `${label} reaches its natural height after cleanup`);
+  assert.equal(final.opacity, 1, `${label} is fully visible after cleanup`);
+}
+const hasExpansion = target => target.evaluate((el,id) => el.getAnimations().some(animation => animation.id === id), expansionId);
   await page.goto('http://turn-fold.fixture/');await page.waitForFunction(()=>window.ready);await page.waitForTimeout(200);
   if(errors.length) throw Error(errors.join(' | '));
   const grouping=await page.evaluate(()=>{
@@ -182,7 +212,9 @@ const screenshot=async name=>{if(process.env.DSH_BODY_SCREENSHOT_DIR){fs.mkdirSy
   const later=page.locator('[data-chat-group-key="g2"]');
   assert.equal(await group.evaluate(el=>getComputedStyle(el,'::before').content),'none','no added group prefix');
   assert.equal(await page.getByRole('button',{name:'已完成分析',exact:true}).count(),1,'local group preserves its original accessible name');
-  if(await group.getAttribute('aria-expanded')!=='true') await group.click();await page.waitForTimeout(200);
+  if(await group.getAttribute('aria-expanded')==='true') { await group.click(); await groupBody.waitFor({ state:'hidden' }); }
+  await group.click();
+  await verifySettled(groupBody, await verifyExpansion(groupBody, 'local group'), 'local group');
   assert.equal(await groupBody.isVisible(),true);
   assert.equal(await page.locator('[data-chat-node-key="t1"]').isVisible(),true,'injected context belongs to first group');
   assert.equal(await page.locator('[data-chat-node-key="a1"][data-chat-group-part="reasoning"]').isVisible(),true,'first reasoning belongs to first group');
@@ -198,9 +230,56 @@ const screenshot=async name=>{if(process.env.DSH_BODY_SCREENSHOT_DIR){fs.mkdirSy
   assert.equal(await answer.isVisible(),true,'whole-turn fold preserves final answer');
   await screenshot('work-steps-collapsed.png');
   checks.push('whole-turn fold hides all process groups and narration while keeping the final answer');
-  await header.click();await page.waitForTimeout(200);
+  await header.click();
+  const [narrationMiddle,groupMiddle]=await Promise.all([verifyExpansion(narration,'process narration'),verifyExpansion(later,'whole-turn process group')]);
+  assert.equal(await hasExpansion(answer),false,'final answer stays outside the process animation');
+  await Promise.all([verifySettled(narration,narrationMiddle,'process narration'),verifySettled(later,groupMiddle,'whole-turn process group')]);
   assert.equal(await narration.isVisible(),true);assert.equal(await later.isVisible(),true);assert.equal(await answer.isVisible(),true);
-  checks.push('reopening restores the process');
+  checks.push('whole-turn reopening animates process groups and narration while keeping the final answer out of the animation');
+
+  const commandGroup=later.locator('[data-process-activity]');
+  const commandBody=later.locator('[data-step-process-body]');
+  await commandGroup.click();
+  await verifySettled(commandBody, await verifyExpansion(commandBody, 'command group'), 'command group');
+  const edit=commandBody.locator('[data-tool="edit"] [data-disclosure-row][data-expandable]');
+  const editBody=commandBody.locator('[data-tool="edit"] [data-disclosure-header] + *');
+  await edit.click();
+  await verifySettled(editBody, await verifyExpansion(editBody, 'generic tool detail'), 'generic tool detail');
+  assert.equal(await edit.getAttribute('aria-expanded'),'true');
+  await edit.click();
+  await editBody.waitFor({state:'hidden'});
+  const bash=commandBody.locator('[data-sample="bash"][data-expandable]');
+  const bashBody=commandBody.locator('[data-sample="bash"] + *');
+  await bash.press('Enter');
+  await verifySettled(bashBody, await verifyExpansion(bashBody,'shell detail'), 'shell detail');
+  assert.equal(await bash.getAttribute('aria-expanded'),'true');
+  await bash.press('Enter');
+  await bashBody.waitFor({state:'hidden'});
+  checks.push('opening real DSH tool details grows and fades the content through mouse or keyboard');
+
+  await commandGroup.click();
+  await commandBody.waitFor({state:'hidden'});
+  await commandGroup.click();
+  assert.equal(await hasExpansion(commandBody),true,'rapid toggle starts during expansion');
+  await commandGroup.click();
+  await commandGroup.click();
+  await verifySettled(commandBody, 0, 'rapid reopen');
+  assert.equal(await commandGroup.getAttribute('aria-expanded'),'true');
+  await commandGroup.click();
+  await commandBody.waitFor({state:'hidden'});
+  assert.equal(await commandGroup.getAttribute('aria-expanded'),'false');
+  checks.push('rapid open-close-open restores natural height and keeps the native disclosure state');
+
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await commandGroup.click();
+  assert.equal(await commandGroup.getAttribute('aria-expanded'),'true');
+  assert.equal(await hasExpansion(commandBody),false,'reduced motion skips height animation');
+  assert.ok(await commandBody.evaluate(el=>el.getBoundingClientRect().height)>0,'reduced motion still reveals content');
+  await commandGroup.click();
+  await commandBody.waitFor({state:'hidden'});
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  checks.push('reduced motion keeps the native toggle without animating');
+
   await page.evaluate(()=>setNoAnswer(true));await page.waitForTimeout(200);
   if(await header.getAttribute('aria-expanded')!=='false') await header.click();await page.waitForTimeout(200);
   assert.equal(await narration.isVisible(),false);assert.equal(await answer.isVisible(),false);

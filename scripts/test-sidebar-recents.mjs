@@ -5,13 +5,13 @@ import { Script } from 'node:vm';
 
 // Exercise the shipped WorkspaceTree and its row callbacks, with synchronous stores/hooks.
 // Browser layout and effects are checked separately; this fixture owns no host data.
-async function fixture() {
+async function fixture(input) {
   const states = []; let cursor = 0, plugin;
   const store = value => ({ getSnapshot: () => value, subscribe: () => () => {}, set: next => { value = next; } });
   const React = {
     Component: class {}, Fragment: 'fragment',
     createElement: (type, props, ...children) => ({ type, props: props || {}, children: children.flat(Infinity) }),
-    useState(initial) { const index = cursor++; if (!(index in states)) states[index] = initial; return [states[index], next => { states[index] = typeof next === 'function' ? next(states[index]) : next; }]; },
+    useState(initial) { const index = cursor++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], next => { states[index] = typeof next === 'function' ? next(states[index]) : next; }]; },
     useMemo: fn => fn(), useCallback: fn => fn, useRef: current => ({ current }),
     useEffect() {}, useLayoutEffect() {}, useSyncExternalStore: (_, snapshot) => snapshot(), useId: () => 'fixture'
   };
@@ -20,7 +20,7 @@ async function fixture() {
   new Script(bundle).runInNewContext({ window: { __ModuleLoader__: { load: definition => {
     plugin = definition.factory(name => name === 'react' ? React : name === '@deepseek-ai/dsh-client-store' ? { createSnapshotStore: store } : {});
   } } }, clearTimeout, setTimeout, console });
-  const sessions = [
+  const sessions = input?.sessions ?? [
     { id: 'a', title: 'Alpha', updatedAt: 100, retainedBy: { mainView: 1 } },
     { id: 'b', title: 'Beta', updatedAt: 300 },
     { id: 'p', title: 'Pinned', updatedAt: 200 },
@@ -29,7 +29,7 @@ async function fixture() {
     { id: 'child', origin: 'subagent', updatedAt: 500 }
   ];
   const catalog = store({ phase: 'ready', ids: sessions.map(s => s.id), byId: Object.fromEntries(sessions.map(s => [s.id, s])) });
-  const workspaces = store({ items: [
+  const workspaces = store(input?.workspaces ?? { items: [
     { workspaceId: 'one', title: 'Project one', sessionIds: ['a', 'p', 'archived', 'blank', 'child'] },
     { workspaceId: 'two', title: 'Project two', sessionIds: ['b', 'a'] }
   ], archivedSessionIds: ['archived'], pinnedSessionIds: ['p'] });
@@ -42,10 +42,25 @@ async function fixture() {
 }
 function all(node, predicate) {
   if (!node || typeof node !== 'object') return [];
-  return [...(predicate(node) ? [node] : []), ...node.children.flatMap(child => all(child, predicate))];
+  let children = node.children;
+  // Search the settled fold state and leave transition timing to the browser fixture.
+  if (typeof children[0] === 'function' && typeof node.props.open === 'boolean') {
+    children = node.props.open ? [children[0]()] : [];
+  }
+  return [...(predicate(node) ? [node] : []), ...children.flatMap(child => all(child, predicate))];
 }
 const rows = node => all(node, n => n.props.className?.split(' ').includes('dsc-thread'));
 const ids = node => rows(node).map(n => n.props.key);
+const byClass = name => node => node.props.className?.split(' ').includes(name);
+const treeProjects = tree => all(tree, byClass('dsc-project-list'))[0];
+const project = (tree, id) => all(treeProjects(tree), n => n.type === 'section' && n.props.key === id)[0];
+const moreButton = (node, scope, text = '展开显示') => all(node, n => n.type === 'button' &&
+  n.props['data-dsc-sidebar-more'] === scope && n.children.includes(text))[0];
+const openProject = (tree, id) => {
+  const button = all(project(tree, id), byClass('dsc-project-main'))[0];
+  assert.ok(button, `project ${id} exists`);
+  if (!button.props['aria-expanded']) button.props.onClick();
+};
 const recent = tree => {
   const parent = all(tree, n => n.children.some(c => c?.props?.className === 'dsc-section-title' && c.children.includes('最近')))[0];
   assert.ok(parent, 'recent heading exists');
@@ -54,14 +69,18 @@ const recent = tree => {
 };
 
 test('recent includes project and pinned sessions once, newest first, with normal exclusions', async () => {
-  const f = await fixture(), tree = f.render();
+  const f = await fixture();
+  openProject(f.render(), 'two');
+  const tree = f.render();
   assert.deepEqual(ids(recent(tree)), ['b', 'p', 'a']);
   assert.equal(rows(tree).filter(n => n.props.key === 'a').length, 3, 'two project references and one recent entry');
   assert.equal(rows(tree).filter(n => n.props.key === 'p').length, 2, 'existing pinned section plus recent entry');
 });
 
 test('project collapse leaves recent available and both entries open the same session', async () => {
-  const f = await fixture(); let tree = f.render();
+  const f = await fixture();
+  openProject(f.render(), 'two');
+  let tree = f.render();
   assert.equal(rows(tree).filter(n => n.props.key === 'a').length, 3);
   for (const row of rows(tree).filter(n => n.props.key === 'a')) {
     all(row, n => n.props.className === 'dsc-thread-main')[0].props.onClick();
@@ -94,4 +113,90 @@ test('recent follows rename, activity, timestamps, archive visibility and remova
 test('search produces a single result per session despite multiple project memberships', async () => {
   const f = await fixture();
   assert.deepEqual(ids(f.render({ query: 'Alpha' })), ['a']);
+});
+
+function paginationData() {
+  const sessions = [], items = [];
+  const add = (id, updatedAt, extra) => {
+    sessions.push({ id, title: id, updatedAt, ...extra });
+    return id;
+  };
+  const main = Array.from({ length: 47 }, (_, index) => add(`main-${index + 1}`, index === 0 ? 3000 : 1000 - index,
+    index === 0 ? { retainedBy: { mainView: 1 } } : undefined));
+  const otherRecent = Array.from({ length: 60 }, (_, index) => add(`standalone-${index + 1}`, 2000 - index));
+  for (const index of [7, 8, 3, 6, 2, 5, 4]) {
+    const stamp = index <= 5 ? 3001 - index : 500 - index;
+    const session = add(`project-${index}-only`, stamp);
+    items.push({ workspaceId: `p${index}`, title: `Project ${index}`, sessionIds: [session] });
+  }
+  items.splice(3, 0, { workspaceId: 'p1', title: 'Project 1', sessionIds: [...main].reverse() });
+  return { sessions, workspaces: { items, archivedSessionIds: [], pinnedSessionIds: [] }, main,
+    global: [main[0], 'project-2-only', 'project-3-only', 'project-4-only', 'project-5-only', ...otherRecent, ...main.slice(1),
+      'project-6-only', 'project-7-only', 'project-8-only'] };
+}
+
+test('project pane mounts five projects by latest conversation and adds the others on demand', async () => {
+  const data = paginationData(), f = await fixture(data);
+  let tree = f.render();
+  const projectIds = tree => all(treeProjects(tree), n => n.type === 'section').map(n => n.props.key);
+  assert.deepEqual(projectIds(tree), ['p1', 'p2', 'p3', 'p4', 'p5']);
+  assert.equal(ids(tree).some(id => id.startsWith('project-8-')), false);
+  assert.deepEqual(ids(project(tree, 'p2')), [], 'closed project has no mounted conversations');
+  const button = moreButton(treeProjects(tree), 'projects');
+  assert.ok(button, 'project pane has its own expand control');
+  button.props.onClick();
+  tree = f.render();
+  assert.deepEqual(projectIds(tree), ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']);
+  openProject(tree, 'p8');
+  tree = f.render();
+  assert.deepEqual(ids(project(tree, 'p8')), ['project-8-only']);
+  assert.deepEqual(ids(recent(tree)), data.global.slice(0, 20));
+  moreButton(treeProjects(tree), 'projects', '收起').props.onClick();
+  assert.deepEqual(projectIds(f.render()), ['p1', 'p2', 'p3', 'p4', 'p5']);
+
+  const snapshot = f.catalog.getSnapshot();
+  const moved = snapshot.byId['project-8-only'];
+  f.catalog.set({ ...snapshot, byId: { ...snapshot.byId, [moved.id]: { ...moved, updatedAt: 4000 } } });
+  f.workspaces.set({ ...data.workspaces, pinnedSessionIds: [moved.id] });
+  tree = f.render();
+  assert.deepEqual(projectIds(tree), ['p8', 'p1', 'p2', 'p3', 'p4'], 'pinned recent activity still ranks the project');
+  assert.deepEqual(ids(project(tree, 'p8')), [], 'pinned sessions retain their separate group');
+  assert.deepEqual(ids(recent(tree)).slice(0, 2), ['project-8-only', 'main-1']);
+});
+
+test('recent mounts 20 conversations at a time and search can find the remainder', async () => {
+  const data = paginationData(), f = await fixture(data);
+  let tree = f.render();
+  assert.deepEqual(ids(recent(tree)), data.global.slice(0, 20));
+  assert.ok(!ids(tree).includes('standalone-60'));
+  for (const size of [40, 60, 80, 100, data.global.length]) {
+    const button = moreButton(recent(tree), 'recent');
+    assert.ok(button, 'recent has its own expand control until the final batch');
+    button.props.onClick();
+    tree = f.render();
+    assert.deepEqual(ids(recent(tree)), data.global.slice(0, size));
+  }
+  moreButton(recent(tree), 'recent', '收起').props.onClick();
+  assert.deepEqual(ids(recent(f.render())), data.global.slice(0, 20));
+  const initial = await fixture(data);
+  assert.deepEqual(ids(initial.render({ query: 'standalone-60' })), ['standalone-60']);
+});
+
+test('a recent project loads its own five conversations even outside global recent and adds batches independently', async () => {
+  const data = paginationData(), f = await fixture(data);
+  f.status.set(new Map([['main-6', { running: true }], ['main-47', { pendingInteraction: true }]]));
+  let tree = f.render();
+  assert.ok(!ids(recent(tree)).includes('main-2'));
+  assert.deepEqual(ids(project(tree, 'p1')), data.main.slice(0, 5));
+  assert.ok(!ids(tree).includes('main-6'));
+  for (const size of [25, 45, 47]) {
+    const button = moreButton(project(tree, 'p1'), 'project');
+    assert.ok(button, 'each project has its own expand control until the final batch');
+    button.props.onClick();
+    tree = f.render();
+    assert.deepEqual(ids(project(tree, 'p1')), data.main.slice(0, size));
+    assert.deepEqual(ids(recent(tree)), data.global.slice(0, 20));
+  }
+  moreButton(project(tree, 'p1'), 'project', '收起').props.onClick();
+  assert.deepEqual(ids(project(f.render(), 'p1')), data.main.slice(0, 5));
 });

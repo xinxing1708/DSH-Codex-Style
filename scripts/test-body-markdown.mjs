@@ -20,7 +20,7 @@ const skip = !fs.existsSync(fixture) ? `missing fixture: ${fixture}`
   : !archive || !fs.existsSync(archive) ? 'set DSH_ASAR to an installed DSH app.asar'
     : !playwright ? 'Playwright unavailable; set DSC_PLAYWRIGHT_PATH' : false;
 
-function runFixture() {
+function runFixture({ burst = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [fixture], {
       cwd: path.resolve(root, '..'),
@@ -30,6 +30,7 @@ function runFixture() {
         DSC_PLAYWRIGHT_PATH: playwright,
         HOST_COMPACT: '1',
         HOST_OFF: '',
+        HOST_MARKDOWN_BURST: burst ? '1' : '',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -57,4 +58,17 @@ test('real Markdown links keep the stream clipped and visibly masked', { skip },
     `real linked paragraph bypassed clipping: ${result.after.bodyHeight}/${result.after.bodyScrollHeight}`);
   assert.ok(result.after.edgeRect && result.after.edgeViewportRect && result.after.edgeOpacity === '1' && result.after.edgeDisplay !== 'none',
     'real linked paragraph did not create a visible reveal mask');
+});
+
+test('real Markdown advances across rapid paragraphs and drains the final backlog', { skip }, async t => {
+  const { hostVersion, after, duringStream, afterFinish, errors } = await runFixture({ burst: true });
+  const height = metrics => `${metrics.bodyHeight}/${metrics.bodyScrollHeight}`;
+  t.diagnostic(`host=${hostVersion}; after burst=${height(after)}; during stream=${height(duringStream)}; after finish=${height(afterFinish)}`);
+  assert.deepEqual(errors, []);
+  assert.equal(after.paragraphs, 21);
+  assert.ok(after.clip && after.bodyHeight < after.bodyScrollHeight, 'rapid burst should still reveal gradually');
+  assert.ok(duringStream.bodyHeight >= duringStream.bodyScrollHeight * 0.35,
+    'queued paragraphs should affect reveal speed while the stream stays open');
+  assert.equal(afterFinish.clip, '', 'the final backlog should clear promptly');
+  assert.equal(afterFinish.bodyHeight, afterFinish.bodyScrollHeight);
 });

@@ -52,15 +52,135 @@ function CodexTurnProcess({ node, turnProcess, useSession }) {
     canCollapse && !open && h('style', null, bodyCollapsedReplyCss(node.data.turn, turnProcess.spec.answerStep != null)));
 }
 
+const DSC_BODY_EXPAND_CONTROL = '.dsc-body-turn__label[aria-expanded], [data-process-activity][aria-controls][aria-expanded], [data-sample="bash"][aria-expanded], [data-tool] [data-disclosure-row][aria-expanded]';
+
+function dscBodyTurnRows(header) {
+  const turn = header.closest('[data-chat-flow-kind="turn-process"][data-chat-turn]');
+  if (!turn) return [];
+  const rows = [];
+  for (let row = turn.nextElementSibling; row && row.dataset.chatTurn === turn.dataset.chatTurn; row = row.nextElementSibling) {
+    rows.push(row);
+  }
+  return rows;
+}
+
+function dscBodyDetails(control) {
+  return control.matches('[data-sample="bash"]')
+    ? control.nextElementSibling
+    : control.closest('[data-disclosure-header]')?.nextElementSibling;
+}
+
+function dscBodyExpansionTargets(control) {
+  if (control.matches('.dsc-body-turn__label')) return dscBodyTurnRows(control);
+  if (control.hasAttribute('data-process-activity')) {
+    const content = document.getElementById(control.getAttribute('aria-controls'));
+    return content?.matches('[data-step-process-body]') ? [content] : [];
+  }
+  return [dscBodyDetails(control)].filter(Boolean);
+}
+
+function mountBodyExpansion() {
+  if (typeof Element === 'undefined' || typeof Element.prototype.animate !== 'function') return () => {};
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const active = new Map();
+  const pending = new Map();
+  let frame = 0;
+
+  const stop = element => {
+    active.get(element)?.cancel();
+    active.delete(element);
+  };
+  const clear = () => {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    pending.clear();
+    for (const element of active.keys()) stop(element);
+  };
+
+  const flush = () => {
+    frame = 0;
+    const targets = new Map();
+    for (const [control, { opening, prior }] of pending) {
+      if (!control.isConnected || (control.getAttribute('aria-expanded') === 'true') !== opening) continue;
+      if (opening) {
+        for (const element of dscBodyExpansionTargets(control)) {
+          // 整轮只动画从折叠状态恢复的节点。最终答复此前可见，保持原位。
+          if (prior && !prior.has(element)) continue;
+          if (!element.closest('[hidden], [data-chat-motion="collapse"]')) targets.set(element, prior?.get(element));
+        }
+      } else {
+        for (const element of dscBodyExpansionTargets(control)) stop(element);
+      }
+    }
+    pending.clear();
+    for (const element of active.keys()) {
+      if (!element.isConnected || element.closest('[hidden], [data-chat-motion="collapse"]')) stop(element);
+    }
+
+    // 先统一读取展开尺寸，再启动短动画。后续每帧由浏览器采样，不接管宿主滚动。
+    const boxes = [];
+    for (const [element, from] of targets) {
+      const style = getComputedStyle(element);
+      const height = Number.parseFloat(style.height);
+      if (!(height > 0)) continue;
+      boxes.push({ element, height, marginTop: style.marginTop, from });
+    }
+    for (const { element, height, marginTop, from } of boxes) {
+      stop(element);
+      const animation = element.animate([
+        { height: `${Math.min(from?.height ?? 0, height)}px`, marginTop: from?.marginTop ?? '0px', opacity: from?.opacity ?? 0, overflow: 'hidden' },
+        { height: `${height}px`, marginTop, opacity: 1, overflow: 'hidden' }
+      ], { id: 'dsc-body-expand', duration: 200, easing: 'cubic-bezier(.25,.7,.25,1)' });
+      active.set(element, animation);
+      animation.finished.then(() => {
+        if (active.get(element) === animation) active.delete(element);
+      }, () => {});
+    }
+  };
+
+  const onActivate = event => {
+    if (document.hidden || reduce.matches || !(event.target instanceof Element)) return;
+    const control = event.target.closest(DSC_BODY_EXPAND_CONTROL);
+    if (!control?.closest('[data-chat-flow]')) return;
+    if (event.type === 'keydown' && (control.tagName === 'BUTTON' || event.repeat || !['Enter', ' '].includes(event.key))) return;
+    const opening = control.getAttribute('aria-expanded') === 'false';
+    let prior;
+    if (opening && control.matches('.dsc-body-turn__label, [data-process-activity]')) {
+      prior = new Map();
+      for (const element of dscBodyExpansionTargets(control)) {
+        if (element.dataset.chatMotion === 'collapse') {
+          const style = getComputedStyle(element);
+          prior.set(element, { height: Number.parseFloat(style.height) || 0, marginTop: style.marginTop, opacity: Number(style.opacity) });
+        } else if (element.hasAttribute('hidden') || control.hasAttribute('data-process-activity') || getComputedStyle(element).display === 'none') {
+          prior.set(element, undefined);
+        }
+      }
+    }
+    pending.set(control, { opening, prior });
+    if (!frame) frame = requestAnimationFrame(flush);
+  };
+  document.addEventListener('click', onActivate, true);
+  document.addEventListener('keydown', onActivate, true);
+  document.addEventListener('visibilitychange', clear);
+  reduce.addEventListener('change', clear);
+  return () => {
+    clear();
+    document.removeEventListener('click', onActivate, true);
+    document.removeEventListener('keydown', onActivate, true);
+    document.removeEventListener('visibilitychange', clear);
+    reduce.removeEventListener('change', clear);
+  };
+}
+
 // 正文流式平滑：宿主每次到达都会把末尾段落整体重写，插件无法包裹字符，
 // 所以不减少渲染，只限制“露出来”的速度——把正文容器裁到当前揭示行，再用同色
 // 柔边盖住当前行光标之后的字符，并按顺序推进已收到的文本块。
 const DSC_BODY_SMOOTH = {
   tailKeep: 8,      // 仅仍在增长的末尾文本单元保留的未揭示字数
-  minCps: 62.5,     // 最低揭示速度（约每帧 1 字）
+  minCps: 62.5,     // 每秒最低揭示字数
   drainMs: 700,     // 积压按该时长摊平
-  finishCps: 900,   // data-streaming 移除后的排空速度
-  frameMs: 1000 / 60, // 揭示最多每秒测量 60 次，不随高刷新率屏幕放大 DOM 开销
+  finishCps: 900,   // data-streaming 移除后的最低排空速度
+  frameMs: 1000 / 144, // 正文揭示和布局测量的帧间预算
   holdMs: 400       // 文本停止增长超过该时长后不再保留末尾缓冲
 };
 // 只按公开块级标签识别 Markdown 文本块与揭示单元，不依赖宿主的哈希类名。
@@ -136,18 +256,23 @@ function dscBodySimpleList(list) {
   return true;
 }
 
-// AssistantMarkdown 的根 div（data-streaming）下是正文容器 div；宿主的思考摘要
-// 也会带 data-streaming，必须按结构排除，不能只按属性匹配。
+const DSC_BODY_REASONING_GROUP = '[data-chat-group-part="reasoning"]';
+const DSC_BODY_REASONING = `${DSC_BODY_REASONING_GROUP}, [data-variant="think"]`;
+
+// 宿主的正文和思考分组共用 AssistantMarkdown，思考摘要也有 data-streaming。
+// 按宿主公开标记排除思考，然后检查它是否是带正文容器的流式根。
 function dscBodyIsRoot(root) {
   if (!root || root.nodeType !== 1 || root.tagName !== 'DIV') return false;
   if (!root.hasAttribute('data-streaming')) return false;
   const body = root.firstElementChild;
-  return !!body && body.tagName === 'DIV';
+  return body?.tagName === 'DIV' && !root.closest(DSC_BODY_REASONING);
 }
 
 function dscBodyNodeHasRoot(node) {
-  if (!node || node.nodeType !== 1) return false;
-  return node.hasAttribute('data-streaming') || node.querySelector('[data-streaming]') !== null;
+  if (!node || node.nodeType !== 1 || node.closest(DSC_BODY_REASONING)) return false;
+  if (dscBodyIsRoot(node)) return true;
+  for (const root of node.querySelectorAll('div[data-streaming]')) if (dscBodyIsRoot(root)) return true;
+  return false;
 }
 
 // 当前单元之后是否还有元素内容（正文块或其他非正文块），用于判断是否仍在写最后一段。
@@ -184,6 +309,17 @@ function dscBodyCharRect(element, index) {
     remain -= node.length;
   }
   return null;
+}
+
+function dscBodyInlineBounds(element, originTop) {
+  const bounds = [];
+  for (const inline of element.querySelectorAll('a, code, a svg[aria-hidden="true"]')) {
+    // 折行链接按可见片段测量，不能用整个链接跨多行的外接矩形。
+    for (const rect of inline.getClientRects()) {
+      if (rect.width && rect.height) bounds.push({ top: rect.top - originTop, bottom: rect.bottom - originTop });
+    }
+  }
+  return { element, bounds };
 }
 
 // 取正文所在滚动区实际底色；取不到时调用方降级为整块淡入（不能只裁不遮）。
@@ -362,6 +498,7 @@ function mountBodySmoothing() {
     const key = `${state.index}:${Math.floor(state.cursor)}:${total}:${atEnd}`;
     // 局部遮罩无需追踪窗口坐标；光标还在同一字符时不重复测量整段排版。
     if (state.paintKey === key) return;
+    if (state.paintKey === null) state.inlineBounds = null;
     state.paintKey = key;
     const box = el.getBoundingClientRect();
     if (total === 0) {
@@ -383,8 +520,19 @@ function mountBodySmoothing() {
     }
     if (!rect) { paintBoundary(state); return; }
     const origin = { top: box.top + el.clientTop, left: box.left + el.clientLeft };
-    applyClip(state, rect.bottom - box.top);
-    paintMask(state, rect, atEnd ? rect.right : rect.left, origin);
+    // 字形的 Range 不包含链接/行内代码的背景和边框；合入同一行的实际盒子。
+    if (state.inlineBounds?.element !== unit.el) state.inlineBounds = dscBodyInlineBounds(unit.el, origin.top);
+    const lineTop = rect.top - origin.top;
+    const lineBottom = rect.bottom - origin.top;
+    let top = lineTop;
+    let bottom = lineBottom;
+    for (const inline of state.inlineBounds.bounds) {
+      if (inline.bottom <= lineTop || inline.top >= lineBottom) continue;
+      top = Math.min(top, inline.top);
+      bottom = Math.max(bottom, inline.bottom);
+    }
+    applyClip(state, bottom + el.clientTop);
+    paintMask(state, { top: top + origin.top, height: bottom - top }, atEnd ? rect.right : rect.left, origin);
   }
 
   function paintBoundary(state) {
@@ -412,6 +560,7 @@ function mountBodySmoothing() {
   // 单元只在末尾追加；节点被替换或文本缩短时按身份/包含/位置对齐，不重放历史也不整段放开。
   function refreshUnits(state, baseline) {
     state.paintKey = null;
+    state.queuedLength = null;
     const container = state.container;
     const next = container ? dscBodyCollectUnits(container) : [];
     if (baseline) {
@@ -494,6 +643,8 @@ function mountBodySmoothing() {
       last: 0,
       grewAt: 0,
       finishing: false,
+      finishRate: null,
+      queuedLength: null,
       view: root.closest('[data-conversation-session]'),
       fadeUntil: 0,
       color: dscBodyEdgeColor(root),
@@ -502,6 +653,7 @@ function mountBodySmoothing() {
       clipSaved: null,
       clipValue: '',
       paintKey: null,
+      inlineBounds: null,
       width: null,
       fadedEls: new Set()
     };
@@ -538,6 +690,7 @@ function mountBodySmoothing() {
         continue;
       }
       state.finishing = false;
+      state.finishRate = null;
       if (!structureChanged) continue;
       const container = root.firstElementChild;
       if (container && container !== state.container) adoptContainer(state, container);
@@ -563,6 +716,25 @@ function mountBodySmoothing() {
 
   function advance(state, now) {
     const finishing = state.finishing;
+    const delta = state.last ? Math.min(64, Math.max(0, now - state.last)) : 16;
+    state.last = now;
+    if (state.queuedLength === null) {
+      state.queuedLength = 0;
+      if (!state.fadeAll) {
+        for (let i = state.index; i < state.units.length; i++) {
+          const unit = state.units[i];
+          if (!unit.fade) state.queuedLength += unit.el.textContent.length;
+        }
+      }
+    }
+    const catchupRate = Math.max(0, state.queuedLength - state.cursor) * 1000 / DSC_BODY_SMOOTH.drainMs;
+    let rate = Math.max(DSC_BODY_SMOOTH.minCps, catchupRate);
+    if (finishing) {
+      // 结束后按整队剩余字数排空；补到的尾部文字仍可提高排空速度。
+      state.finishRate = Math.max(state.finishRate ?? DSC_BODY_SMOOTH.finishCps, catchupRate);
+      rate = state.finishRate;
+    }
+    let budget = rate * delta / 1000;
     let guard = 0;
     for (;;) {
       if (guard++ > 64) { paintState(state); return true; }
@@ -598,15 +770,11 @@ function mountBodySmoothing() {
       const tail = last && !dscBodyHasFollowing(state.container, unit.el);
       const live = tail && !finishing && now - state.grewAt <= DSC_BODY_SMOOTH.holdMs;
       const backlog = total - state.cursor;
-      const delta = state.last ? Math.min(64, Math.max(0, now - state.last)) : 16;
-      state.last = now;
-      if (backlog > 0.01) {
-        const rate = finishing
-          ? DSC_BODY_SMOOTH.finishCps
-          : live && backlog <= DSC_BODY_SMOOTH.tailKeep
-            ? 0
-            : Math.max(DSC_BODY_SMOOTH.minCps, backlog * 1000 / DSC_BODY_SMOOTH.drainMs);
-        state.cursor = Math.min(total, state.cursor + rate * delta / 1000);
+      const available = live ? backlog - DSC_BODY_SMOOTH.tailKeep : backlog;
+      if (available > 0.01) {
+        const revealed = Math.min(available, budget);
+        state.cursor += revealed;
+        budget -= revealed;
       }
       if (state.cursor < total - 0.01) {
         paintClipUnit(state);
@@ -617,7 +785,8 @@ function mountBodySmoothing() {
         return true;
       }
       state.cursor = total;
-      if (finishing) {
+      if (finishing || !last) {
+        if (state.queuedLength !== null) state.queuedLength -= total;
         state.index += 1;
         state.cursor = 0;
         state.seenTotal = -1;
@@ -632,12 +801,6 @@ function mountBodySmoothing() {
         paintEnd(state);
         return false;
       }
-      if (!last) {
-        state.index += 1;
-        state.cursor = 0;
-        state.seenTotal = -1;
-        continue;
-      }
       paintEnd(state);
       return false;
     }
@@ -649,8 +812,11 @@ function mountBodySmoothing() {
     if (isReduced() || isHidden()) { releaseAll(); return; }
     const now = typeof timestamp === 'number' && Number.isFinite(timestamp) ? timestamp : performance.now();
     if (!states.size) return;
-    if (now < nextFrameAt) { scheduleWake(nextFrameAt); return; }
-    nextFrameAt = now + DSC_BODY_SMOOTH.frameMs;
+    // 保留到期点的相位，让 240 Hz 等刷新率也能按 144 Hz 的预算推进。
+    if (now + 0.5 < nextFrameAt) { schedule(); return; }
+    const { frameMs } = DSC_BODY_SMOOTH;
+    nextFrameAt += frameMs;
+    if (nextFrameAt <= now) nextFrameAt = now + frameMs;
     let needsFrame = false;
     for (const state of [...states.values()]) {
       if (!state.root.isConnected || (state.view && state.view.getAttribute('data-conversation-session') !== state.session)) {
@@ -673,22 +839,15 @@ function mountBodySmoothing() {
     for (const node of record.addedNodes) {
       if (node.nodeType === 1 && (node.hasAttribute('data-conversation-session') || node.querySelector('[data-conversation-session]'))) return true;
     }
-    for (const state of states.values()) {
-      if (state.root.isConnected && state.root.contains(record.target)) return true;
-    }
     for (const node of record.addedNodes) if (dscBodyNodeHasRoot(node)) return true;
     for (const node of record.removedNodes) if (dscBodyNodeHasRoot(node)) return true;
     return false;
   }
 
-  // 只观察必要属性 data-streaming；自己写入的 style/class 不在观察范围，避免自循环。
+  // 样式与 class 不在观察范围，避免自己写入的变化触发新一轮揭示。
   const observer = new MutationObserver(records => {
     if (disposed) return;
-    if (sizeObserver && records.some(record => record.type === 'childList')) {
-      for (const view of watchedViews.keys()) {
-        if (!view.isConnected) { sizeObserver.unobserve(view); watchedViews.delete(view); }
-      }
-    }
+    let elementsRemoved = false;
     let structure = false;
     let streaming = false;
     let textChanged = false;
@@ -696,6 +855,9 @@ function mountBodySmoothing() {
     let geometryChanged = false;
     const dirty = new Map();
     for (const record of records) {
+      const target = record.target;
+      const element = target.nodeType === 1 ? target : target.parentElement;
+      if (element?.closest(DSC_BODY_REASONING)) continue;
       if (record.type === 'attributes') {
         if (record.attributeName === 'data-ds-dark-theme') { themeChanged ||= record.target === document.body; continue; }
         if (record.attributeName === 'hidden') {
@@ -706,18 +868,21 @@ function mountBodySmoothing() {
           }
           continue;
         }
-        streaming = true;
         if (record.attributeName === 'data-conversation-session') structure = true;
+        else if (states.has(record.target) || dscBodyIsRoot(record.target)) streaming = true;
         continue;
       }
       if (record.type === 'childList' && !ownMutation(record)) {
         let local = false;
         // 宿主以 textContent 替换文本节点；只有元素增删才会改变 Markdown 单元。
         // 普通 token 到达复用现有队列，避免重扫已完成的段落、列表和媒体。
-        const elementsChanged = [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1);
+        const removed = Array.from(record.removedNodes).some(node => node.nodeType === 1);
+        elementsRemoved ||= removed;
+        const elementsChanged = removed || Array.from(record.addedNodes).some(node => node.nodeType === 1);
         for (const state of states.values()) {
           if (state.root.isConnected && state.root.contains(record.target)) {
             state.paintKey = null;
+            state.queuedLength = null;
             dirty.set(state, dirty.get(state) || elementsChanged);
             local = true;
           }
@@ -730,10 +895,10 @@ function mountBodySmoothing() {
       }
       if (record.type === 'characterData' && states.size > 0) {
         // 裁剪已撤掉的尾段重新增长时，先同步遮住新增字符，避免先完整绘制一帧。
-        const target = record.target;
         for (const state of states.values()) {
           if (!state.root.contains(target)) continue;
           state.paintKey = null;
+          state.queuedLength = null;
           textChanged = true;
           if (state.clipSaved !== null) continue;
           const current = state.units[state.index];
@@ -741,10 +906,16 @@ function mountBodySmoothing() {
         }
       }
     }
+    if (sizeObserver && elementsRemoved) {
+      for (const view of watchedViews.keys()) {
+        if (!view.isConnected) { sizeObserver.unobserve(view); watchedViews.delete(view); }
+      }
+    }
     if (themeChanged) {
       for (const state of states.values()) {
         state.color = dscBodyEdgeColor(state.root);
         state.paintKey = null;
+        state.queuedLength = null;
         state.fadeAll = state.color === null;
         if (state.layer && state.color) state.layer.style.backgroundColor = state.color;
       }
@@ -757,7 +928,8 @@ function mountBodySmoothing() {
         const container = state.root.firstElementChild;
         if (container && container !== state.container) adoptContainer(state, container);
         if (elementsChanged) refreshUnits(state, false);
-        paintState(state);
+        // 普通文字增量沿用当前裁剪与柔边，留到下一次动画推进一起重新定位。
+        if (elementsChanged || state.clipSaved === null) paintState(state);
       }
     }
     if (!structure && !streaming && !dirty.size && !textChanged && !themeChanged && !geometryChanged) return;
@@ -812,6 +984,222 @@ function mountBodySmoothing() {
   };
 }
 
+const DSC_BODY_TOOL_FLOW = '[data-chat-flow]:not([data-step-process-content])';
+const DSC_BODY_TOOL_ACTIVITY = '[data-process-activity]:not([data-process-activity="thinking"])';
+const DSC_BODY_TOOL_ROW = ':is([data-tool], [data-sample="bash"])';
+const DSC_BODY_TOOL_LABEL = `[data-tool] [data-disclosure-row] > [data-shimmer], [data-sample="bash"] > [data-shimmer], ${DSC_BODY_TOOL_ACTIVITY} > [data-shimmer]`;
+const DSC_BODY_TOOL_INTRO = 'data-dsc-body-tool-intro';
+const DSC_BODY_TOOL_EXCLUDED = '[data-chat-flow-kind="assistant-step"], [data-streaming], [data-shimmer] > span';
+
+function dscBodyGroupCall(ctx, session, groupKey) {
+  const binding = session && ctx?.get?.('sessions')?.binding(session);
+  const conversation = binding && ctx.get('uiConversation')?.binding(binding);
+  const group = conversation?.snapshot.getSnapshot()?.views.grouped('chat')?.groupSource(groupKey)?.getSnapshot();
+  const summary = group?.data.summary;
+  if (!summary?.running || group.data.closed) return;
+  const nodes = conversation.target('chat').getSnapshot()?.nodes;
+  if (!nodes) return;
+  let latest;
+  const visit = tool => {
+    if (!('kind' in tool) && (!latest || tool.time >= latest.time)) latest = tool;
+    for (const child of tool.subCalls) visit(child);
+  };
+  // 组头展示的是宿主工具树里时间最近的活跃调用，DOM 标题自身没有调用 ID。
+  for (const member of group.members) {
+    const node = nodes.get(member.key);
+    if (node?.kind === 'tool-call') visit(node.data.root);
+  }
+  if (!latest) return;
+  const t = ctx.get('locale')?.bind('chat');
+  const title = t?.(`message.stepProcess.${summary.preparing ? 'prepare.' : ''}${summary.running}`);
+  const detail = summary.runningDetail;
+  return { key: `call:${latest.callId}`, activity: summary.running,
+    title, fullTitle: title && detail ? title + t('message.turnProcess.separator') + detail : title };
+}
+
+function mountBodyToolEntrance(ctx) {
+  if (typeof MutationObserver !== 'function') return () => {};
+  const flows = new WeakMap();
+  const decorated = new Map();
+  const pending = new Map();
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+
+  function clear(label) {
+    label.removeAttribute(DSC_BODY_TOOL_INTRO);
+    decorated.delete(label);
+  }
+
+  function clearAll() {
+    for (const label of decorated.keys()) clear(label);
+    for (const group of pending.keys()) unwatch(group);
+  }
+
+  function onAnimation(event) {
+    const label = event.target;
+    if (event.animationName !== 'dsc-body-tool-entrance' || !decorated.has(label) ||
+      label.getAttribute(DSC_BODY_TOOL_INTRO) !== 'entering') return;
+    // 复用的组头可能在上一个动画结束事件派发前已开始播放下一次。
+    if (label.getAnimations().some(animation => animation.animationName === event.animationName && animation.playState === 'running')) return;
+    if (event.type === 'animationend' && label.matches(DSC_BODY_TOOL_LABEL)) label.setAttribute(DSC_BODY_TOOL_INTRO, 'shown');
+    else clear(label);
+  }
+
+  function play(label, key) {
+    if (reduce?.matches || document.visibilityState === 'hidden') return;
+    if (label.getAttribute(DSC_BODY_TOOL_INTRO) === 'entering') {
+      for (const animation of label.getAnimations({ subtree: true })) {
+        if (animation.animationName !== 'dsc-body-tool-entrance') continue;
+        animation.currentTime = 0;
+        animation.play();
+      }
+    }
+    decorated.set(label, key);
+    label.setAttribute(DSC_BODY_TOOL_INTRO, 'entering');
+  }
+
+  function hidden(label) {
+    return label.closest('[hidden], [aria-hidden="true"], [inert]') || !label.getClientRects().length;
+  }
+
+  function registerRow(label, seen, baseline) {
+    const row = label.closest(DSC_BODY_TOOL_ROW);
+    const seat = row?.closest('[data-chat-call-id], [data-chat-node-key]');
+    if (!seat || !row.matches('[data-state="preparing"], [data-state="running"]')) return;
+    const key = seat.hasAttribute('data-chat-call-id') ? `call:${seat.dataset.chatCallId}` : `node:${seat.dataset.chatNodeKey}`;
+    if (seen.has(key) || (!baseline && hidden(label))) return;
+    seen.add(key);
+    if (!baseline) play(label, key);
+  }
+
+  function unwatch(group) {
+    pending.get(group)?.disconnect();
+    pending.delete(group);
+  }
+
+  function registerGroup(group, state, baseline = false) {
+    const titleRow = group.querySelector(':scope > :first-child > [data-process-activity]');
+    const label = titleRow?.querySelector(':scope > [data-shimmer]');
+    if (!label || (!baseline && (titleRow.getAttribute('aria-expanded') === 'true' || hidden(label)))) {
+      unwatch(group);
+      return;
+    }
+    const call = dscBodyGroupCall(ctx, state.session, group.dataset.chatGroupKey);
+    if (!call) {
+      unwatch(group);
+      return;
+    }
+    if (decorated.get(label) === call.key || (state.seen.has(call.key) && !decorated.has(label))) {
+      unwatch(group);
+      return;
+    }
+    // rc.5 会暂留旧标题。只在这段等待期观察组头文字，普通流式内容无需额外观察。
+    const primary = label.firstElementChild?.textContent;
+    if (!baseline && (titleRow.dataset.processActivity !== call.activity || (call.title &&
+      primary !== call.title && primary !== call.fullTitle))) {
+      if (!pending.has(group)) {
+        const watcher = new MutationObserver(() => registerGroup(group, state));
+        watcher.observe(titleRow, { subtree: true, childList: true, characterData: true });
+        pending.set(group, watcher);
+      }
+      return;
+    }
+    unwatch(group);
+    if (state.seen.has(call.key)) {
+      clear(label);
+      return;
+    }
+    state.seen.add(call.key);
+    if (!baseline) play(label, call.key);
+  }
+
+  function getFlow(flow) {
+    const session = flow.closest('[data-conversation-session]')?.getAttribute('data-conversation-session');
+    const previous = flows.get(flow);
+    if (previous && previous.session === session) return previous;
+    if (previous) {
+      for (const label of decorated.keys()) if (label.closest(DSC_BODY_TOOL_FLOW) === flow) clear(label);
+      for (const group of pending.keys()) if (group.closest(DSC_BODY_TOOL_FLOW) === flow) unwatch(group);
+    }
+    const state = { session, seen: new Set() };
+    flows.set(flow, state);
+    for (const label of flow.querySelectorAll(DSC_BODY_TOOL_LABEL)) registerRow(label, state.seen, true);
+    for (const group of flow.querySelectorAll('[data-chat-group-key]')) registerGroup(group, state, true);
+    return state;
+  }
+
+  for (const flow of document.querySelectorAll(DSC_BODY_TOOL_FLOW)) getFlow(flow);
+  const observer = new MutationObserver(records => {
+    const candidates = new Set();
+    const groups = new Set();
+    let checkDecorated = false;
+    for (const record of records) {
+      checkDecorated ||= record.removedNodes.length > 0 || record.type === 'attributes';
+      if (record.type === 'attributes') {
+        if (record.attributeName === 'data-conversation-session') {
+          if (record.target.matches(DSC_BODY_TOOL_FLOW)) getFlow(record.target);
+          for (const flow of record.target.querySelectorAll(DSC_BODY_TOOL_FLOW)) getFlow(flow);
+          continue;
+        }
+        const group = record.target.closest('[data-chat-group-key]');
+        if (group && (record.target.matches('[data-process-activity], [data-shimmer]') || record.target.matches(DSC_BODY_TOOL_ROW))) groups.add(group);
+        const label = record.attributeName === 'data-shimmer' ? record.target
+          : record.attributeName === 'data-state' && record.target.matches(DSC_BODY_TOOL_ROW) ? record.target.querySelector(DSC_BODY_TOOL_LABEL) : null;
+        if (label?.matches(DSC_BODY_TOOL_LABEL)) candidates.add(label);
+        continue;
+      }
+      if (!record.addedNodes.length || record.target.closest?.(DSC_BODY_TOOL_EXCLUDED)) continue;
+      const parentFlow = record.target.closest?.(DSC_BODY_TOOL_FLOW);
+      for (const node of record.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        if (node.matches(DSC_BODY_TOOL_FLOW)) { getFlow(node); continue; }
+        if (!parentFlow) {
+          for (const flow of node.querySelectorAll(DSC_BODY_TOOL_FLOW)) getFlow(flow);
+          continue;
+        }
+        if (node.matches('[data-chat-call-id]') || node.querySelector('[data-chat-call-id]')) {
+          const group = node.closest('[data-chat-group-key]');
+          if (group) groups.add(group);
+        }
+        if (node.matches(DSC_BODY_TOOL_LABEL)) candidates.add(node);
+        else if (node.matches('[aria-hidden="true"]') && node.parentElement?.matches(DSC_BODY_TOOL_LABEL)) {
+          // TextShimmer 原地切换到运行态时只挂入无障碍隐藏的高光副本。
+          candidates.add(node.parentElement);
+        } else {
+          for (const label of node.querySelectorAll(DSC_BODY_TOOL_LABEL)) candidates.add(label);
+        }
+      }
+    }
+    if (checkDecorated) {
+      for (const label of decorated.keys()) if (!label.isConnected || !label.matches(DSC_BODY_TOOL_LABEL)) clear(label);
+      for (const group of pending.keys()) if (!group.isConnected) unwatch(group);
+    }
+    for (const label of candidates) {
+      const flow = label.closest(DSC_BODY_TOOL_FLOW);
+      if (!flow?.isConnected) continue;
+      const group = label.closest('[data-chat-group-key]');
+      if (group) groups.add(group);
+      registerRow(label, getFlow(flow).seen, false);
+    }
+    for (const group of groups) {
+      const flow = group.closest(DSC_BODY_TOOL_FLOW);
+      if (flow?.isConnected) registerGroup(group, getFlow(flow));
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true,
+    attributeFilter: ['data-process-activity', 'data-shimmer', 'data-state', 'aria-expanded', 'data-conversation-session'] });
+  for (const name of ['animationend', 'animationcancel']) document.addEventListener(name, onAnimation);
+  reduce?.addEventListener('change', clearAll);
+  document.addEventListener('visibilitychange', clearAll);
+
+  return () => {
+    observer.disconnect();
+    clearAll();
+    reduce?.removeEventListener('change', clearAll);
+    document.removeEventListener('visibilitychange', clearAll);
+    for (const name of ['animationend', 'animationcancel']) document.removeEventListener(name, onAnimation);
+  };
+}
+
 function mountCodexBody(ctx) {
   ctx.effect(() => {
     document.body.setAttribute('data-dsc-codex-body', '');
@@ -822,6 +1210,8 @@ function mountCodexBody(ctx) {
     return () => { style.remove(); document.body.removeAttribute('data-dsc-codex-body'); };
   }, 'codex-style: body stylesheet');
   ctx.effect(() => mountBodySmoothing(), 'codex-style: streaming text smoothing');
+  ctx.effect(() => mountBodyExpansion(), 'codex-style: process expansion');
+  ctx.effect(() => mountBodyToolEntrance(ctx), 'codex-style: tool title entrance');
   ctx.slots.inject('conversation.chat.node', () => {
     const priorities = ctx.slots.entries('conversation.chat.node').filter(entry => entry.options.key === 'turn-process').map(entry => entry.options.priority ?? 0);
     return ctx.slots.register({ name: 'conversation.chat.node', key: 'turn-process', priority: Math.min(0, ...priorities) - 1 }, CodexTurnProcess);

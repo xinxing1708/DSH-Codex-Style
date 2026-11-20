@@ -37,6 +37,49 @@ async function fixture(t) {
   return { page, errors };
 }
 
+test('sustained reveal measures at up to 144 Hz across display refresh rates', { skip }, async t => {
+  const { page, errors } = await fixture(t);
+  for (const refreshRate of [60, 144, 240]) {
+    const measured = await page.evaluate(async refreshRate => {
+      stop();
+      messages.replaceChildren();
+      const request = window.requestAnimationFrame;
+      const cancel = window.cancelAnimationFrame;
+      const getRects = Range.prototype.getClientRects;
+      const pending = new Map();
+      let nextId = 0;
+      window.requestAnimationFrame = callback => { pending.set(++nextId, callback); return nextId; };
+      window.cancelAnimationFrame = id => pending.delete(id);
+      try {
+        stop = mountBodySmoothing();
+        add('<p>' + '流式正文'.repeat(1500) + '</p>');
+        await Promise.resolve();
+        let measurements = 0;
+        Range.prototype.getClientRects = function () { measurements++; return getRects.call(this); };
+        const start = performance.now();
+        let measuredFrames = 0;
+        for (let i = 0; i < refreshRate; i++) {
+          const callbacks = [...pending.values()];
+          pending.clear();
+          const before = measurements;
+          const jitter = i % 2 === 0 ? 0 : -0.2;
+          for (const callback of callbacks) callback(start + i * 1000 / refreshRate + jitter);
+          if (measurements > before) measuredFrames++;
+        }
+        return measuredFrames;
+      } finally {
+        stop();
+        Range.prototype.getClientRects = getRects;
+        window.requestAnimationFrame = request;
+        window.cancelAnimationFrame = cancel;
+      }
+    }, refreshRate);
+    const expected = Math.min(refreshRate, 144);
+    assert.ok(Math.abs(measured - expected) <= 1, `${refreshRate} Hz display: measured ${measured} frames, expected about ${expected}`);
+  }
+  assert.deepEqual(errors, []);
+});
+
 test('an idle stream stops requesting frames while it waits for more text', { skip }, async t => {
   const { page, errors } = await fixture(t);
   await page.evaluate(() => add('<p>等</p>'));
@@ -123,6 +166,42 @@ test('replacing tail text does not re-examine unchanged earlier Markdown blocks'
   });
   assert.ok(result.shown < result.full, `updated text must still be gradually revealed: ${result.shown}/${result.full}px`);
   assert.equal(result.stableQueries, 0, `unchanged earlier blocks were re-examined ${result.stableQueries} times`);
+  assert.deepEqual(errors, []);
+});
+
+test('the reveal edge covers the full height of boxed inline Markdown', { skip }, async t => {
+  const { page, errors } = await fixture(t);
+  await page.addStyleTag({ content: `
+    h3 { font: bold 24px/40px sans-serif; margin: 0; }
+    p { line-height: 30px; }
+    a, code { padding: 3px 6px; border: 1px solid #666; border-radius: 5px; background: #333; }
+    a svg { vertical-align: -.2em; }
+    code { display: inline-flex; font-size: .875em; }
+  ` });
+  for (const [html, selector] of [
+    ['<h3>标题 <a href="#"><svg aria-hidden="true" width="18" height="18"></svg>带框链接</a></h3>', 'a'],
+    ['<p>正文 <code>boxed code</code></p>', 'code']
+  ]) {
+    const bounds = await page.evaluate(async ({ html, selector }) => {
+      stop();
+      add(html);
+      DSC_BODY_SMOOTH.tailKeep = 0;
+      DSC_BODY_SMOOTH.holdMs = 30000;
+      DSC_BODY_SMOOTH.minCps = 0;
+      DSC_BODY_SMOOTH.drainMs = Number.POSITIVE_INFINITY;
+      current.root.removeAttribute('data-streaming');
+      stop = mountBodySmoothing();
+      current.root.setAttribute('data-streaming', 'true');
+      await new Promise(requestAnimationFrame);
+      const box = current.wrapper.querySelector(selector).getBoundingClientRect();
+      const edge = current.body.querySelector('.dsc-body-edge-viewport').getBoundingClientRect();
+      return { boxTop: box.top, boxBottom: box.bottom, edgeTop: edge.top, edgeBottom: edge.bottom,
+        clipBottom: current.body.getBoundingClientRect().bottom };
+    }, { html, selector });
+    assert.ok(bounds.edgeTop <= bounds.boxTop, `${selector} top leaks above the edge: ${JSON.stringify(bounds)}`);
+    assert.ok(bounds.edgeBottom >= bounds.boxBottom, `${selector} bottom falls outside the edge: ${JSON.stringify(bounds)}`);
+    assert.ok(bounds.clipBottom >= bounds.boxBottom, `${selector} is vertically clipped: ${JSON.stringify(bounds)}`);
+  }
   assert.deepEqual(errors, []);
 });
 
@@ -224,6 +303,76 @@ test('a final block added in the same update as stream completion still drains i
   const progress = await page.evaluate(() => ({ shown: current.body.offsetHeight, full: current.body.scrollHeight }));
   assert.ok(progress.shown < progress.full, 'the final block became visible before its queued reveal');
   await page.waitForFunction(() => !current.body.style.maxHeight && !document.querySelector('.dsc-body-edge-viewport'), null, { timeout: 4000 });
+  assert.deepEqual(errors, []);
+});
+
+test('a long final burst keeps revealing in order and finishes promptly', { skip }, async t => {
+  const { page, errors } = await fixture(t);
+  await page.evaluate(() => add('<p>初始正文</p>'));
+  await page.waitForFunction(() => document.querySelector('.dsc-body-edge-viewport'));
+  await page.evaluate(() => {
+    current.wrapper.insertAdjacentHTML('beforeend', '<p>' + '甲'.repeat(4200) + '</p><pre>检查点</pre><p>' + '乙'.repeat(4200) + '</p>');
+    current.root.removeAttribute('data-streaming');
+  });
+  await page.waitForTimeout(120);
+  const early = await page.evaluate(() => ({
+    shown: current.body.offsetHeight,
+    full: current.body.scrollHeight,
+    edge: getComputedStyle(document.querySelector('.dsc-body-edge-viewport')).display,
+    codeVisible: current.wrapper.querySelector('pre').classList.contains('dsc-body-smooth-fade')
+  }));
+  assert.ok(early.shown < early.full, 'the long final burst bypassed its queued reveal');
+  assert.equal(early.edge, 'block');
+  assert.equal(early.codeVisible, false, 'code faded in before the preceding paragraph was revealed');
+  await page.waitForFunction(() => !current.body.style.maxHeight && !document.querySelector('.dsc-body-edge-viewport'), null, { timeout: 2000 });
+  assert.deepEqual(errors, []);
+});
+
+test('a long queue of live Markdown paragraphs advances toward the incoming text', { skip }, async t => {
+  const { page, errors } = await fixture(t);
+  await page.evaluate(() => add('<p>初始正文</p>'));
+  await page.waitForFunction(() => document.querySelector('.dsc-body-edge-viewport'));
+  await page.evaluate(async () => {
+    for (let i = 0; i < 20; i++) {
+      current.wrapper.insertAdjacentHTML('beforeend', '<p>' + ('继续流式到达的正文' + i).repeat(22) + '</p>');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  });
+  await page.waitForTimeout(500);
+  const progress = await page.evaluate(() => ({
+    shown: current.body.offsetHeight,
+    full: current.body.scrollHeight
+  }));
+  assert.ok(progress.shown >= progress.full / 3 && progress.shown < progress.full,
+    `live paragraphs revealed ${progress.shown}/${progress.full}px after the burst`);
+  assert.deepEqual(errors, []);
+});
+
+test('bursts of active text replacements share the frame geometry budget', { skip }, async t => {
+  const { page, errors } = await fixture(t);
+  await page.evaluate(() => add('<p>' + '正在输出的正文'.repeat(150) + '</p>'));
+  await page.waitForFunction(() => current.body.style.maxHeight && document.querySelector('.dsc-body-edge-viewport'));
+  const duringBurst = await page.evaluate(async () => {
+    const original = Range.prototype.getClientRects;
+    let measurements = 0;
+    Range.prototype.getClientRects = function () {
+      measurements++;
+      return original.call(this);
+    };
+    try {
+      const p = current.wrapper.querySelector('p');
+      for (let i = 0; i < 20; i++) {
+        p.textContent += '突发流式正文';
+        // Wait for MutationObserver delivery while staying in the same browser task.
+        await Promise.resolve();
+      }
+      return { measurements, clipped: current.body.classList.contains('dsc-body-smooth-clip') };
+    } finally {
+      Range.prototype.getClientRects = original;
+    }
+  });
+  assert.equal(duringBurst.clipped, true, 'the previous reveal edge stopped clipping during the burst');
+  assert.ok(duringBurst.measurements <= 1, `${duringBurst.measurements} synchronous Range measurements in one browser task`);
   assert.deepEqual(errors, []);
 });
 

@@ -274,8 +274,8 @@ async function gateFixture(t, { engines, version }) {
   };
 }
 
-test('shipped manifest declares unbounded DSH support and release version 0.2.8', () => {
-  assert.equal(manifest.version, '0.2.8');
+test('shipped manifest declares unbounded DSH support and release version 0.2.9', () => {
+  assert.equal(manifest.version, '0.2.9');
   assert.equal(manifest.engines.dsh, '*');
 });
 

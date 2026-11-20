@@ -91,7 +91,7 @@ viewport.attach(document.getElementById('host-list'),document.getElementById('ho
 viewport.connect({scroll:event=>{scrolls++;reading.onScroll(event)},scrollEnd:outer=>reading.onScrollEnd(outer),resize:()=>{resizes++;reading.onResize()},interact:()=>{},history:()=>{}});
 reading.bindFolds(); reading.followTail();
 window.stop= ${process.env.HOST_OFF === '1' ? '()=>{}' : 'P.mountBodySmoothing()'};
-window.metrics=()=>{const root=document.querySelector('[data-streaming]'),body=root?.firstElementChild,p=body?.querySelector('p'),scroller=document.getElementById('scrollport'),seat=document.getElementById('composer'),edge=document.querySelector('.dsc-body-edge'),ev=document.querySelector('.dsc-body-edge-viewport'),icon=p?.querySelector('a svg');const rect=el=>el?JSON.parse(JSON.stringify(el.getBoundingClientRect())):null;return {root:root?.outerHTML.slice(0,2000),icon:icon?{ariaHidden:icon.getAttribute('aria-hidden'),role:icon.getAttribute('role')}:null,bodyRect:rect(body),scrollRect:rect(scroller),seatRect:rect(seat),edgeRect:rect(edge),edgeViewportRect:rect(ev),scrollTop:scroller.scrollTop,scrollHeight:scroller.scrollHeight,clientHeight:scroller.clientHeight,resizes,scrolls,bodyHeight:body?.offsetHeight,bodyScrollHeight:body?.scrollHeight,clip:body?.style.maxHeight,elementCount:body?.querySelectorAll('*').length,paragraphs:body?.querySelectorAll('p').length,edgeOpacity:edge?getComputedStyle(edge).opacity:null,edgeDisplay:ev?getComputedStyle(ev).display:null};};
+window.metrics=()=>{const root=document.querySelector('[data-chat-group-part="response"]')?.firstElementChild,body=root?.firstElementChild,p=body?.querySelector('p'),scroller=document.getElementById('scrollport'),seat=document.getElementById('composer'),edge=document.querySelector('.dsc-body-edge'),ev=document.querySelector('.dsc-body-edge-viewport'),icon=p?.querySelector('a svg');const rect=el=>el?JSON.parse(JSON.stringify(el.getBoundingClientRect())):null;return {root:root?.outerHTML.slice(0,2000),icon:icon?{ariaHidden:icon.getAttribute('aria-hidden'),role:icon.getAttribute('role')}:null,bodyRect:rect(body),scrollRect:rect(scroller),seatRect:rect(seat),edgeRect:rect(edge),edgeViewportRect:rect(ev),scrollTop:scroller.scrollTop,scrollHeight:scroller.scrollHeight,clientHeight:scroller.clientHeight,resizes,scrolls,bodyHeight:body?.offsetHeight,bodyScrollHeight:body?.scrollHeight,clip:body?.style.maxHeight,elementCount:body?.querySelectorAll('*').length,paragraphs:body?.querySelectorAll('p').length,edgeOpacity:edge?getComputedStyle(edge).opacity:null,edgeDisplay:ev?getComputedStyle(ev).display:null};};
 window.ready=true;
 </script></body></html>`;
 const routes = new Map([['/', ['text/html', html]], ['/host.js', ['text/javascript', host]], ['/chat.js', ['text/javascript', chat]], ['/plugin.js', ['text/javascript', plugin]], ['/host.css', ['text/css', hostCss]], ['/vendor.css', ['text/css', vendorStyle]], ['/' + vendorName, ['text/javascript', vendor]]]);
@@ -103,12 +103,35 @@ try {
   await page.goto('http://host-markdown.fixture/');
   await page.waitForFunction(() => window.ready === true, null, {timeout:10000});
   const before = await page.evaluate(() => metrics());
-  // 经由 React 状态更新增长普通 Markdown 段落，保留宿主实际行内元素。
-  const chunk=' 后续正文继续流式输出，这里观察渐变遮罩、换行和尾部跟随。';
-  for(let i=0;i<6;i++){await page.evaluate(text=>appendText(text),chunk.repeat(8));await page.waitForTimeout(50);}
+  const burst = process.env.HOST_MARKDOWN_BURST === '1';
+  // 经由 React 状态更新增长 Markdown，保留宿主实际行内元素。
+  if (burst) {
+    const chunk = '较长的流式正文要继续逐段揭示，带有 `行内代码框` 和 [带图标的链接](https://example.invalid)。';
+    for (let i = 0; i < 20; i++) {
+      await page.evaluate(text => appendText(text), '\n\n' + chunk.repeat(10));
+      await page.waitForTimeout(30);
+    }
+    await page.waitForFunction(() => metrics().paragraphs === 21);
+  } else {
+    const chunk = ' 后续正文继续流式输出，这里观察渐变遮罩、换行和尾部跟随。';
+    for (let i = 0; i < 6; i++) {
+      await page.evaluate(text => appendText(text), chunk.repeat(8));
+      await page.waitForTimeout(50);
+    }
+  }
   const after = await page.evaluate(() => metrics());
+  let duringStream, afterFinish;
+  if (burst) {
+    // 旧版速度只看当前段，后续二十段等待时揭示仍慢。
+    await page.waitForTimeout(700);
+    duringStream = await page.evaluate(() => metrics());
+    await page.evaluate(() => finish());
+    await page.waitForFunction(() => !document.querySelector('[data-chat-group-part="response"] [data-streaming]'));
+    await page.waitForTimeout(1600);
+    afterFinish = await page.evaluate(() => metrics());
+  }
   if(process.env.HOST_SNAPSHOT) await page.screenshot({path:process.env.HOST_SNAPSHOT});
   assert.deepEqual(errors, []);
-  const result={hostVersion,source:bundlePath||sourcePath,enabled:process.env.HOST_OFF!=='1',before,after,errors};
+  const result={hostVersion,source:bundlePath||sourcePath,enabled:process.env.HOST_OFF!=='1',before,after,duringStream,afterFinish,errors};
   console.log(process.env.HOST_COMPACT==='1' ? JSON.stringify(result) : JSON.stringify(result,null,2));
 } finally { await browser.close(); }
