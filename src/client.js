@@ -532,7 +532,7 @@ function sessionUpdatedAt(session) {
 }
 
 function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
-  return function WorkspaceTree({ query = '', tools = true, active = true, onNavigate }) {
+  return function WorkspaceTree({ query = '', tools = true, active = true, onNavigate, renderFactorySlot, useRemoteAccess }) {
     const catalog = useSource(ctx.sessions.list);
     const workspaces = useSource(ctx.workspaces.list);
     const status = useSource(ctx.uiSession.sessionStatus);
@@ -543,9 +543,17 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
     const [allProjects, setAllProjects] = useState(false);
     const [recentLimit, setRecentLimit] = useState(SESSION_PAGE_SIZE);
     const [projectsOpen, setProjectsOpen] = useState(true);
+    const [recentOpen, setRecentOpen] = useState(true);
     const [showArchived, setShowArchived] = useState(false);
     const [message, setMessage] = useState('');
     const [adding, setAdding] = useState(false);
+    const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+    const addPending = useRef(false);
+    const addAnchor = useRef(null);
+    const closeWorkspacePicker = useCallback(() => setWorkspacePickerOpen(false), []);
+    const canPickNativeDirectory = useRemoteAccess?.('directoryPicker/pick') ?? true;
+    const browseDirectories = ctx.modules?.manifest?.plugins?.some(
+      plugin => plugin.id === '@deepseek-ai/dsh-client-ui-directory-picker-browse');
     const [menu, setMenu] = useState(null);
     const [projectMenu, setProjectMenu] = useState(null);
     const [hover, setHover] = useState(null);
@@ -681,22 +689,40 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
           h(ThreadAction, { label: pinned.has(s.sessionId) ? '取消置顶聊天' : '置顶聊天', className: 'dsc-pin-action', pressed: pinned.has(s.sessionId), active: actionsActive, onIntent: hideHover, onClick: () => togglePin(s) }, h(PinMark, { filled: pinned.has(s.sessionId) })),
           h(ThreadAction, { label: archived.has(s.sessionId) ? '取消归档聊天' : '归档聊天', active: actionsActive, onIntent: hideHover, onClick: () => toggleArchive(s) }, h(Icon, { name: 'archive', size: 14 }))));
     };
+    const openWorkspace = async workspaceId => {
+      await ctx.uiWorkspace.openWorkspace(workspaceId);
+      onNavigate?.();
+    };
     const addWorkspace = async () => {
+      if (addPending.current) return;
+      hideHover();
+      setMenu(null);
+      setProjectMenu(null);
+      setMessage('');
+      if (browseDirectories && renderFactorySlot) {
+        setWorkspacePickerOpen(true);
+        return;
+      }
+      addPending.current = true;
       setAdding(true);
       await run(async () => {
-        const picked = await ctx.uiWorkspace.pickDirectory();
+        // NEXT exposes the same preload contract used by DSH's native directory flow.
+        const desktop = globalThis.__DSH_DIRECTORY_PICKER__;
+        const picked = canPickNativeDirectory && typeof desktop?.pick === 'function'
+          ? await desktop.pick()
+          : await ctx.uiWorkspace.pickDirectory();
         if (!picked) return;
         const path = typeof picked === 'string' ? picked : picked.path;
         if (!path) return;
         const created = await ctx.workspaces.create({ path });
-        await ctx.uiWorkspace.openWorkspace(created.workspaceId);
-        onNavigate?.();
+        await openWorkspace(created.workspaceId);
       });
+      addPending.current = false;
       if (alive.current) setAdding(false);
     };
     const projectHeading = h('div', { className: 'dsc-tree-tools', 'data-compact': !tools },
       h('button', { type: 'button', className: 'dsc-projects-toggle', 'aria-label': '项目', 'aria-expanded': projectsOpen, onClick: () => { hideHover(); setMenu(null); setProjectMenu(null); setProjectsOpen(!projectsOpen); } }, h('span', { className: 'dsc-tree-tools-label' }, '项目'), h(Icon, { name: 'chevron', size: 12 })),
-      h('button', { type: 'button', className: 'dsc-icon-button', title: '添加工作区', onClick: addWorkspace, disabled: adding }, h(Icon, { name: 'plus' })));
+      h('button', { type: 'button', ref: addAnchor, className: 'dsc-icon-button', title: '添加工作区', onClick: addWorkspace, disabled: adding }, h(Icon, { name: 'plus' })));
     const moreButton = (scope, collapse, onClick) => h('button', {
       type: 'button', className: 'dsc-project-more', 'data-dsc-sidebar-more': scope,
       'aria-expanded': scope === 'projects' ? collapse : undefined,
@@ -721,6 +747,12 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
     };
     return h('div', { className: 'dsc-ui dsc-workspaces' },
       query && projectHeading,
+      browseDirectories && renderFactorySlot?.('workspace.picker', {
+        open: workspacePickerOpen,
+        anchorRef: addAnchor,
+        onPick: workspaceId => { closeWorkspacePicker(); run(() => openWorkspace(workspaceId)); },
+        onClose: closeWorkspacePicker
+      }, { fallback: workspacePickerOpen && h(ErrorLine, { text: '当前宿主未提供目录选择器' }) }),
       h(ErrorLine, { text: message || (catalog.error && errorText(catalog.error)) || (workspaces.error && errorText(workspaces.error)) }),
       h('div', { className: 'dsc-tree-scroll' },
         query ? h(React.Fragment, null, h('div', { className: 'dsc-section-title' }, '搜索结果'), visible.map(s => row(s))) : h(React.Fragment, null,
@@ -729,10 +761,18 @@ function makeWorkspaceTree(ctx, completionStore, archiveNotice) {
           h(ProjectFold, { open: projectsOpen, className: 'dsc-project-list-fold' }, () => h('div', { className: 'dsc-project-list' },
             (allProjects ? groups.ranked : groups.ranked.slice(0, PROJECT_LIMIT)).map(projectRow),
             groups.ranked.length > PROJECT_LIMIT && moreButton('projects', allProjects, () => setAllProjects(value => !value)))),
-          h('section', null, h('div', { className: 'dsc-section-title' }, '最近'),
-            visible.slice(0, recentLimit).map(s => row(s)),
-            visible.length > SESSION_PAGE_SIZE && moreButton('recent', recentLimit >= visible.length,
-              () => setRecentLimit(limit => limit >= visible.length ? SESSION_PAGE_SIZE : limit + SESSION_PAGE_SIZE)))),
+          h('section', null,
+            h('div', { className: 'dsc-section-title' },
+              h('button', { type: 'button', className: 'dsc-recent-toggle', 'aria-expanded': recentOpen, onClick: () => {
+                hideHover();
+                setMenu(null);
+                setProjectMenu(null);
+                setRecentOpen(value => !value);
+              } }, '最近', h(Icon, { name: 'chevron', size: 12 }))),
+            h(ProjectFold, { open: recentOpen }, () => h('div', { className: 'dsc-recent-list' },
+              visible.slice(0, recentLimit).map(s => row(s, active && recentOpen)),
+              visible.length > SESSION_PAGE_SIZE && moreButton('recent', recentLimit >= visible.length,
+                () => setRecentLimit(limit => limit >= visible.length ? SESSION_PAGE_SIZE : limit + SESSION_PAGE_SIZE)))))),
         !visible.length && catalog.phase === 'ready' && h('div', { className: 'dsc-empty' }, query ? '没有匹配的对话' : '选择项目，开始新对话'),
         catalog.phase !== 'ready' && h('div', { className: 'dsc-empty', role: 'status' }, '正在加载会话…')),
       h('label', { className: 'dsc-archive-toggle' }, h('input', { type: 'checkbox', checked: showArchived, onChange: e => setShowArchived(e.target.checked) }), '显示已归档对话'),
@@ -1174,7 +1214,7 @@ function apply(ctx) {
   // 插件版本更新统一由 DSH 原生插件页/市场负责；本插件只保留 DSH 本体更新入口（见下方 desktopUpdates）。
   ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({ name: 'plugins.detail.section', id: 'codex-style:support' }, PluginSupportSection));
   // 等各区域自己的服务就绪；权限 RPC 的命名空间不能由 remote 根服务存在来推断。
-  ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale', 'pluginNavigation'], scope => {
+  ctx.inject(['sessions', 'uiSession', 'workspaces', 'uiWorkspace', 'layout', 'shortcuts', 'remote', 'locale', 'pluginNavigation', 'modules'], scope => {
     const sidebar = createSidebarPresentation();
     sidebar.pins = createSidebarPinAdapter(scope);
     sidebar.pinMenu = createSidebarPinMenu();

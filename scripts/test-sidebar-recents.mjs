@@ -12,14 +12,15 @@ async function fixture(input) {
     Component: class {}, Fragment: 'fragment',
     createElement: (type, props, ...children) => ({ type, props: props || {}, children: children.flat(Infinity) }),
     useState(initial) { const index = cursor++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], next => { states[index] = typeof next === 'function' ? next(states[index]) : next; }]; },
-    useMemo: fn => fn(), useCallback: fn => fn, useRef: current => ({ current }),
+    useMemo: fn => fn(), useCallback: fn => fn,
+    useRef(current) { const index = cursor++; return states[index] ??= { current }; },
     useEffect() {}, useLayoutEffect() {}, useSyncExternalStore: (_, snapshot) => snapshot(), useId: () => 'fixture'
   };
   const bundle = (await readFile(process.env.DSH_RECENTS_BUNDLE || new URL('../lib/client.js', import.meta.url), 'utf8'))
     .replace('    return module.exports;', 'module.exports.fixture = { makeWorkspaceTree }; return module.exports;');
   new Script(bundle).runInNewContext({ window: { __ModuleLoader__: { load: definition => {
     plugin = definition.factory(name => name === 'react' ? React : name === '@deepseek-ai/dsh-client-store' ? { createSnapshotStore: store } : {});
-  } } }, clearTimeout, setTimeout, console });
+  } } }, __DSH_DIRECTORY_PICKER__: input?.desktop, clearTimeout, setTimeout, console });
   const sessions = input?.sessions ?? [
     { id: 'a', title: 'Alpha', updatedAt: 100, retainedBy: { mainView: 1 } },
     { id: 'b', title: 'Beta', updatedAt: 300 },
@@ -36,7 +37,9 @@ async function fixture(input) {
   const opened = [], status = store(new Map()), completions = store(new Set());
   const ctx = { sessions: { list: catalog }, workspaces: { list: workspaces },
     uiSession: { sessionStatus: status }, layout: { panelInfo: store({ activePanelId: null }) },
-    uiWorkspace: { openSession: id => opened.push(id) } };
+    modules: input?.modules,
+    uiWorkspace: { openSession: id => opened.push(id), ...input?.uiWorkspace } };
+  ctx.workspaces.create = input?.createWorkspace;
   const Tree = plugin.fixture.makeWorkspaceTree(ctx, completions, { show() {} });
   return { catalog, workspaces, opened, status, completions, render: props => { cursor = 0; return Tree(props || {}); } };
 }
@@ -61,12 +64,61 @@ const openProject = (tree, id) => {
   assert.ok(button, `project ${id} exists`);
   if (!button.props['aria-expanded']) button.props.onClick();
 };
-const recent = tree => {
-  const parent = all(tree, n => n.children.some(c => c?.props?.className === 'dsc-section-title' && c.children.includes('最近')))[0];
-  assert.ok(parent, 'recent heading exists');
-  const index = parent.children.findIndex(c => c?.props?.className === 'dsc-section-title' && c.children.includes('最近'));
-  return { props: {}, children: parent.children.slice(index + 1) };
-};
+const recent = tree => all(tree, byClass('dsc-recent-list'))[0];
+const addButton = tree => all(tree, node => node.props.title === '添加工作区')[0];
+
+test('workspace add uses the NEXT bridge once and opens the created workspace', async () => {
+  let selectDirectory;
+  const calls = [];
+  const f = await fixture({
+    desktop: { pick: () => { calls.push('desktop'); return new Promise(resolve => { selectDirectory = resolve; }); } },
+    createWorkspace: async ({ path }) => { calls.push(path); return { workspaceId: 'new' }; },
+    uiWorkspace: { pickDirectory: () => assert.fail('host picker called alongside desktop bridge'),
+      openWorkspace: async id => calls.push(id) }
+  });
+  const props = { onNavigate: () => calls.push('navigated') };
+  const button = addButton(f.render(props));
+  const pending = button.props.onClick();
+  await button.props.onClick();
+  assert.equal(addButton(f.render(props)).props.disabled, true);
+  selectDirectory('C:/example');
+  await pending;
+  assert.deepEqual(calls, ['desktop', 'C:/example', 'new', 'navigated']);
+  assert.equal(addButton(f.render(props)).props.disabled, false);
+});
+
+test('workspace add preserves native cancel and error and can be retried', async () => {
+  let attempts = 0;
+  const f = await fixture({
+    uiWorkspace: { pickDirectory: async () => { if (++attempts === 1) return null; throw new Error('chooser unavailable'); } },
+    createWorkspace: () => assert.fail('no directory selected')
+  });
+  await addButton(f.render()).props.onClick();
+  assert.equal(addButton(f.render()).props.disabled, false);
+  await addButton(f.render()).props.onClick();
+  assert.equal(attempts, 2);
+  assert.equal(addButton(f.render()).props.disabled, false);
+  assert.ok(all(f.render(), node => node.props.text?.includes('chooser unavailable')).length > 0);
+});
+
+test('workspace add in browser browse mode delegates to the host factory during search', async () => {
+  let picker;
+  const f = await fixture({
+    modules: { manifest: { plugins: [{ id: '@deepseek-ai/dsh-client-ui-directory-picker-browse' }] } },
+    createWorkspace: () => assert.fail('host picker creates the workspace'),
+    uiWorkspace: { pickDirectory: () => assert.fail('native picker called for browse mode'),
+      openWorkspace: id => f.opened.push(id) }
+  });
+  const props = { query: 'Alpha', renderFactorySlot: (name, input) => { assert.equal(name, 'workspace.picker'); picker = input; } };
+  addButton(f.render(props)).props.onClick();
+  f.render(props);
+  assert.equal(picker.open, true);
+  picker.onClose();
+  f.render(props);
+  assert.equal(picker.open, false);
+  picker.onPick('new');
+  assert.deepEqual(f.opened, ['new']);
+});
 
 test('recent includes project and pinned sessions once, newest first, with normal exclusions', async () => {
   const f = await fixture();
@@ -180,6 +232,27 @@ test('recent mounts 20 conversations at a time and search can find the remainder
   assert.deepEqual(ids(recent(f.render())), data.global.slice(0, 20));
   const initial = await fixture(data);
   assert.deepEqual(ids(initial.render({ query: 'standalone-60' })), ['standalone-60']);
+});
+
+test('recent group folds independently and restores its loaded page on reopen', async () => {
+  const data = paginationData(), f = await fixture(data);
+  const toggle = tree => all(tree, byClass('dsc-recent-toggle'))[0];
+  let tree = f.render();
+  assert.equal(toggle(tree).props['aria-expanded'], true);
+  moreButton(recent(tree), 'recent').props.onClick();
+  tree = f.render();
+  const projectRows = ids(treeProjects(tree));
+  toggle(tree).props.onClick();
+  tree = f.render();
+  assert.equal(toggle(tree).props['aria-expanded'], false);
+  assert.equal(recent(tree), undefined);
+  assert.deepEqual(ids(treeProjects(tree)), projectRows);
+  assert.deepEqual(ids(f.render({ query: 'standalone-60' })), ['standalone-60']);
+  toggle(f.render()).props.onClick();
+  tree = f.render();
+  assert.equal(toggle(tree).props['aria-expanded'], true);
+  assert.deepEqual(ids(recent(tree)), data.global.slice(0, 40));
+  assert.deepEqual(f.opened, []);
 });
 
 test('a recent project loads its own five conversations even outside global recent and adds batches independently', async () => {

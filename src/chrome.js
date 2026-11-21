@@ -330,7 +330,7 @@ function makeSidebarChrome(ctx, sidebar, archiveNotice) {
   ctx.effect(() => completions.start(), 'codex-style: unread session completions');
   ctx.effect(() => registerMorePage(ctx), 'codex-style: more page');
   const Tree = makeWorkspaceTree(ctx, completions.store, archiveNotice);
-  return function SidebarChrome() {
+  return function SidebarChrome({ renderFactorySlot, useRemoteAccess } = {}) {
     const { panel, pluginRows, taskRows, moreRows, category: selectedCategory, hasMore } = useNavigationDirectory(ctx, sidebar);
     const { collapsed, preview } = useSource(sidebar.store);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -411,7 +411,7 @@ function makeSidebarChrome(ctx, sidebar, archiveNotice) {
         category === 'home' && h('button', { type: 'button', className: 'dsc-new-chat', title: '新聊天', onClick: () => { setSearchOpen(false); setQuery(''); run(() => { ctx.uiWorkspace.startSession(); sidebar.hide(); }); } }, h(PrototypeIcon, { name: 'newChat' }), h('span', null, '新聊天')),
         category === 'home' && searchOpen && h('label', { className: 'dsc-search dsc-sidebar-search' }, h(Icon, { name: 'search' }), h('input', { ref: search, value: query, onChange: e => setQuery(e.target.value), onKeyDown: e => { if (e.key === 'Escape') { e.preventDefault(); closeSearch(); } }, placeholder: '搜索标题或项目', 'aria-label': '搜索标题或项目' }), h('button', { type: 'button', onClick: closeSearch, 'aria-label': '关闭搜索' }, '×')),
         h(ErrorLine, { text: error }),
-        category === 'home' ? h(Tree, { query, tools: false, active: shown, onNavigate: sidebar.hide }) : category === 'more' ? h('div', { className: 'dsc-secondary-nav' },
+        category === 'home' ? h(Tree, { query, tools: false, active: shown, onNavigate: sidebar.hide, renderFactorySlot, useRemoteAccess }) : category === 'more' ? h('div', { className: 'dsc-secondary-nav' },
           h('p', { className: 'dsc-more-hint' }, '点击名称打开页面，点击图钉管理固定。', h('br'), '也可右键导航图标快捷取消固定。'),
           moreRows.length > 0 && [false, true].map(pinned => {
             const rows = moreRows.filter(row => row.pinned === pinned);

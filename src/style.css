@@ -199,9 +199,10 @@ body[data-dsh-codex-chrome] [data-dsc-extension-nav] [data-dsc-extension-glyph] 
 .dsc-sidebar .dsc-sidebar-search button:hover, .dsc-sidebar .dsc-sidebar-search button:focus-visible { color: var(--cx-sidebar-text); }
 .dsc-sidebar .dsc-tree-tools { justify-content: space-between; padding: 12px 0 4px 8px; }
 .dsc-tree-tools-label { font-size: 12px; color: var(--cx-sidebar-muted); }
-.dsc-projects-toggle { display: flex; align-items: center; gap: 4px; height: 28px; padding: 0; }
-.dsc-projects-toggle svg { color: var(--cx-sidebar-muted); transform: rotate(-90deg); transition: transform 180ms ease; }
-.dsc-projects-toggle[aria-expanded=true] svg { transform: rotate(0); }
+:is(.dsc-projects-toggle, .dsc-recent-toggle) { display: flex; align-items: center; gap: 4px; padding: 0; }
+.dsc-projects-toggle { height: 28px; }
+:is(.dsc-projects-toggle, .dsc-recent-toggle) svg { color: var(--cx-sidebar-muted); transform: rotate(-90deg); transition: transform 180ms ease; }
+:is(.dsc-projects-toggle, .dsc-recent-toggle)[aria-expanded=true] svg { transform: rotate(0); }
 .dsc-sidebar .dsc-tree-scroll { padding: 0; scrollbar-color: #ffffff26 transparent; scrollbar-width: thin; }
 .dsc-section-page-title { font-size: 17px; font-weight: 600; }
 .dsc-secondary-nav { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: auto; padding-top: 6px; }
@@ -375,13 +376,13 @@ body[data-dsh-codex-chrome] .dsc-independent-rail [data-dsc-app-footer-clear-ite
 .dsc-ui .dsc-row-action { color: var(--cx-sidebar-muted); }
 .dsc-thread:hover .dsc-row-action, .dsc-project:hover .dsc-row-action, .dsc-thread:has(:focus-visible) .dsc-row-action, .dsc-project:has(:focus-visible) .dsc-row-action { opacity: 1; pointer-events: auto; }
 .dsc-row-action:hover { color: var(--cx-sidebar-text); background: var(--cx-active); }
-/* 本轮按用户录像为项目内容局部开放布局动画；外壳与其他面板的尺寸规则保持原约定。 */
+/* 侧栏项目与最近分组共用局部布局过渡。 */
 .dsc-project-fold { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 180ms cubic-bezier(.2,.8,.2,1), opacity 150ms ease; }
 .dsc-project-fold[data-open=true] { grid-template-rows: 1fr; opacity: 1; }
 .dsc-project-clip { min-height: 0; overflow: hidden; }
 .dsc-project-children { padding-left: 14px; }
-.dsc-project-children, .dsc-project-list { transform: translateY(-4px); transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
-.dsc-project-fold[data-open=true] > .dsc-project-clip > :is(.dsc-project-children, .dsc-project-list) { transform: translateY(0); }
+:is(.dsc-project-children, .dsc-project-list, .dsc-recent-list) { transform: translateY(-4px); transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+.dsc-project-fold[data-open=true] > .dsc-project-clip > :is(.dsc-project-children, .dsc-project-list, .dsc-recent-list) { transform: translateY(0); }
 .dsc-project-children .dsc-state { display: none; }
 /* 项目和最近的“展开显示/收起”按钮，共用行高和悬停样式。 */
 .dsc-ui .dsc-project-more { display: flex; align-items: center; width: 100%; height: 26px; padding: 0 8px; border-radius: 7px; text-align: left; font-size: 12px; color: var(--cx-sidebar-muted); }
